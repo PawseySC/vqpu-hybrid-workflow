@@ -1,0 +1,115 @@
+vqpu:
+  slurm:
+    name: vqpu
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: null                # Number of Python processes per job
+
+    python: python3                # Python executable
+    interface: null             # Network interface to use like eth0 or ib0
+    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey1116-gpu"
+    walltime: '24:00:00'
+    env-extra: null
+    job-script-prologue: 
+      - "source ~/.bashrc"
+      - "module use /software/projects/pawsey1116/vQPU-QB/modules/"
+      - "module load vQPU-QB/1.7.0"
+      - "qbenv.sh"
+    job-cpu: null
+    job-mem: "0"
+    job-extra: null
+    job-extra-directives: 
+      - "--gres=gpu:1"
+    job-directives-skip: []
+    log-directory: null
+
+    # Scheduler options
+    scheduler-options: {}
+
+gpu:
+  slurm:
+    name: gpu
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: null                # Number of Python processes per job
+
+    python: python3                # Python executable
+    interface: null             # Network interface to use like eth0 or ib0
+    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey1116-gpu"
+    walltime: '24:00:00'
+    env-extra: null
+    job-script-prologue: 
+      - "source ~/.bashrc"
+    job-cpu: null
+    job-mem: "0"
+    job-extra: null
+    job-extra-directives: 
+      - "--gres=gpu:1"
+    job-directives-skip: []
+    log-directory: null
+
+    # Scheduler options
+    scheduler-options: {}
+
+cpu:
+  slurm:
+    name: cpu
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: null                # Number of Python processes per job
+
+    python: python3                # Python executable
+    interface: null             # Network interface to use like eth0 or ib0
+    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey1116-gpu"
+    walltime: '24:00:00'
+    env-extra: null
+    job-script-prologue: 
+      - "source ~/.bashrc"
+    job-cpu: null
+    job-mem: null
+    job-extra: null
+    job-extra-directives: 
+    job-directives-skip: []
+    log-directory: null
+
+    # Scheduler options
+    scheduler-options: {}
+
+distributed:
+  worker:
+    memory:
+      target: False    # Avoid spilling to disk
+      spill: False     # Avoid spilling to disk

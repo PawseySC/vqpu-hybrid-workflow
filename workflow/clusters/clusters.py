@@ -1,0 +1,108 @@
+'''
+@file clusters.py
+@brief Some utility functions around the creation of Prefect task runners.
+
+For this work we will be using Dask backed workers to perform the compute
+operations.
+'''
+
+from glob import glob
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import yaml
+from prefect_dask import DaskTaskRunner
+
+
+def list_packaged_clusters(yaml_files_dir : str = "./") -> List[str]:
+    '''
+    @brief Return a list of cluster names that are available in the packaged set of
+    dask_jobqueue specification YAML files.
+
+    Returns:
+        list[str]: A list of preinstalled dask_jobqueue cluster specification files
+    '''
+
+    yaml_files = glob(f"{yaml_files_dir}/*yaml")
+    clusters = [Path(f).stem for f in yaml_files]
+
+    return clusters
+
+
+def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
+    '''
+    @brief Given a cluster name, obtain the appropriate SLURM configuration
+    file appropriate for use with SLURMCluster.
+
+    This cluster spec is expected to be consistent with the cluster_class
+    and cluster_kwargs parameters that are used by dask_jobqueue based
+    specifications.
+
+    Args:
+        cluster (Union[str,Path]): Name of cluster or path to a configuration to look up for processing
+
+    Raises:
+        ValueError: Raised when cluster is not in KNOWN_CLUSTERS and has not corresponding YAML file.
+
+    Returns:
+        dict[Any, Any]: Dictionary of know options/parameters for dask_jobqueue.SLURMCluster
+    '''
+
+    KNOWN_CLUSTERS = ('ella', 'setonix')
+    yaml_file = None
+
+    if Path(cluster).exists():
+        yaml_file = cluster
+    else:
+        yaml_file = f'{cluster}.yaml'
+
+    if yaml_file is None or not Path(yaml_file).exists():
+        raise ValueError(
+            f"{cluster=} is not known, or its YAML file could not be loaded. Known clusters are {KNOWN_CLUSTERS}"
+        )
+
+    with open(yaml_file, "r") as in_file:
+        spec = yaml.load(in_file, Loader=yaml.Loader)
+
+    return spec
+
+
+def get_dask_runner(
+    cluster: Union[str, Path] = "ella",
+    extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
+) -> DaskTaskRunner:
+    '''
+    @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
+    to manage a set of dask-workers. 
+
+    Keyword Args:
+        cluster (Union[str,Path]): The cluster name that will be used to search for a cluster specification file.
+                       This could be the name of a known cluster, or the name of a yaml file installed
+                       among the `cluster_configs` directory of the aces module.
+
+    Returns:
+        DaskTaskRunner: A dask task runner capable of being used as a task_runner for a prefect flow
+    '''
+
+    specs = get_cluster_spec(cluster)
+    cluster = dict()
+    task_runners = dict()
+    for specname in specs.keys():
+        cluster_config = specs[specname]['slurm']
+        if extra_cluster_kwargs is not None:
+            cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
+
+        cluster[specname] = SLURMCluster(
+            queue = cluster_config['queue'], 
+            project=cluster_config['project'], 
+            cores=cluster_config['cores'], 
+            memory=cluster_config['memory'], 
+            walltime=cluster_config['walltime'], 
+            job_extra_directives=cluster_config['job_extra_directives'], 
+            job_script_prologue=cluster_config['job_script_prologue'], 
+            env_extra=cluster_config['env_extra']
+            ) # Initialize the DaskTaskRunner task_runner = DaskTaskRunner( cluster_class=SLURMCluster, cluster_kwargs=task_runner_config['cluster_kwargs'] )
+
+        task_runners[specname] = DaskTaskRunner(cluster_class = cluster[specname])
+
+    return task_runners
