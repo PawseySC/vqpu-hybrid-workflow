@@ -2,36 +2,26 @@
 @brief This example shows how to turn on noise in a simulation, and how to modify the default noise model used.
 '''
 
+from time import sleep
+from typing import List, NamedTuple, Optional, Tuple, Union, Generator
+from clusters.clusters import get_dask_runner
+from common.utils import get_environment_variable, get_job_info, log_slurm_job_environment, run_a_process, save_artifact
+import common.options 
+
+import asyncio
 from prefect import flow, task
 from prefect.logging import get_run_logger
-from time import sleep
+from prefect.artifacts import create_markdown_artifact, get_artifact
 
 #from prefect.filesystems import GCS
 #from prefect.results import PersistedResult
 
-import sys, subprocess, asyncio
 import qristal.core
-
-from clusters.clusters import get_dask_runner
-import common.utils
-import common.options
 
 
 # STORAGE = GCS.load("marvin-result-storage")
 # SERIALIZER = "json"
 # STORAGE_KEY = "foo.json"
-
-
-def run_a_process(shell_cmd : list, logger, add_output_to_log = True):
-    process = subprocess.Popen(shell_cmd, stdout=subprocess.PIPE)
-    if add_output_to_log:
-        for line in process.stdout:
-            logger.info(line.decode())
-    process.stdout.close()
-    return_code = process.wait()
-    if return_code:
-        raise subprocess.CalledProcessError(return_code, shell_cmd)
-    return process
 
 
 @task(retries = 10, 
@@ -48,7 +38,6 @@ def run_cpu(arguments: str):
     cmds = ['profile_util/examples/openmp/bin/openmp_cpp', ]
     process = run_a_process(cmds, logger)
     logger.info("Finished CPU task")
-    return 
 
 @task(retries = 10, 
       retry_delay_seconds = 2,
@@ -64,10 +53,18 @@ def run_gpu(arguments: str):
     logger.info("Launching GPU task")
     cmds = ['profile_util/examples/gpu-openmp/bin/gpu', ]
     process = run_a_process(cmds, logger)
-
     logger.info("Finished GPU task")
-    return 
 
+
+def create_vqpu_remote_yaml(job_info: 
+                            Union[SlurmJobInfo], 
+                            template_path : str = 'clusters/remote_vqpu_template.yaml'):
+    workflow_yaml = 'remote_vqpu.yaml'
+    cmds = [f'sed :s:HOSTNAME:{job_info.hostname}:g {template_path} > {workflow_yaml}']
+    process = run_a_process(cmds)
+    # to store the results of this task, make use of a helper function that creates artifcat 
+    save_artifact(workflow_yaml, key='remote')
+    save_artifact(job_info.job_id, key='vqpu_id')
 
 @task(retries = 5, 
       retry_delay_seconds = 10, 
@@ -79,9 +76,11 @@ def launch_vqpu(arguments: str):
     '''
     logger = get_run_logger()
     logger.info("Spinning up vQPU backend")
-
+    job_info = get_job_info()
+    create_vqpu_remote_yaml(job_info)
+    cmds = ['vqpu.sh']
+    process = run_a_process(cmds, logger)
     logger.info("vQPU running ... ")
-    return 
 
 
 @task(retries = 10, 
@@ -92,11 +91,16 @@ def run_circuit(arguments: str):
     '''
     @brief run a simple circuit on a given remote backend
     '''
+    # note that below since artifcate saves remote file, don't need the below check and parsing 
+    remote = get_artifact(key="remote").content
+    print(remote)
+    # # hacky way of setting up correct remote 
+    # arguments = f'--remote-yaml={remote} {arguments}'
 
-    if '--remote-yaml=' not in arguments:
-        raise ValueError('No remote yaml file provided. Cannot connect to QPU. Exiting')
+    # if '--remote-yaml=' not in arguments:
+    #     raise ValueError('No remote yaml file provided. Cannot connect to QPU. Exiting')
 
-    remote = arguments.split('--remote-yaml=')[1].split(' ')[0]
+    # remote = arguments.split('--remote-yaml=')[1].split(' ')[0]
 
     # Create a quantum computing session using Qristal
     my_sim = qristal.core.session()
@@ -166,37 +170,122 @@ def rollback_circuit(transaction):
     sleep(2)
 
 
+@flow(name = "vQPU flow", 
+      description = "Running the vQPU only portion with the appropriate task runner", 
+      retries = 3, retry_delay_seconds = 10, 
+      log_prints=True, 
+      )
+def vqpu_workflow(arguments : str = ""):
+    '''
+    @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
+    '''
+    launch_vqpu(arguments)
+
+@flow(name = "Circuits flow", 
+      description = "Running circutis on the vQPU with the appropriate task runner for launching circuits", 
+      retries = 3, retry_delay_seconds = 10, 
+      log_prints=True, 
+      )
+def circuits_workflow(arguments : str = ""):
+    '''
+    @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
+    '''
+    results = run_circuit(arguments)
+    print(results)
+    await asyncio.sleep(1)
+
+@flow(name = "cpu flow", 
+      description = "Running cpu flows", 
+      retries = 3, retry_delay_seconds = 10, 
+      log_prints=True, 
+      )
+def cpu_workflow(arguments : str = ""):
+    '''
+    @brief cpu workflow that should be invoked with the appropriate task runner
+    '''
+    run_cpu(arguments)
+    await asyncio.sleep(1)
+
+@flow(name = "gpu flow", 
+      description = "Running gpu flows", 
+      retries = 3, retry_delay_seconds = 10, 
+      log_prints=True, 
+      )
+def gpu_workflow(arguments : str = ""):
+    '''
+    @brief gpu workflow that should be invoked with the appropriate task runner
+    '''
+    run_gpu(arguments)
+    await asyncio.sleep(1)
+
 @flow(name = "Basic vQPU Test", 
       description = "Running a (v)QPU+CPU+GPU hybrid workflow", 
       retries = 3, retry_delay_seconds = 10, 
-      log_prints=True)
-def run_qpu_worflow(arguments: str = ""):
+      log_prints=True, 
+      )
+def workflow(task_runners : list, 
+             arguments: str = "", ):
     '''
-    @brief workflow for (v)QPU
+    @brief overall workflow for hydrid (v)QPU+CPU+GPU
     '''
     logger = get_run_logger()
     logger.info("Running hybrid (v)QPU workflow")
+    
+    subflows = []
+    # launch the vqpu, this preceeds anything else 
+    vqpu_workflow.with_options(
+        task_runner = task_runners['vqpu']
+        )(arguments)
+    # after the vqpu has run, need to know where
+    # the remote has been spun up, 
+    tmp_task = save_data.submit()
+    data = task_run.result()
+    # now with the vqpu running with the appropriate task runners 
+    # can run concurrent subflows
+    subflows.append(
+        circuits_workflow.with_options(
+        task_runner = task_runners['generic'],
+        # want to set some options for the generic task runner here.
+        )(arguments)
+        )
+    subflows.append(
+        gpu_workflow.with_options(
+        task_runner = task_runners['gpu'],
+        # want to set some options for the generic task runner here.
+        )(arguments)
+        )
+    subflows.append(
+        cpu_workflow.with_options(
+        task_runner = task_runners['cpu'],
+        # want to set some options for the generic task runner here.
+        )(arguments)
+        )
+    await asyncio.gather(*subflows)
+    # then when all the subflows have finished, run the clean vqpu workflow
+    # than cancels the job running the vqpu
+    vqpu_clean_workflow.with_options(
+        task_runner = task_runners['generic']
+        )(arguments)
 
-    launch_vqpu(arguments)
-    results = run_circuit(arguments)
+
     logger.info("Finished hybrid (v)QPU workflow", results)
 
 
 def run_flow(arguments: str):
     '''
-    run the workflow with the appropriate task runner
+    @brief run the workflow with the appropriate task runner
     '''
-    dask_task_runner = get_dask_runner(cluster='ella')
+    task_runners = get_dask_runner(cluster='ella')
 
-    run_qpu_worflow.with_options(
-        task_runner=dask_task_runner
-    )(arguments)
+    asyncio.run(workflow.with_options(
+        task_runner = task_runners['generic']
+    )(task_runners, arguments))
 
 
 def cli() -> None:
     import logging
 
-    logger = logging.getLogger("vQPU")
+    logger = logging.getLogger('vQPU')
     logger.setLevel(logging.INFO)
 
     # parser = get_parser()
@@ -205,5 +294,5 @@ def cli() -> None:
 
     run_flow(arguments)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     cli()

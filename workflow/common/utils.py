@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from socket import gethostname
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
+from prefect.artifacts import create_markdown_artifact, get_artifact
+
 
 def get_environment_variable(
     variable: Union[str, None], default: Optional[str] = None
@@ -69,7 +71,7 @@ def get_slurm_info() -> SlurmInfo:
     return SlurmInfo(hostname=hostname, job_id=job_id, task_id=task_id, time=time)
 
 
-def get_slurm_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
+def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
     '''Get the job information for the supplied mode
 
     Args:
@@ -106,4 +108,40 @@ def log_slurm_job_environment(logger) -> SlurmInfo:
     logger.info(f"Slurm task id is {slurm_info.task_id}")
 
     return slurm_info
+
+def run_a_process(shell_cmd : list, logger = None, add_output_to_log : bool = True) -> subprocess.Popen:
+    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+
+    Returns:
+        subprocess.Popen: new proccess spawned by the shell_cmd 
+    '''
+    process = subprocess.Popen(shell_cmd, stdout=subprocess.PIPE)
+    if add_output_to_log and logger != None:
+        for line in process.stdout:
+            logger.info(line.decode())
+    process.stdout.close()
+    return_code = process.wait()
+    if return_code:
+        raise subprocess.CalledProcessError(return_code, shell_cmd)
+    return process
+
+def save_artifact(data, 
+              key : str = 'shared_data', 
+              description: str = 'Data to be shared between subflows'):
+    '''
+    @brief Use this to save data between workflows and tasks. Best used for small artifacts
+
+    Args:
+        data (): data to be saved 
+        key (str): key for accessing the data 
+        description (str) : description of the data 
+
+    Returns : 
+        a markdown artifact to transmit data between workflows
+    '''
+    create_markdown_artifact(
+        key=key,
+        markdown=f"```json\n{data}\n```",
+        description=description
+    )
 
