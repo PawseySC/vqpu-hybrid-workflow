@@ -6,11 +6,13 @@ For this work we will be using Dask backed workers to perform the compute
 operations.
 '''
 
+import os 
 from glob import glob
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
+from dask_jobqueue import SLURMCluster
 from prefect_dask import DaskTaskRunner
 
 
@@ -54,7 +56,7 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
     if Path(cluster).exists():
         yaml_file = cluster
     else:
-        yaml_file = f'{cluster}.yaml'
+        yaml_file = f'{os.path.dirname(os.path.abspath(__file__))}/{cluster}.yaml'
 
     if yaml_file is None or not Path(yaml_file).exists():
         raise ValueError(
@@ -67,10 +69,10 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
     return spec
 
 
-def get_dask_runner(
-    cluster: Union[str, Path] = "ella",
+def get_dask_runners(
+    cluster: str = "ella",
     extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
-) -> DaskTaskRunner:
+) -> Dict[str,DaskTaskRunner]:
     '''
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
     to manage a set of dask-workers. 
@@ -88,19 +90,21 @@ def get_dask_runner(
     cluster = dict()
     task_runners = dict()
     for specname in specs.keys():
+        # still need to figure out how to encorporated distributed options
+        if specname == 'distributed': continue
         cluster_config = specs[specname]['slurm']
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
 
         cluster[specname] = SLURMCluster(
             queue = cluster_config['queue'], 
-            project=cluster_config['project'], 
+            #project=cluster_config['project'], 
             cores=cluster_config['cores'], 
             memory=cluster_config['memory'], 
             walltime=cluster_config['walltime'], 
-            job_extra_directives=cluster_config['job_extra_directives'], 
-            job_script_prologue=cluster_config['job_script_prologue'], 
-            env_extra=cluster_config['env_extra']
+            job_extra_directives=cluster_config['job-extra-directives'], 
+            job_script_prologue=cluster_config['job-script-prologue'], 
+            env_extra=cluster_config['env-extra']
             ) # Initialize the DaskTaskRunner task_runner = DaskTaskRunner( cluster_class=SLURMCluster, cluster_kwargs=task_runner_config['cluster_kwargs'] )
 
         task_runners[specname] = DaskTaskRunner(cluster_class = cluster[specname])

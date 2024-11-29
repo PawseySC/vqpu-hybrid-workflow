@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from socket import gethostname
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
-from prefect.artifacts import create_markdown_artifact, get_artifact
+from prefect.artifacts import create_markdown_artifact
 
 
 def get_environment_variable(
@@ -46,14 +46,14 @@ class SlurmInfo(NamedTuple):
     '''
     hostname: str
     '''The hostname of the slurm job'''
+    resource: str
+    '''The slurm resource request'''
     job_id: Optional[str] = None
     '''The job ID of the slurm job'''
     task_id: Optional[str] = None
     '''The task ID of the slurm job'''
     time: Optional[str] = None
     '''The time time the job information was gathered'''
-    resource: str
-    '''The slurm resource request'''
 
 
 def get_slurm_info() -> SlurmInfo:
@@ -126,8 +126,8 @@ def run_a_process(shell_cmd : list, logger = None, add_output_to_log : bool = Tr
     return process
 
 def save_artifact(data, 
-              key : str = 'shared_data', 
-              description: str = 'Data to be shared between subflows'):
+                  key : str = 'key', 
+                  description: str = 'Data to be shared between subflows'):
     '''
     @brief Use this to save data between workflows and tasks. Best used for small artifacts
 

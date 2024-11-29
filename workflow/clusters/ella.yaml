@@ -60,6 +60,8 @@ vqpu:
       - "source ~/.bashrc"
       - "module use /software/projects/pawsey1116/vQPU-QB/modules/"
       - "module load vQPU-QB/1.7.0"
+      - "export UCX_IB_MLX5_DEVX=no"
+      - "source /software/projects/pawsey0001/py-venv-vgpu/bin/activate"
       - "qbenv.sh"
     job-cpu: null
     job-mem: "0"
@@ -97,6 +99,11 @@ gpu:
     env-extra: null
     job-script-prologue: 
       - "source ~/.bashrc"
+      - "module load cmake/3.24.4 nvhpc/24.5 python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/py-venv-vgpu/bin/activate"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/24.9/cuda/12.6/targets/sbsa-linux/lib/"
+      - "export UCX_IB_MLX5_DEVX=no"
     job-cpu: null
     job-mem: "0"
     job-extra: null
@@ -133,6 +140,10 @@ cpu:
     env-extra: null
     job-script-prologue: 
       - "source ~/.bashrc"
+      - "module load cmake/3.24.4 nvhpc/24.5 python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/py-venv-vgpu/bin/activate"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/24.9/cuda/12.6/targets/sbsa-linux/lib/"
     job-cpu: null
     job-mem: null
     job-extra: null
