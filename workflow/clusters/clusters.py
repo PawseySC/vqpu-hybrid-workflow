@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 from dask_jobqueue import SLURMCluster
+from prefect.task_runners import ThreadPoolTaskRunner
 from prefect_dask import DaskTaskRunner
 
 
@@ -92,21 +93,33 @@ def get_dask_runners(
     for specname in specs.keys():
         # still need to figure out how to encorporated distributed options
         if specname == 'distributed': continue
-        cluster_config = specs[specname]['slurm']
+        cluster_config = specs[specname]
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
 
-        cluster[specname] = SLURMCluster(
-            queue = cluster_config['queue'], 
-            #project=cluster_config['project'], 
-            cores=cluster_config['cores'], 
-            memory=cluster_config['memory'], 
-            walltime=cluster_config['walltime'], 
-            job_extra_directives=cluster_config['job-extra-directives'], 
-            job_script_prologue=cluster_config['job-script-prologue'], 
-            env_extra=cluster_config['env-extra']
-            ) # Initialize the DaskTaskRunner task_runner = DaskTaskRunner( cluster_class=SLURMCluster, cluster_kwargs=task_runner_config['cluster_kwargs'] )
-
-        task_runners[specname] = DaskTaskRunner(cluster_class = cluster[specname])
+        task_runners[specname] = DaskTaskRunner(**cluster_config)
 
     return task_runners
+
+
+def get_test_dask_runners(
+    cluster: str = "test",
+    extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
+) -> DaskTaskRunner:
+    '''
+    @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
+    to manage a set of dask-workers. 
+
+    Keyword Args:
+        cluster (Union[str,Path]): The cluster name that will be used to search for a cluster specification file.
+                       This could be the name of a known cluster, or the name of a yaml file installed
+                       among the `cluster_configs` directory of the aces module.
+
+    Returns:
+        DaskTaskRunner: A dask task runner capable of being used as a task_runner for a prefect flow
+    '''
+
+    specs = get_cluster_spec(cluster)
+    task_runner = DaskTaskRunner(**specs)
+
+    return task_runner

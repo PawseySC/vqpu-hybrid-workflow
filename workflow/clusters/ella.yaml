@@ -1,158 +1,164 @@
 generic:
-  slurm:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
     name: generic
 
     # Dask worker options
     cores: 70                 # Total number of cores per job
     memory: "480GB"                # Total amount of memory per job
-    processes: null                # Number of Python processes per job
+    processes: 1                # Number of Python processes per job
 
     python: python3                # Python executable
-    interface: null             # Network interface to use like eth0 or ib0
-    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
-    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
-    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
-    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
-    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+    interface: "lo"             # Network interface to use like eth0 or ib0
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker_extra_args: []       # Additional arguments to pass to `dask-worker`
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
     queue: "gpu"
     account: "pawsey1116-gpu"
     walltime: '24:00:00'
-    env-extra: null
-    job-script-prologue: 
+    # env-extra: null
+    job_script_prologue: 
       - "source ~/.bashrc"
-    job-cpu: null
-    job-mem: null
-    job-extra: null
-    job-extra-directives: 
-    job-directives-skip: []
-    log-directory: null
+    job_cpu: null
+    job_mem: null
+    job_extra: null
+    job_extra_directives: 
+    job_directives_skip: []
+    log_directory: null
 
     # Scheduler options
-    scheduler-options: {}
+    scheduler_options: {}
 
 vqpu:
-  slurm:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
     name: vqpu
 
     # Dask worker options
     cores: 70                 # Total number of cores per job
     memory: "480GB"                # Total amount of memory per job
-    processes: null                # Number of Python processes per job
+    processes: 1                # Number of Python processes per job
 
     python: python3                # Python executable
-    interface: null             # Network interface to use like eth0 or ib0
-    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
-    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
-    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
-    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
-    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+    interface: "lo"            # Network interface to use like eth0 or ib0
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker_extra_args: []       # Additional arguments to pass to `dask-worker`
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
     queue: "gpu"
     account: "pawsey1116-gpu"
     walltime: '24:00:00'
-    env-extra: null
-    job-script-prologue: 
+    env_extra: null
+    job_script_prologue: 
       - "source ~/.bashrc"
       - "module use /software/projects/pawsey1116/vQPU-QB/modules/"
       - "module load vQPU-QB/1.7.0"
       - "export UCX_IB_MLX5_DEVX=no"
       - "source /software/projects/pawsey0001/py-venv-vgpu/bin/activate"
       - "qbenv.sh"
-    job-cpu: null
-    job-mem: "0"
-    job-extra: null
-    job-extra-directives: 
+    job_cpu: 32
+    job_mem: "0"
+    job_extra: null
+    job_extra_directives: 
       - "--gres=gpu:1"
-    job-directives-skip: []
-    log-directory: null
+    job_directives_skip: []
+    log_directory: null
 
     # Scheduler options
-    scheduler-options: {}
+    scheduler_options: {}
 
 gpu:
-  slurm:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
     name: gpu
 
     # Dask worker options
     cores: 70                 # Total number of cores per job
     memory: "480GB"                # Total amount of memory per job
-    processes: null                # Number of Python processes per job
+    processes: 1                # Number of Python processes per job
 
     python: python3                # Python executable
     interface: null             # Network interface to use like eth0 or ib0
-    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
-    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
-    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
-    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
-    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "lo"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
     queue: "gpu"
     account: "pawsey1116-gpu"
     walltime: '24:00:00'
-    env-extra: null
-    job-script-prologue: 
+    env_extra: null
+    job_script_prologue: 
       - "source ~/.bashrc"
       - "module load cmake/3.24.4 nvhpc/24.5 python/3.11.10"
       - "module load hpcx-mt-ompi"
       - "source /software/projects/pawsey0001/py-venv-vgpu/bin/activate"
       - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/24.9/cuda/12.6/targets/sbsa-linux/lib/"
       - "export UCX_IB_MLX5_DEVX=no"
-    job-cpu: null
-    job-mem: "0"
-    job-extra: null
-    job-extra-directives: 
+    job_cpu: 32
+    job_mem: "0"
+    job_extra: null
+    job_extra_directives: 
       - "--gres=gpu:1"
-    job-directives-skip: []
-    log-directory: null
+    job_directives_skip: []
+    log_directory: null
 
     # Scheduler options
-    scheduler-options: {}
+    scheduler_options: {}
 
 cpu:
-  slurm:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
     name: cpu
 
     # Dask worker options
     cores: 70                 # Total number of cores per job
     memory: "480GB"                # Total amount of memory per job
-    processes: null                # Number of Python processes per job
+    processes: 1                # Number of Python processes per job
 
     python: python3                # Python executable
     interface: null             # Network interface to use like eth0 or ib0
-    death-timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
-    local-directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
-    shared-temp-directory: null       # Shared directory currently used to dump temporary security objects for workers
-    worker-command: "distributed.cli.dask_worker" # Command to launch a worker
-    worker-extra-args: []       # Additional arguments to pass to `dask-worker`
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "lo"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
     queue: "gpu"
     account: "pawsey1116-gpu"
     walltime: '24:00:00'
-    env-extra: null
-    job-script-prologue: 
+    env_extra: null
+    job_script_prologue: 
       - "source ~/.bashrc"
       - "module load cmake/3.24.4 nvhpc/24.5 python/3.11.10"
       - "module load hpcx-mt-ompi"
       - "source /software/projects/pawsey0001/py-venv-vgpu/bin/activate"
       - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/24.9/cuda/12.6/targets/sbsa-linux/lib/"
-    job-cpu: null
-    job-mem: null
-    job-extra: null
-    job-extra-directives: 
-    job-directives-skip: []
-    log-directory: null
+    job_cpu: 8
+    job_mem: null
+    job_extra: null
+    job_extra_directives: 
+    job_directives_skip: []
+    log_directory: null
 
     # Scheduler options
-    scheduler-options: {}
+    scheduler_options: {}
 
 distributed:
   worker:

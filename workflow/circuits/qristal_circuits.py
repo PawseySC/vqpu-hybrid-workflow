@@ -70,6 +70,5 @@ def noisy_circuit(remote : str, arguments : str):
     # Hit it.
     my_sim.run()
 
-    # Lookee
     return my_sim.results
 
