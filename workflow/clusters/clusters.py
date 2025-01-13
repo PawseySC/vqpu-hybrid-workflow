@@ -12,8 +12,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import yaml
-from dask_jobqueue import SLURMCluster
-from prefect.task_runners import ThreadPoolTaskRunner
 from prefect_dask import DaskTaskRunner
 
 
@@ -96,7 +94,6 @@ def get_dask_runners(
         cluster_config = specs[specname]
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
-
         task_runners[specname] = DaskTaskRunner(**cluster_config)
 
     return task_runners

@@ -7,7 +7,7 @@
 
 import datetime
 import os
-import shutil
+import secrets
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -46,7 +46,7 @@ class SlurmInfo(NamedTuple):
     '''
     hostname: str
     '''The hostname of the slurm job'''
-    resource: str
+    resource: str = None
     '''The slurm resource request'''
     job_id: Optional[str] = None
     '''The job ID of the slurm job'''
@@ -109,20 +109,42 @@ def log_slurm_job_environment(logger) -> SlurmInfo:
 
     return slurm_info
 
-def run_a_process(shell_cmd : list, logger = None, add_output_to_log : bool = True) -> subprocess.Popen:
-    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+def run_a_srun_process(
+        shell_cmd : list, 
+        srunargs : list = [], 
+        logger = None, 
+        add_output_to_log : bool = True) -> subprocess.Popen:
+    '''runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess.Popen: new proccess spawned by the shell_cmd 
     '''
-    process = subprocess.Popen(shell_cmd, stdout=subprocess.PIPE)
-    if add_output_to_log and logger != None:
-        for line in process.stdout:
-            logger.info(line.decode())
-    process.stdout.close()
-    return_code = process.wait()
-    if return_code:
-        raise subprocess.CalledProcessError(return_code, shell_cmd)
+    wrappername = secrets.token_hex(12)
+    wrappercmd = ['#!/bin/bash', 
+                  'export OMP_PLACES=cores', 
+                  'export OMP_MAX_ACTIVE_LEVELS=4']
+    with open(wrappername, 'w') as f:
+        for cmd in wrappercmd:
+            f.write(cmd+'\n')
+        f.write(' '.join(shell_cmd)+'\n')
+    os.chmod(wrappername, 0o777)
+    newcmd = []
+    newcmd += ['srun']+srunargs
+    newcmd += ['./'+wrappername]
+    process = run_a_process(newcmd, logger, add_output_to_log)
+    os.remove(wrappername)
+    return process 
+
+def run_a_process(
+        shell_cmd : list, 
+        logger = None, 
+        add_output_to_log : bool = True):
+    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+
+    Returns:
+        subprocess: new proccess spawned by the shell_cmd 
+    '''
+    process = subprocess.run(shell_cmd, capture_output=True, text=True)
     return process
 
 def save_artifact(data, 
