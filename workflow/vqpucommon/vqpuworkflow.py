@@ -7,7 +7,7 @@
 import time
 import os
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Callable
-from common.utils import save_artifact, run_a_srun_process, run_a_process, SlurmInfo
+from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, get_job_info, SlurmInfo, EventFile
 #from circuits.qristal_circuits import noisy_circuit
 from circuits.test_circuits import test_circuit
 import asyncio
@@ -18,25 +18,33 @@ from prefect.artifacts import Artifact
 from prefect.input import RunInput
 from prefect.events import emit_event, DeploymentEventTrigger
 
-def create_vqpu_remote_yaml(job_info : Union[SlurmInfo], 
+async def create_vqpu_remote_yaml(job_info : Union[SlurmInfo], 
                             vqpu_id : str = '1', 
-                            template_path : str = 'clusters/remote_vqpu_template.yaml'
+                            template_fname : str = 'remote_vqpu_template.yaml'
                             ):
     '''
     function that saves the remote backend for the vqpu to an artifcat 
     '''
-    workflow_yaml = f'remote_vqpu-{vqpu_id}.yaml'
-    cmds = [f'sed :s:HOSTNAME:{job_info.hostname}:g {template_path} > {workflow_yaml}']
-    process = run_a_process(cmds)
+    workflow_yaml = f'vqpus/remote_vqpu-{vqpu_id}.yaml'
+    template_path = os.path.dirname(os.path.abspath(__file__))
+    fname = template_path + '/' + template_fname
+    lines = open(fname, 'r').readlines()
+    fout = open(workflow_yaml, 'w')
+    for line in lines:
+        if 'HOSTNAME' in line:
+            line.replace('HOSTNAME', job_info.hostname)
+        fout.write(line)
+    # cmds = [f'sed \'s:HOSTNAME:{job_info.hostname}:g\' {fname} > {workflow_yaml}']
+    # process = run_a_process(cmds)
     # to store the results of this task, make use of a helper function that creates artifcat 
-    save_artifact(workflow_yaml, key=f'remote{vqpu_id}')
-    save_artifact(job_info.job_id, key=f'vqpujobid{vqpu_id}')
+    await save_artifact(workflow_yaml, key=f'remote{vqpu_id}')
+    await save_artifact(job_info.job_id, key=f'vqpujobid{vqpu_id}')
 
 @task(retries = 5, 
       retry_delay_seconds = 10, 
       timeout_seconds=600
       )
-def launch_vqpu(event: asyncio.Event, 
+async def launch_vqpu(event: EventFile, 
                       arguments: str, 
                       vqpu_id : str = '1',
                       ):
@@ -45,21 +53,42 @@ def launch_vqpu(event: asyncio.Event,
     once vqpu is launched set event so subsequent circuit tasks can run 
     '''
     logger = get_run_logger()
-    logger.info('Spinning up vQPU-{vqpu_id} backend')
+    logger.info(f'Spinning up vQPU-{vqpu_id} backend')
     job_info = get_job_info()
-    create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
-    cmds = ['vqpu.sh']
-    process = run_a_srun_process(cmds, ['--ntasks=1', '--gres=gpu:1', '--cpus-per-task=32'], logger)
+    await create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
+    cmds = ['vqpu.sh &']
+    process = run_a_process(cmds)
+    await asyncio.sleep(5)
     event.set()
-    #emit_event("launched_vqpu", resource={"name": "vqpu_launched"})
     logger.info(f'vQPU-{vqpu_id} running ... ')
 
+@task(retries = 5, 
+      retry_delay_seconds = 10, 
+      timeout_seconds=600
+      )
+async def launch_vqpu_test(event: EventFile, 
+                      arguments: str, 
+                      vqpu_id : str = '1',
+                      ):
+    '''
+    @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
+    once vqpu is launched set event so subsequent circuit tasks can run 
+    '''
+    logger = get_run_logger()
+    logger.info(f'Spinning up Test vQPU-{vqpu_id} backend')
+    job_info = get_job_info()
+    create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
+    cmds = ['echo', 'justtesting']
+    process = run_a_process(cmds)
+    await asyncio.sleep(5)
+    event.set()
+    logger.info(f'Test vQPU-{vqpu_id} running ... ')
 
 @task(retries = 5, 
       retry_delay_seconds = 2, 
       timeout_seconds=600
       )
-def shutdown_vqpu(arguments: str, 
+async def shutdown_vqpu(arguments: str, 
                   vqpu_id : str = '1',
                   ):
     '''
@@ -86,7 +115,7 @@ def shutdown_vqpu(arguments: str,
       retry_delay_seconds = 2,
       retry_jitter_factor=0.5
       )
-def run_circuit(arguments : str,
+async def run_circuit(arguments : str,
                       circuitfunc : Callable, 
                       vqpu_id : str = '1',
                       verbose : bool = 'True'
@@ -112,37 +141,52 @@ def run_circuit(arguments : str,
       retries = 3, retry_delay_seconds = 10, 
       log_prints=True, 
       )
-async def launch_vqpu_workflow(event : asyncio.Event, arguments : str = ""):
+async def launch_vqpu_workflow(event : EventFile, arguments : str = ""):
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner
     '''
-    launch_vqpu.submit(event, arguments)
+    future = await launch_vqpu.submit(event, arguments)
+    await future.result()
+
+@flow(name = "launch_vqpu_flow", 
+      description = "Launching the vQPU only portion with the appropriate task runner", 
+      retries = 3, retry_delay_seconds = 10, 
+      log_prints=True, 
+      )
+async def launch_vqpu_test_workflow(event : EventFile, arguments : str = ""):
+    '''
+    @brief vqpu workflow that should be invoked with the appropriate task runner
+    '''
+    future = await launch_vqpu_test.submit(event, arguments)
+    await future.result()
 
 @flow(name = "shutdown_vqpu_flow", 
       description = "Shutdown the vQPU", 
       retries = 3, retry_delay_seconds = 10, 
       log_prints=True, 
       )
-async def showndown_vqpu_workflow(event : asyncio.Event, arguments : str = ""):
+async def shutdown_vqpu_workflow(event : EventFile, arguments : str = ""):
     '''
-    @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
+    @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to shutdown the vqpu
     '''
+    # wait till the shutdown event has been set so that all circuits have been run
     await event.wait()
-    future = shutdown_vqpu.submit(arguments)
-    future.result()
+    event.clean()
+    future = await shutdown_vqpu.submit(arguments)
+    await future.result()
 
 @flow(name = "Circuits flow", 
       description = "Running circutis on the vQPU with the appropriate task runner for launching circuits", 
       retries = 3, retry_delay_seconds = 10, 
       log_prints = True, 
       )
-async def circuits_workflow(vqpu_event : asyncio.Event, circuit_event: asyncio.Event, arguments : str = ""):
+async def circuits_workflow(vqpu_event : EventFile, circuit_event: EventFile, arguments : str = ""):
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
     '''
     await vqpu_event.wait()
-    future = run_circuit.submit(arguments, test_circuit)
-    results = future.result()
+    future = await run_circuit.submit(arguments, test_circuit)
+    results = await future.result()
     circuit_event.set()
     return results
 
@@ -151,7 +195,7 @@ async def circuits_workflow(vqpu_event : asyncio.Event, circuit_event: asyncio.E
       timeout_seconds=3600,
       result_serializer="compressed/json"
       )
-def run_cpu(arguments: str):
+async def run_cpu(arguments: str):
     '''
     @brief simple cpu kernel with persistent results 
     '''
@@ -160,8 +204,8 @@ def run_cpu(arguments: str):
     
     cmds = arguments.split('--cpu-exec=')[1].split(' ')[0].split(',')
     cmds += arguments.split('--cpu-args=')[1].split(' ')[0].split(',')
-    process = run_a_process(cmds, logger)
-    # process = run_a_srun_process(cmds, ['--ntasks=1', '--cpus-per-task=8'], logger)
+    logger.info(cmds)
+    process = run_a_process(cmds)
     logger.info("Finished CPU task")
 
 @task(retries = 10, 
@@ -169,7 +213,7 @@ def run_cpu(arguments: str):
       timeout_seconds=3600,
       result_serializer="compressed/json"
       )
-def run_gpu(arguments: str):
+async def run_gpu(arguments: str):
     '''
     @brief simple gpu kernel with persistent results
     '''
@@ -178,8 +222,8 @@ def run_gpu(arguments: str):
     logger.info("Launching GPU task")
     cmds = arguments.split('--gpu-exec=')[1].split(' ')[0].split(',')
     cmds += arguments.split('--gpu-args=')[1].split(' ')[0].split(',')
-    process = run_a_process(cmds, logger)
-    #process = run_a_srun_process(cmds, ['--ntasks=1', '--gres=gpu:1', '--cpus-per-task=32'], logger)
+    logger.info(cmds)
+    process = run_a_process(cmds)
     logger.info("Finished GPU task")
 
 @flow(name = "cpu flow", 
@@ -194,8 +238,8 @@ async def cpu_workflow(arguments : str = ""):
     logger = get_run_logger()
     logger.info("Launching CPU flow")
     # submit the task and wait for results 
-    future = run_cpu.submit(arguments)
-    future.result()
+    future = await run_cpu.submit(arguments)
+    await future.result()
     logger.info("Finished CPU flow")
 
 @flow(name = "gpu flow", 
@@ -210,8 +254,8 @@ async def gpu_workflow(arguments : str = ""):
     logger = get_run_logger()
     logger.info("Launching GPU flow")
     # submit the task and wait for results 
-    future = run_gpu.submit(arguments)
-    future.result()
+    future = await run_gpu.submit(arguments)
+    await future.result()
     logger.info('Finished GPU flow')
     
     # run_gpu(arguments)

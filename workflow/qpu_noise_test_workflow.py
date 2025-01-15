@@ -4,9 +4,10 @@
 
 from time import sleep
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
-from clusters.clusters import get_dask_runners, get_test_dask_runners
-from common.options import vQPUWorkflow
-from common.vqpuworkflow import launch_vqpu_workflow, showndown_vqpu_workflow, circuits_workflow, cpu_workflow, gpu_workflow
+from vqpucommon.clusters import get_dask_runners
+from vqpucommon.options import vQPUWorkflow
+from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, shutdown_vqpu_workflow, circuits_workflow, cpu_workflow, gpu_workflow
+from vqpucommon.utils import EventFile
 
 import asyncio
 from prefect import flow, task, get_client
@@ -32,44 +33,51 @@ async def workflow(task_runners : dict,
     
     subflows = []
     # create events: one for the vqpu is running, the other for all circuits finished
-    events = {'vqpu_launch':asyncio.Event(), 'circuits_finished':asyncio.Event()}
-    # launch the vqpu, this preceeds anything else 
-    # but run in asynchronous fashion so don't wait for flow to finish 
-    # subflows.append(
-    #     asyncio.create_task(launch_vqpu_workflow.with_options(
-    #     task_runner = task_runners['vqpu']
-    #     )
-    #     (events['vqpu_launch'], arguments)
-    #     ))
-    
-    # now with the vqpu running with the appropriate task runners 
-    # can run concurrent subflows
-    # subflows.append(
-    #     asyncio.create_task(circuits_workflow.with_options(
-    #     task_runner = task_runners['generic'],
-    #     # want to set some options for the generic task runner here.
-    #     )(events['vqpu_launch'], events['circuits_finished'], arguments)
-    #     ))
-    subflows.append(
-        asyncio.create_task(gpu_workflow.with_options(
-        task_runner = task_runners['gpu'],
-        # want to set some options for the generic task runner here.
-        )(arguments)
-        ))
-    subflows.append(
-        asyncio.create_task(cpu_workflow.with_options(
-        task_runner = task_runners['cpu'],
-        # want to set some options for the generic task runner here.
-        )(arguments)
-        ))
-    # # then when all the circuit subflows have finished, run the clean vqpu workflow
-    # # than cancels the job running the vqpu
-    # shutdown_vqpu_workflow.with_options(
-    #     task_runner = task_runners['generic']
-    #     )(events['circuits_finished'], arguments)
-    await asyncio.gather(*subflows)
-    
+    events = {
+        'vqpu_launch':EventFile(name = 'vqpu_launch', loc = './events/'), 
+        'circuits_finished':EventFile(name = 'circuits_finished', loc = './events/'), 
+        }
 
+    # lets define the flows with the appropriate task runners 
+    # this would be for the real vqpu 
+    vqpuflow = launch_vqpu_workflow.with_options(
+        task_runner = task_runners['vqpu'],
+        )
+
+    # this is for testing 
+    vqputestflow = launch_vqpu_test_workflow.with_options(
+        task_runner = task_runners['vqpu'],
+        )
+    
+    # lets define the flows with the appropriate task runners 
+    circuitflow = circuits_workflow.with_options(
+        task_runner = task_runners['generic'],
+        # want to set some options for the generic task runner here.
+        )
+    gpuflow = gpu_workflow.with_options(
+        task_runner = task_runners['gpu'],
+        # want to set some options for the gpu task runner here.
+        )
+    cpuflow = cpu_workflow.with_options(
+        task_runner = task_runners['cpu'],
+        # want to set some options for the cpu task runner here.
+        )
+    # then when all the circuit subflows have finished, run the clean vqpu workflow
+    # than cancels the job running the vqpu
+    vqpushutdownflow = shutdown_vqpu_workflow.with_options(
+        task_runner = task_runners['generic']
+        )
+
+    async with asyncio.TaskGroup() as tg:
+        # either spin up real vqpu
+        #tg.create_task(vqpuflow(events['vqpu_launch'], arguments))
+        # or test one
+        tg.create_task(vqputestflow(events['vqpu_launch'], arguments))
+        tg.create_task(circuitflow(events['vqpu_launch'], events['circuits_finished'], arguments))
+        tg.create_task(cpuflow(arguments))
+        tg.create_task(gpuflow(arguments))
+        tg.create_task(vqpushutdownflow(events['circuits_finished'], arguments))
+ 
     logger.info("Finished hybrid (v)QPU workflow")
 
 

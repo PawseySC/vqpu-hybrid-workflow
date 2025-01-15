@@ -14,7 +14,8 @@ from pathlib import Path
 from socket import gethostname
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
 from prefect.artifacts import create_markdown_artifact
-
+from prefect.logging import get_run_logger
+import asyncio
 
 def get_environment_variable(
     variable: Union[str, None], default: Optional[str] = None
@@ -112,8 +113,9 @@ def log_slurm_job_environment(logger) -> SlurmInfo:
 def run_a_srun_process(
         shell_cmd : list, 
         srunargs : list = [], 
+        add_output_to_log : bool = False,
         logger = None, 
-        add_output_to_log : bool = True) -> subprocess.Popen:
+        ) -> subprocess.Popen:
     '''runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
@@ -137,17 +139,20 @@ def run_a_srun_process(
 
 def run_a_process(
         shell_cmd : list, 
+        add_output_to_log : bool = False, 
         logger = None, 
-        add_output_to_log : bool = True):
+        ):
     '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd 
     '''
-    process = subprocess.run(shell_cmd, capture_output=True, text=True)
+    process = subprocess.run(shell_cmd, capture_output=add_output_to_log, text=add_output_to_log)
+    if add_output_to_log and logger != None:
+        logger.info(process.stdout)
     return process
 
-def save_artifact(data, 
+async def save_artifact(data, 
                   key : str = 'key', 
                   description: str = 'Data to be shared between subflows'):
     '''
@@ -161,9 +166,53 @@ def save_artifact(data,
     Returns : 
         a markdown artifact to transmit data between workflows
     '''
-    create_markdown_artifact(
+    await create_markdown_artifact(
         key=key,
         markdown=f"```json\n{data}\n```",
         description=description
     )
+
+class EventFile:
+    '''
+    @brief simple class to create a file for a given event.  
+    '''
+    event_loc: str
+    '''directory where to store file event locks'''
+    sampling: float
+    '''how often to check for event file'''
+    identifer : str
+    '''unique identifer'''
+    event_time : str 
+    '''Time of event creation'''
+    
+    def __init__(self, name : str, loc : str, sampling : float = 0.01): 
+        self.event_loc = loc
+        self.event_name = name 
+        self.identifer = secrets.token_hex(12)
+        self.fname = self.event_loc+'/'+ self.event_name + '.' + self.identifer + '.txt'
+        self.sampling = sampling
+        self.event_time = ''
+
+    def set(self) -> None:
+        if self.event_time == '':
+            current_time = datetime.datetime.now() 
+            self.event_time = current_time.strftime('%Y-%m-%D::%H:%M:%S')
+            with open(self.fname, "w") as f:
+                f.write(self.event_time)
+        else:
+            # need to throw exception 
+            pass
+        
+    async def wait(self) -> None:
+        while not os.path.isfile(self.fname):
+            await asyncio.sleep(self.sampling)
+        with open(self.fname, "r") as f:
+            time = f.readline().strip('\n')
+        correct = (time == self.event_time)
+        # need to throw exception if not true 
+
+    def clean(self) -> None:
+        os.remove(self.fname)
+        self.event_time = ''
+
 

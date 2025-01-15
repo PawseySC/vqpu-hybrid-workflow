@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 from prefect_dask import DaskTaskRunner
+from dask_jobqueue import SLURMCluster
 
 
 def list_packaged_clusters(yaml_files_dir : str = "./") -> List[str]:
@@ -55,7 +56,7 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
     if Path(cluster).exists():
         yaml_file = cluster
     else:
-        yaml_file = f'{os.path.dirname(os.path.abspath(__file__))}/{cluster}.yaml'
+        yaml_file = f'{os.path.dirname(os.path.abspath(__file__))}/../clusters/{cluster}.yaml'
 
     if yaml_file is None or not Path(yaml_file).exists():
         raise ValueError(
@@ -87,14 +88,16 @@ def get_dask_runners(
 
     specs = get_cluster_spec(cluster)
     cluster = dict()
-    task_runners = dict()
+    task_runners = {'jobscript': dict()}
     for specname in specs.keys():
         # still need to figure out how to encorporated distributed options
         if specname == 'distributed': continue
         cluster_config = specs[specname]
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
+        
         task_runners[specname] = DaskTaskRunner(**cluster_config)
+        task_runners['jobscript'][specname] = SLURMCluster(**cluster_config['cluster_kwargs']).job_script()
 
     return task_runners
 
