@@ -16,7 +16,8 @@ from prefect.states import Cancelled
 from prefect.logging import get_run_logger
 from prefect.artifacts import Artifact
 from prefect.input import RunInput
-from prefect.events import emit_event, DeploymentEventTrigger
+#from prefect.events import emit_event, DeploymentEventTrigger
+from prefect.client.schemas.filters import FlowRunFilter, FlowFilter
 
 async def create_vqpu_remote_yaml(job_info : Union[SlurmInfo], 
                             vqpu_id : str = '1', 
@@ -34,8 +35,6 @@ async def create_vqpu_remote_yaml(job_info : Union[SlurmInfo],
         if 'HOSTNAME' in line:
             line.replace('HOSTNAME', job_info.hostname)
         fout.write(line)
-    # cmds = [f'sed \'s:HOSTNAME:{job_info.hostname}:g\' {fname} > {workflow_yaml}']
-    # process = run_a_process(cmds)
     # to store the results of this task, make use of a helper function that creates artifcat 
     await save_artifact(workflow_yaml, key=f'remote{vqpu_id}')
     await save_artifact(job_info.job_id, key=f'vqpujobid{vqpu_id}')
@@ -56,11 +55,27 @@ async def launch_vqpu(event: EventFile,
     logger.info(f'Spinning up vQPU-{vqpu_id} backend')
     job_info = get_job_info()
     await create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
-    cmds = ['vqpu.sh &']
+    curpath = os.path.dirname(os.path.abspath(__file__))
+    cmds = [f'{curpath}/vqpu.sh', '&']
     process = run_a_process(cmds)
     await asyncio.sleep(5)
     event.set()
     logger.info(f'vQPU-{vqpu_id} running ... ')
+
+@task(retries = 5, 
+      retry_delay_seconds = 10, 
+      timeout_seconds=600
+      )
+async def run_vqpu(vqpu_id : str = '1',
+                   walltime : float = 86400, # one day
+                      ):
+    '''
+    @brief runs a task that sleeps to keep flow active  
+    '''
+    logger = get_run_logger()
+    logger.info(f'vQPU-{vqpu_id} running ..')
+    await asyncio.sleep(walltime*0.99)
+    logger.info(f'vQPU-{vqpu_id} wrapping up due to slurm walltime limit ... ')
 
 @task(retries = 5, 
       retry_delay_seconds = 10, 
@@ -90,25 +105,38 @@ async def launch_vqpu_test(event: EventFile,
       )
 async def shutdown_vqpu(arguments: str, 
                   vqpu_id : str = '1',
+                  vqpu_flow_name : str = 'launch_vqpu_flow'
                   ):
     '''
     @brief base task that shuts down the virtual qpu. Should have minimal retries and a wait between retries 
     '''
     logger = get_run_logger()
     logger.info(f'Shutdown vQPU-{vqpu_id} backend')
-    jobid = Artifact.get(key=f'vqpujobid{vqpu_id}').data
+    artifact = await Artifact.get(key=f'vqpujobid{vqpu_id}')
+    jobid = dict(artifact)['data'].split('\n')[1]
     # want to cancel the vQPU flow
     # cancel all flows that match a specific name 
-    with get_client() as client:
-        
-        flows = client.get_current_flow_runs(
-            flow_run_filter={"name": "launch_vqpu_flow"}
+    # eventually will need to check that the jobid is 
+    # the correct one. 
+    async with get_client() as client:
+        flow_run_filter = FlowRunFilter(
+            state={"name": {"any_": ["Running"]}},
+            flow={"name": {"any_": [vqpu_flow_name]}},
+            # flow=FlowFilter(name={"any_": [vqpu_flow_name]}),
         )
+
+        # Retrieve running flow runs
+        #flows = await client.get_current_flow_runs(flow_run_filter=flow_run_filter})
+        flows = await client.read_flow_runs(flow_run_filter = flow_run_filter)
         # Find the flows to cancel it
         for flow in flows:
-            flow.set_flow_run_state(
-                state=Cancelled(message="Shutdown vQPU running from run ")
-            )
+            logger.info(f"Cancelling vQPU associated with flow {flow.name} with id {flow.id}")
+            # await client.set_flow_run_state(
+            #     flow_run_id = flow.id, state = "Cancelled", force = True
+            # )
+            # flow.set_flow_run_state(
+            #     state = Cancelled(message="Shutdown vQPU running from run ")
+            # )
     logger.info("vQPU(s) shutdown")
 
 @task(retries = 10, 
@@ -124,7 +152,8 @@ async def run_circuit(arguments : str,
     @brief run a simple circuit on a given remote backend
     '''
     # note that below since artifcate saves remote file name, don't need the below check and parsing
-    remote = Artifact.get(key=f'remote{vqpu_id}').data
+    artifact = await Artifact.get(key=f'remote{vqpu_id}')
+    remote = dict(artifact)['data'].split('\n')[1]
     if verbose:
         print(remote)
     results = circuitfunc(remote, arguments)
@@ -147,6 +176,8 @@ async def launch_vqpu_workflow(event : EventFile, arguments : str = ""):
     '''
     future = await launch_vqpu.submit(event, arguments)
     await future.result()
+    future = await run_vqpu.submit(walltime = 10)
+    await future.result()
 
 @flow(name = "launch_vqpu_flow", 
       description = "Launching the vQPU only portion with the appropriate task runner", 
@@ -158,6 +189,8 @@ async def launch_vqpu_test_workflow(event : EventFile, arguments : str = ""):
     @brief vqpu workflow that should be invoked with the appropriate task runner
     '''
     future = await launch_vqpu_test.submit(event, arguments)
+    await future.result()
+    future = await run_vqpu.submit(walltime = '10')
     await future.result()
 
 @flow(name = "shutdown_vqpu_flow", 
