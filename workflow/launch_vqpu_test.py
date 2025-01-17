@@ -51,12 +51,14 @@ async def workflow(task_runners : dict,
         task_runner = task_runners['generic']
         )
 
-    await vqpuflow(events['vqpu_launch'], arguments)
+    await vqpuflow(event = events['vqpu_launch'],
+                   arguments = arguments)
     logger.info('Now try sleeping before shutting down')
     sleep(5)
     events['circuits_finished'].set()
     logger.info('Now try shutting down vqpu flow')
-    await vqpushutdownflow(events['circuits_finished'], arguments)
+    await vqpushutdownflow(event = events['circuits_finished'], 
+                           arguments = arguments)
     logger.info("Finished (v)QPU test flow")
 
 def run_flow(arguments: str):

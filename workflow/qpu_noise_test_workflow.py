@@ -72,11 +72,15 @@ async def workflow(task_runners : dict,
         # either spin up real vqpu
         #tg.create_task(vqpuflow(events['vqpu_launch'], arguments))
         # or test one
-        tg.create_task(vqputestflow(events['vqpu_launch'], arguments))
-        tg.create_task(circuitflow(events['vqpu_launch'], events['circuits_finished'], arguments))
+        tg.create_task(vqputestflow(event = events['vqpu_launch'], 
+                                    arguments = arguments))
+        tg.create_task(circuitflow(vqpu_event = events['vqpu_launch'], 
+                                   cicuit_event = events['circuits_finished'], 
+                                   arguments = arguments))
         tg.create_task(cpuflow(arguments))
         tg.create_task(gpuflow(arguments))
-        tg.create_task(vqpushutdownflow(events['circuits_finished'], arguments))
+        tg.create_task(vqpushutdownflow(event = events['circuits_finished'], 
+                                        arguments = arguments))
  
     logger.info("Finished hybrid (v)QPU workflow")
 

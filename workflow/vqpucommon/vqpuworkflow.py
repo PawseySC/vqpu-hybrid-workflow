@@ -4,10 +4,10 @@
 
 '''
 
-import time
+import time, datetime
 import os
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Callable
-from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, get_job_info, SlurmInfo, EventFile
+from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, get_job_info, get_flow_runs, SlurmInfo, EventFile
 #from circuits.qristal_circuits import noisy_circuit
 from circuits.test_circuits import test_circuit
 import asyncio
@@ -16,11 +16,13 @@ from prefect.states import Cancelled
 from prefect.logging import get_run_logger
 from prefect.artifacts import Artifact
 from prefect.input import RunInput
+from prefect.runtime import flow_run
 #from prefect.events import emit_event, DeploymentEventTrigger
 from prefect.client.schemas.filters import FlowRunFilter, FlowFilter
 
+
 async def create_vqpu_remote_yaml(job_info : Union[SlurmInfo], 
-                            vqpu_id : str = '1', 
+                            vqpu_id : int = 1, 
                             template_fname : str = 'remote_vqpu_template.yaml'
                             ):
     '''
@@ -44,8 +46,8 @@ async def create_vqpu_remote_yaml(job_info : Union[SlurmInfo],
       timeout_seconds=600
       )
 async def launch_vqpu(event: EventFile, 
-                      arguments: str, 
-                      vqpu_id : str = '1',
+                      arguments: str = '', 
+                      vqpu_id : int = 1,
                       ):
     '''
     @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
@@ -60,13 +62,14 @@ async def launch_vqpu(event: EventFile,
     process = run_a_process(cmds)
     await asyncio.sleep(5)
     event.set()
-    logger.info(f'vQPU-{vqpu_id} running ... ')
+    flow_id = flow_run.id
+    logger.info(f'vQPU-{vqpu_id} running using ... ')
 
 @task(retries = 5, 
       retry_delay_seconds = 10, 
       timeout_seconds=600
       )
-async def run_vqpu(vqpu_id : str = '1',
+async def run_vqpu(vqpu_id : int = 1,
                    walltime : float = 86400, # one day
                       ):
     '''
@@ -82,8 +85,8 @@ async def run_vqpu(vqpu_id : str = '1',
       timeout_seconds=600
       )
 async def launch_vqpu_test(event: EventFile, 
-                      arguments: str, 
-                      vqpu_id : str = '1',
+                      arguments: str = '', 
+                      vqpu_id : int = 1,
                       ):
     '''
     @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
@@ -104,7 +107,7 @@ async def launch_vqpu_test(event: EventFile,
       timeout_seconds=600
       )
 async def shutdown_vqpu(arguments: str, 
-                  vqpu_id : str = '1',
+                  vqpu_id : int = 1,
                   vqpu_flow_name : str = 'launch_vqpu_flow'
                   ):
     '''
@@ -118,25 +121,38 @@ async def shutdown_vqpu(arguments: str,
     # cancel all flows that match a specific name 
     # eventually will need to check that the jobid is 
     # the correct one. 
-    async with get_client() as client:
-        flow_run_filter = FlowRunFilter(
-            state={"name": {"any_": ["Running"]}},
-            flow={"name": {"any_": [vqpu_flow_name]}},
-            # flow=FlowFilter(name={"any_": [vqpu_flow_name]}),
+    flow_run_filter = FlowRunFilter(
+        # state = {"equals_": "Running"},
+        name = {"contains_": vqpu_flow_name},
         )
+    runs = await get_flow_runs(flow_run_filter=flow_run_filter)
+    for run in runs:
+        logger.info(f"Cancelling vQPU associated with flow \
+                    {run.name} with id {run.id}\
+                         {run.state}")
+        # await client.set_flow_run_state(
+        #     flow_run_id = flow.id, state = "Cancelled", force = True
+        # )
+        # flow.set_flow_run_state(
+        #     state = Cancelled(message="Shutdown vQPU running from run ")
+        # )
 
-        # Retrieve running flow runs
-        #flows = await client.get_current_flow_runs(flow_run_filter=flow_run_filter})
-        flows = await client.read_flow_runs(flow_run_filter = flow_run_filter)
-        # Find the flows to cancel it
-        for flow in flows:
-            logger.info(f"Cancelling vQPU associated with flow {flow.name} with id {flow.id}")
-            # await client.set_flow_run_state(
-            #     flow_run_id = flow.id, state = "Cancelled", force = True
-            # )
-            # flow.set_flow_run_state(
-            #     state = Cancelled(message="Shutdown vQPU running from run ")
-            # )
+    # async with get_client() as client:
+
+    #     # Retrieve running flow runs
+    #     #flows = await client.get_current_flow_runs(flow_run_filter=flow_run_filter})
+    #     flows = await client.read_flow_runs(flow_run_filter = flow_run_filter)
+    #     # Find the flows to cancel it
+    #     for flow in flows:
+    #         logger.info(f"Cancelling vQPU associated with flow \
+    #                     {flow.name} with id {flow.id}\
+    #                         ")
+    #         # await client.set_flow_run_state(
+    #         #     flow_run_id = flow.id, state = "Cancelled", force = True
+    #         # )
+    #         # flow.set_flow_run_state(
+    #         #     state = Cancelled(message="Shutdown vQPU running from run ")
+    #         # )
     logger.info("vQPU(s) shutdown")
 
 @task(retries = 10, 
@@ -145,7 +161,7 @@ async def shutdown_vqpu(arguments: str,
       )
 async def run_circuit(arguments : str,
                       circuitfunc : Callable, 
-                      vqpu_id : str = '1',
+                      vqpu_id : int = 1,
                       verbose : bool = 'True'
                       ):
     '''
@@ -166,46 +182,63 @@ async def run_circuit(arguments : str,
 
 
 @flow(name = "launch_vqpu_flow", 
+      flow_run_name = "launch_vqpu_{vqpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Launching the vQPU only portion with the appropriate task runner", 
       retries = 3, retry_delay_seconds = 10, 
       log_prints=True, 
       )
-async def launch_vqpu_workflow(event : EventFile, arguments : str = ""):
+async def launch_vqpu_workflow(event : EventFile,
+                                    vqpu_id : int = 1,
+                                    walltime : float = 10, 
+                                    arguments : str = "", 
+                                    date : datetime.datetime = datetime.datetime.now() 
+                                    ):
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner
     '''
-    future = await launch_vqpu.submit(event, arguments)
+    future = await launch_vqpu.submit(event, vqpu_id = vqpu_id, arguments = arguments)
     await future.result()
-    future = await run_vqpu.submit(walltime = 10)
+    future = await run_vqpu.submit(walltime = walltime)
     await future.result()
 
-@flow(name = "launch_vqpu_flow", 
+@flow(name = "launch_vqpu_test_flow", 
+      flow_run_name = "launch_vqpu_test_{vqpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Launching the vQPU only portion with the appropriate task runner", 
       retries = 3, retry_delay_seconds = 10, 
       log_prints=True, 
       )
-async def launch_vqpu_test_workflow(event : EventFile, arguments : str = ""):
+async def launch_vqpu_test_workflow(event : EventFile,
+                                    vqpu_id : int = 1,
+                                    walltime : float = 10, 
+                                    arguments : str = "", 
+                                    date : datetime.datetime = datetime.datetime.now() 
+                                    ):
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner
     '''
-    future = await launch_vqpu_test.submit(event, arguments)
+    future = await launch_vqpu_test.submit(event, vqpu_id = vqpu_id, arguments = arguments)
     await future.result()
-    future = await run_vqpu.submit(walltime = '10')
+    future = await run_vqpu.submit(walltime = walltime)
     await future.result()
 
 @flow(name = "shutdown_vqpu_flow", 
+      flow_run_name = "showndown_vqpu_flow-on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Shutdown the vQPU", 
       retries = 3, retry_delay_seconds = 10, 
-      log_prints=True, 
+      log_prints=True,
       )
-async def shutdown_vqpu_workflow(event : EventFile, arguments : str = ""):
+async def shutdown_vqpu_workflow(event : EventFile,
+                                 vqpu_id : int = 1,  
+                                 arguments : str = "", 
+                                 date : datetime.datetime = datetime.datetime.now()
+                                ):
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to shutdown the vqpu
     '''
     # wait till the shutdown event has been set so that all circuits have been run
     await event.wait()
     event.clean()
-    future = await shutdown_vqpu.submit(arguments)
+    future = await shutdown_vqpu.submit(arguments = arguments, vqpu_id = vqpu_id)
     await future.result()
 
 @flow(name = "Circuits flow", 
@@ -213,7 +246,9 @@ async def shutdown_vqpu_workflow(event : EventFile, arguments : str = ""):
       retries = 3, retry_delay_seconds = 10, 
       log_prints = True, 
       )
-async def circuits_workflow(vqpu_event : EventFile, circuit_event: EventFile, arguments : str = ""):
+async def circuits_workflow(vqpu_event : EventFile, 
+                            circuit_event: EventFile, 
+                            arguments : str = ""):
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
     '''
