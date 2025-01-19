@@ -42,6 +42,7 @@ generic:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
+      - "-w ella-n00[5-6]"
       - '-e dask_logs/dask_generic_worker_%J.err'
       - '-o dask_logs/dask_generic_worker_%J.log'
     log_directory: dask_logs
@@ -107,6 +108,7 @@ vqpu:
       - "--nodes=1"
       - "--exclusive"
       - "--ntasks=1"
+      - "--mem=0"
       - "--cpus-per-task=32"
       - '-e dask_logs/dask_vqpu_worker_%J.err'
       - '-o dask_logs/dask_vqpu_worker_%J.log'
@@ -174,6 +176,7 @@ gpu:
       - "--nodes=1"
       - "--exclusive"
       - "--cpus-per-task=32"
+      - "--mem=0"
       - '-e dask_logs/dask_gpu_worker_%J.err'
       - '-o dask_logs/dask_gpu_worker_%J.log'
     log_directory: dask_logs

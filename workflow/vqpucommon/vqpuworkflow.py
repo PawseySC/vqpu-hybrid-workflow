@@ -62,8 +62,9 @@ async def launch_vqpu(event: EventFile,
     process = run_a_process(cmds)
     await asyncio.sleep(5)
     event.set()
-    flow_id = flow_run.id
-    logger.info(f'vQPU-{vqpu_id} running using ... ')
+    flow_id = flow.flow_run.id
+    await save_artifact(f'vqpuflow.vqpu-{vqpu_id}.yaml', key=f'flow-{flow_id}.vqpu-{vqpu_id}')
+    logger.info(f'Flow {flow_id} running vQPU-{vqpu_id} ... ')
 
 @task(retries = 5, 
       retry_delay_seconds = 10, 
