@@ -10,7 +10,7 @@ import sys, os
 # update the path to include desired python modules like clusters utils 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(scriptpath+'/../../workflow/')
-from clusters.clusters import get_dask_runners
+from mycommon.clusters import get_dask_runners
 # note that if for task.submit to work, it must be serializable and so any functions called in the task 
 # must be accessible based on the PYTHONPATH, thus make sure utility functions are located as a directory 
 # from where the script is called.
@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Union
 import subprocess
 # and then prefect objects
 from prefect import flow, task
+from prefect.context import FlowRunContext
 from prefect_dask.task_runners import DaskTaskRunner
 from prefect.task_runners import ConcurrentTaskRunner
 #from prefect.task_runners import SequentialTaskRunner
@@ -291,6 +292,11 @@ async def subflow_2_EventFile(events : Dict[str,EventFile]) -> None:
 @flow
 async def main_flow_concurrent_flows_EventFiles(task_runners: dict) -> None:
     # Run subflows concurrently
+    flow_run_context = FlowRunContext.get()
+    flow_id = flow_run_context.flow_run.id
+    logger = get_run_logger()
+    logger.info(f'Flow {flow_id}')
+
     flow1 = subflow_1_EventFile.with_options(task_runner = task_runners['gpu'])
     flow2 = subflow_2_EventFile.with_options(task_runner = task_runners['cpu'])
     events = {

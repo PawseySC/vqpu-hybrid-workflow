@@ -4,13 +4,18 @@
 # note that here the vqpu does not have any qubit specifcation.
 # Specification of qubits occurs when actually running a circuit
 
+PAWSEY_QRISTAL_PATH=/software/projects/pawsey1116/wkamleh/ella/qb/qristal/1.7.0-rc0/
 VQPU_PORT=${VQPU_PORT:-8443}
 VQPU_SYSTEM=${VQPU_SYSTEM:-vqpu}
 VQPU_MAX_CIRCUIT_DEPTH=${VQPU_MAX_CIRCUIT_DEPTH:-1000}
 VQPU_SECRET=${VQPU_SECRET:-QuantumBrillianceVQPU}
 VQPU_SSL_CERT_DIR=${VQPU_SSL_CERT_DIR:-$PAWSEY_QRISTAL_PATH/qcstack/certs}
 
-export QcStackPath=$PAWSEY_QRISTAL_PATH/qcstack
+# This variable needs to be set to a folder where the user has write permission.
+#export QcStackPath=$PAWSEY_QRISTAL_PATH/qcstack
+export QcStackPath=${QcStackPath:-$(pwd)}
+echo "INFO: Setting QcStackPath=${QcStackPath}"
+echo "INFO: This folder needs to be user-writable."
 
 qcstack \
 --port ${VQPU_PORT} \
@@ -19,4 +24,5 @@ qcstack \
 --max-circuit-depth ${VQPU_MAX_CIRCUIT_DEPTH} \
 --reservation-shared-secret ${VQPU_SECRET} \
 --calibration False \
---benchmarking False
+--benchmarking False &
+# --log-to-timeseries-files \
