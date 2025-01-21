@@ -9,6 +9,8 @@ import datetime
 import os
 import secrets
 import subprocess
+import select
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from socket import gethostname
@@ -154,6 +156,33 @@ def run_a_process(
     if add_output_to_log and logger != None:
         logger.info(process.stdout)
     return process
+
+def run_a_process_bg(
+        shell_cmd : list, 
+        add_output_to_log : bool = False, 
+        sleeplength : float = 5, 
+        logger = None, 
+        ) -> None:
+    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+
+    Returns:
+        subprocess: new proccess spawned by the shell_cmd 
+    '''
+
+    process = subprocess.run(shell_cmd, capture_output=add_output_to_log, text=add_output_to_log)
+    time.sleep(sleeplength)
+    reads = [process.stdout.fileno(), process.stderr.fileno()]
+    ret = select.select(reads, [], [])
+    for fd in ret[0]:
+        if fd == process.stdout.fileno():
+            output = process.stdout.readline()
+            if output:
+                logger.info(f"{output.strip()}")
+        elif fd == process.stderr.fileno():
+            error_output = process.stderr.readline()
+            if error_output:
+                logger.info(f"{error_output.strip()}")
+    
 
 async def save_artifact(data, 
                   key : str = 'key', 

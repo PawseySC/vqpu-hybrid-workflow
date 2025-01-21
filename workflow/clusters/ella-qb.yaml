@@ -92,7 +92,7 @@ vqpu:
       - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
       - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/24.9/cuda/12.6/targets/sbsa-linux/lib/"
       - "export UCX_IB_MLX5_DEVX=no"
-      - "source ${VQPU_ENV}/qbenv.sh"
+      - "source /software/projects/pawsey1116/wkamleh/ella/qb/qristal/1.7.0-rc0/bin/qbenv.sh"
       - "export OMP_NUM_THREADS=32"
       - "export OMP_PLACES=cores"
       - "export OMP_MAX_ACTIVE_LEVELS=4"

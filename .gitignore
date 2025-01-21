@@ -1,1 +1,5 @@
 __pycache__/
+workflow/events/*txt
+workflow/dask_logs
+workflow/vqpus/*yaml
+

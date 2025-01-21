@@ -6,15 +6,12 @@ from time import sleep
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, shutdown_vqpu_workflow, circuits_workflow, cpu_workflow, gpu_workflow
+from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, circuits_workflow, cpu_workflow, gpu_workflow
 from vqpucommon.utils import EventFile
 
 import asyncio
 from prefect import flow, task, get_client
-from prefect.states import Cancelled
 from prefect.logging import get_run_logger
-from prefect.artifacts import Artifact
-from prefect_dask import DaskTaskRunner
 
      
 
@@ -43,11 +40,6 @@ async def workflow(task_runners : dict,
     vqpuflow = launch_vqpu_workflow.with_options(
         task_runner = task_runners['vqpu'],
         )
-
-    # this is for testing 
-    vqputestflow = launch_vqpu_test_workflow.with_options(
-        task_runner = task_runners['vqpu'],
-        )
     
     # lets define the flows with the appropriate task runners 
     circuitflow = circuits_workflow.with_options(
@@ -62,25 +54,18 @@ async def workflow(task_runners : dict,
         task_runner = task_runners['cpu'],
         # want to set some options for the cpu task runner here.
         )
-    # then when all the circuit subflows have finished, run the clean vqpu workflow
-    # than cancels the job running the vqpu
-    vqpushutdownflow = shutdown_vqpu_workflow.with_options(
-        task_runner = task_runners['generic']
-        )
 
     async with asyncio.TaskGroup() as tg:
         # either spin up real vqpu
         #tg.create_task(vqpuflow(events['vqpu_launch'], arguments))
         # or test one
-        tg.create_task(vqputestflow(event = events['vqpu_launch'], 
+        tg.create_task(vqpuflow(event = events['vqpu_launch'], 
                                     arguments = arguments))
         tg.create_task(circuitflow(vqpu_event = events['vqpu_launch'], 
                                    cicuit_event = events['circuits_finished'], 
                                    arguments = arguments))
         tg.create_task(cpuflow(arguments))
         tg.create_task(gpuflow(arguments))
-        tg.create_task(vqpushutdownflow(event = events['circuits_finished'], 
-                                        arguments = arguments))
  
     logger.info("Finished hybrid (v)QPU workflow")
 
@@ -89,7 +74,7 @@ def run_flow(arguments: str):
     '''
     @brief run the workflow with the appropriate task runner
     '''
-    task_runners = get_dask_runners(cluster='ella')
+    task_runners = get_dask_runners(cluster='ella-qb')
 
     asyncio.run(workflow.with_options(
 #       task_runner = task_runners['generic']
