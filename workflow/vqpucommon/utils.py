@@ -230,6 +230,8 @@ class EventFile:
     '''unique identifer'''
     event_time : str 
     '''Time of event creation'''
+    event_set : int  = 0
+    '''Counter for number of times set'''
     
     def __init__(self, name : str, loc : str, sampling : float = 0.01): 
         self.event_loc = loc
@@ -240,11 +242,12 @@ class EventFile:
         self.event_time = ''
 
     def set(self) -> None:
-        if self.event_time == '':
+        if self.event_set == 0:
             current_time = datetime.datetime.now() 
             self.event_time = current_time.strftime('%Y-%m-%D::%H:%M:%S')
+            self.event_set += 1
             with open(self.fname, "w") as f:
-                f.write(self.event_time)
+                f.write(f'{self.event_set}, {self.event_time}')
         else:
             # need to throw exception 
             pass
@@ -253,12 +256,19 @@ class EventFile:
         while not os.path.isfile(self.fname):
             await asyncio.sleep(self.sampling)
         with open(self.fname, "r") as f:
-            time = f.readline().strip('\n')
+            time = f.readline().strip('\n').split(', ')[1]
         correct = (time == self.event_time)
         # need to throw exception if not true 
 
     def clean(self) -> None:
-        os.remove(self.fname)
-        self.event_time = ''
+        # remove the file as a lock 
+        if os.path.isfile(self.fname): 
+            os.remove(self.fname)
+            # if local dask runner copy has been used to call clean then 
+            # also reduce the event time and set 
+            if self.event_set > 0:
+                self.event_time = ''
+                self.event_set -= 1
+            
 
 
