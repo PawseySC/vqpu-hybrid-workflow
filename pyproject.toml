@@ -1,12 +1,13 @@
 [tool.poetry]
-name = "vQPU"
+name = "Hybrid-QGCPUs"
 version = "0.1"
-description = "Workflow example for testing vQPU"
-authors = ["pelahi <pascaljelahi@gmail.com>"]
+description = "Example hybrid workflow for running (v)QPUs, GPUs and CPUs"
+authors = ["pelahi <pascal.elahi@pawsey.org.au>"]
 license = "MIT"
 readme = "README.md"
 include = [
-    {path = 'workflow/'},
+    {path = 'workflow/vqpucommon'},
+    {path = 'workflow/clusters'},
 ]
 
 [tool.poetry.dependencies]
@@ -21,9 +22,6 @@ prefect = "^2.10.0"
 prefect-dask = "^0.2.4"
 dask-jobqueue = "*"
 scikit-image = "*"
-pandas = "*"
-ConfigArgParse = "^1.7"
-qristal = "*"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
@@ -31,11 +29,9 @@ mypy = "^1.4.1"
 isort = "^5.12.0"
 pre-commit = "*"
 ruff = "^0.1.12"
-pytest = "^7.4.0"
-pytest-cov = "*"
 sphinx = "*"
 
-#[tool.poetry.extras]
+[tool.poetry.extras]
 dev = [
     "black",
     "mypy",
@@ -52,9 +48,8 @@ dev = [
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-#[tool.poetry.scripts]
-
-#[[tool.mypy.overrides]]
+[tool.poetry.scripts]
+vqpu_test = "workflow.vqpu_test_workflow:cli"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
@@ -87,11 +82,12 @@ exclude = [
     "venv",
 ]
 
-line-length = 120
+# Same as Black.
+line-length = 88
 indent-width = 4
 
-# Assume Python 3.11
-target-version = "py311"
+# Assume Python 3.8
+target-version = "py38"
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
@@ -106,9 +102,6 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.format]
-# Like Black, use double quotes for strings.
-quote-style = "double"
-
 # Like Black, indent with spaces, rather than tabs.
 indent-style = "space"
 

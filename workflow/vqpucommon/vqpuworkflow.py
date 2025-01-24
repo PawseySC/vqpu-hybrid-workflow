@@ -41,7 +41,7 @@ async def create_vqpu_remote_yaml(
     fout = open(workflow_yaml, 'w')
     for line in lines:
         if 'HOSTNAME' in line:
-            line.replace('HOSTNAME', job_info.hostname)
+            line = line.replace('HOSTNAME', job_info.hostname)
         fout.write(line)
     # to store the results of this task, make use of a helper function that creates artifcat 
     await save_artifact(workflow_yaml, key=f'remote{vqpu_id}')
@@ -54,7 +54,8 @@ def delete_vqpu_remote_yaml(
     if os.path.isfile(workflow_yaml):
         os.remove(workflow_yaml)
 
-
+# def failed_to_launch():
+#     delete_vqpu_remote_yaml()
 
 @task(retries = 5, 
       retry_delay_seconds = 10, 
@@ -65,8 +66,8 @@ async def launch_vqpu(event: EventFile,
                       vqpu_id : int,
                       arguments : str = '', 
                       path_to_vqpu_script : str = os.path.dirname(os.path.abspath(__file__))+'/../qb-vqpu/', 
-                      spinuptime : float = 20, 
-                      ):
+                      spinuptime : float = 30, 
+                      ) -> None:
     '''
     @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
     once vqpu is launched set event so subsequent circuit tasks can run 
@@ -95,7 +96,7 @@ async def launch_vqpu_test(
     event: EventFile, 
     vqpu_id : int,
     arguments: str = '', 
-    ):
+    ) -> None:
     '''
     @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
     once vqpu is launched set event so subsequent circuit tasks can run 
@@ -138,7 +139,7 @@ async def run_vqpu(
     event : EventFile,
     vqpu_id : int,
     walltime : float = 86400, # one day
-    ):
+    ) -> None:
     '''
     @brief runs a task that sleeps to keep flow active  
     '''
@@ -164,7 +165,7 @@ async def run_vqpu_test(
     vqpu_id : int,
     walltime : float = 86400, # one day
     circuittime : float = -1, 
-    ):
+    ) -> None:
     '''
     @brief runs a task that sleeps to keep flow active  
     '''
@@ -188,7 +189,7 @@ async def run_vqpu_test(
       )
 async def shutdown_vqpu(arguments: str, 
                   vqpu_id : int,
-                  ):
+                  ) -> None:
     '''
     @brief base task that shuts down the virtual qpu. Should have minimal retries and a wait between retries 
     '''
@@ -213,7 +214,7 @@ async def run_circuit(
     vqpu_id : int = 1,
     arguments : str = '',
     remote : str = '', 
-    ):
+    ) -> None:
     '''
     @brief run a simple circuit on a given remote backend
     '''
@@ -230,7 +231,8 @@ async def run_circuit(
 @flow(name = "launch_vqpu_flow", 
       flow_run_name = "launch_vqpu_{vqpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Launching the vQPU only portion with the appropriate task runner", 
-      retries = 3, retry_delay_seconds = 10, 
+      retries = 3, 
+      retry_delay_seconds = 10, 
       log_prints=True, 
       )
 async def launch_vqpu_workflow(
@@ -240,10 +242,12 @@ async def launch_vqpu_workflow(
     walltime : float = 86400, 
     arguments : str = "", 
     date : datetime.datetime = datetime.datetime.now() 
-    ):
+    ) -> None:
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner
     '''
+    launch_event.clean()
+    delete_vqpu_remote_yaml(vqpu_id)
     future = await launch_vqpu.submit(launch_event, vqpu_id = vqpu_id, arguments = arguments)
     await future.result()
     logger = get_run_logger()
@@ -255,7 +259,8 @@ async def launch_vqpu_workflow(
 @flow(name = "launch_vqpu_test_flow", 
       flow_run_name = "launch_vqpu_test_{vqpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Launching the vQPU only portion with the appropriate task runner", 
-      retries = 3, retry_delay_seconds = 10, 
+      retries = 3, 
+      retry_delay_seconds = 10, 
       log_prints=True, 
       )
 async def launch_vqpu_test_workflow(
@@ -267,7 +272,7 @@ async def launch_vqpu_test_workflow(
     try_real_vqpu : bool = False, 
     arguments : str = "", 
     date : datetime.datetime = datetime.datetime.now() 
-    ):
+    ) -> None:
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner
     This spins up the vqpu and then waits for either all the circuits to have been run 
@@ -288,7 +293,8 @@ async def launch_vqpu_test_workflow(
 @flow(name = "Circuits flow", 
       flow_run_name = "circuits_flow_for_vqpu_{vqpu_id}_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Running circutis on the vQPU with the appropriate task runner for launching circuits", 
-      retries = 3, retry_delay_seconds = 10, 
+      retries = 3, 
+      retry_delay_seconds = 20, 
       log_prints = True,
       )
 async def circuits_workflow(
@@ -297,13 +303,14 @@ async def circuits_workflow(
     circuits : List[Callable],
     vqpu_id : int = 1,  
     arguments : str = "", 
-    delay_before_start : float = 30.0, 
+    delay_before_start : float = 60.0, 
     date : datetime.datetime = datetime.datetime.now() 
-    ):
+    ) -> None:
     '''
     @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
     '''
     if (delay_before_start < 0): delay_before_start = 0
+    circuit_event.clean()
     logger = get_run_logger()
     logger.info(f'Delay of {delay_before_start} seconds before starting ... ')
     await asyncio.sleep(delay_before_start)
@@ -321,6 +328,7 @@ async def circuits_workflow(
             remote = remote, 
             )
         results = await future.result()
+        print(f'{c.__name__} return {results}')
     logger.info('Finished all running all circuits')
     circuit_event.set()
     return results
@@ -330,7 +338,7 @@ async def circuits_workflow(
       timeout_seconds=3600,
       result_serializer="compressed/json"
       )
-async def run_cpu(arguments: str):
+async def run_cpu(arguments: str) -> None:
     '''
     @brief simple cpu kernel with persistent results 
     '''
@@ -348,7 +356,7 @@ async def run_cpu(arguments: str):
       timeout_seconds=3600,
       result_serializer="compressed/json"
       )
-async def run_gpu(arguments: str):
+async def run_gpu(arguments: str) -> None:
     '''
     @brief simple gpu kernel with persistent results
     '''
@@ -371,7 +379,7 @@ async def run_gpu(arguments: str):
 async def cpu_workflow(
     arguments : str = "",
     date : datetime.datetime = datetime.datetime.now() 
-    ):
+    ) -> None:
     '''
     @brief cpu workflow that should be invoked with the appropriate task runner
     '''
@@ -392,7 +400,7 @@ async def cpu_workflow(
 async def gpu_workflow(
     arguments : str = "",
     date : datetime.datetime = datetime.datetime.now() 
-    ):
+    ) -> None:
     '''
     @brief gpu workflow that should be invoked with the appropriate task runner
     '''

@@ -13,7 +13,7 @@ VQPU_SSL_CERT_DIR=${VQPU_SSL_CERT_DIR:-$PAWSEY_QRISTAL_PATH/qcstack/certs}
 
 # This variable needs to be set to a folder where the user has write permission.
 #export QcStackPath=$PAWSEY_QRISTAL_PATH/qcstack
-export QcStackPath=${QcStackPath:-$(pwd)}
+export QcStackPath=${QcStackPath:-$(pwd)/qristal_logs/}
 echo "INFO: Setting QcStackPath=${QcStackPath}"
 echo "INFO: This folder needs to be user-writable."
 

@@ -1,5 +1,7 @@
 '''
-@brief This example shows how to turn on noise in a simulation, and how to modify the default noise model used.
+@brief This example shows how to structure a vqpu workflow. 
+In the future, will add circuits that turn on noise in a simulation, and how to modify the default noise model used. Currently circuits run by default do nothing but test orchestration. 
+
 '''
 
 
@@ -9,6 +11,7 @@ from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
 from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, circuits_workflow, cpu_workflow, gpu_workflow
 from vqpucommon.utils import EventFile, save_artifact
+from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import flow, task, get_client
 from prefect.logging import get_run_logger
@@ -35,8 +38,8 @@ async def workflow(
     task_runners : dict, 
     arguments: str = "", 
     vqpu_id : int = 1, 
-    vqpu_walltime : float = 1000, 
-    run_complex_circuits : bool = False,
+    vqpu_walltime : float = 86400.0, 
+    run_complex_circuits : bool = True,
     add_other_tasks : bool = True, 
     ):
     '''
@@ -62,7 +65,7 @@ async def workflow(
         )    
     # lets define the flows with the appropriate task runners 
     circuitflow = circuits_workflow.with_options(
-        task_runner = task_runners['generic'],
+        task_runner = task_runners['circuit'],
         # want to set some options for the generic task runner here.
         )
     gpuflow = gpu_workflow.with_options(
@@ -77,10 +80,8 @@ async def workflow(
     circuits = [silly_test, foobar]
     if run_complex_circuits:
         # need to add more complex circuits
-        pass 
+        circuits = [noisy_circuit]
 
-    # await save_artifact('vqpus/remote-foo.yaml', key=f'remote{vqpu_id}')
-    # events['vqpu_launch'].set()
     async with asyncio.TaskGroup() as tg:
         # either spin up real vqpu
         tg.create_task(vqpuflow(
@@ -104,18 +105,26 @@ async def workflow(
 
     logger.info("Finished hybrid (v)QPU workflow")
 
-
-def run_flow(arguments: str):
+@flow 
+def flow_wrapper_to_async_flow(arguments: str):
     '''
     @brief run the workflow with the appropriate task runner
     '''
     task_runners = get_dask_runners(cluster='ella-qb')
 
-    asyncio.run(workflow.with_options(
-#       task_runner = task_runners['generic']
-    )(task_runners, arguments))
+    asyncio.run(workflow(task_runners, arguments))
 
-def cli() -> None:
+def wrapper_to_async_flow(arguments: str):
+    '''
+    @brief run the workflow with the appropriate task runner
+    '''
+    task_runners = get_dask_runners(cluster='ella-qb')
+
+    asyncio.run(workflow(task_runners, arguments))
+
+def cli(
+        local_run : bool = False, 
+    ) -> None:
     import logging
 
     logger = logging.getLogger('vQPU')
@@ -132,7 +141,8 @@ def cli() -> None:
     arguments += ' --cpu-exec=/software/projects/pawsey0001/pelahi/profile_util/examples/openmp/bin/openmpvec_cpp '
     arguments += ' --cpu-args=134217728 '
 
-    run_flow(arguments)
+    wrapper_to_async_flow(arguments)
+    #flow_wrapper_to_async_flow(arguments).visualize()
 
 if __name__ == '__main__':
-    cli()
+    cli(local_run = True)

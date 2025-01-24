@@ -3,9 +3,9 @@
 @brief some circuits
 '''
 
-import qristal.core
 
-def simulator_setup(arguments: str = ''):
+def simulator_setup(remote : str, arguments: str = ''):
+    import qristal.core
     # Create a quantum computing session using Qristal
     my_sim = qristal.core.session()
 
@@ -26,8 +26,8 @@ def simulator_setup(arguments: str = ''):
     return my_sim
 
 def noisy_circuit(remote : str, arguments : str):
-
-    my_sim = simulator_setup(arguments)
+    import qristal.core
+    my_sim = simulator_setup(remote, arguments)
 
     # Define the kernel
     my_sim.instring = '''
@@ -69,6 +69,7 @@ def noisy_circuit(remote : str, arguments : str):
 
     # Hit it.
     my_sim.run()
+    return 'ran the circut!!!!!'
 
-    return my_sim.results
+    # return my_sim.results
 
