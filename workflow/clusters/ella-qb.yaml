@@ -42,7 +42,7 @@ generic:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
-      - "-w ella-n00[5-6]"
+      - "-w ella-n00[1-2]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_worker_%J.err'
       - '-o dask_logs/dask_generic_worker_%J.log'
@@ -105,7 +105,7 @@ circuit:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
-      - "-w ella-n00[5-6]"
+      - "-w ella-n00[1-2]"
       - "--ntasks=1"
       - '-e dask_logs/dask_circuit_worker_%J.err'
       - '-o dask_logs/dask_circuit_worker_%J.log'
@@ -171,7 +171,7 @@ vqpu:
     job_extra: null
     job_extra_directives: 
       - "--gres=gpu:1"
-      - "-w ella-n00[7-8]"
+      - "-w ella-n00[5-6]"
       - "--nodes=1"
       - "--exclusive"
       - "--ntasks=1"
@@ -239,7 +239,7 @@ gpu:
     #job_extra: null
     job_extra_directives: 
       - "--gres=gpu:1"
-      - "-w ella-n00[1-4]"
+      - "-w ella-n00[2-4]"
       - "--nodes=1"
       - "--exclusive"
       - "--cpus-per-task=32"
@@ -306,7 +306,7 @@ cpu:
     job_extra: null
 
     job_extra_directives: 
-      - "-w ella-n00[5-6]"
+      - "-w ella-n00[1-2]"
       - "--nodes=1"
       - "--cpus-per-task=8"
       - '-e dask_logs/dask_cpu_worker_%J.err'

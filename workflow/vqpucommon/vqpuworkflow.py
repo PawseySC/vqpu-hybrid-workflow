@@ -6,7 +6,7 @@
 
 import time, datetime, subprocess, os, select, psutil
 import numpy as np
-from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Callable
+from typing import List, Any, Dict, NamedTuple, Optional, Tuple, Union, Generator, Callable
 from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_job_info, get_flow_runs, SlurmInfo, EventFile
 #from circuits.qristal_circuits import noisy_circuit
 #from circuits.test_circuits import test_circuit
@@ -62,12 +62,13 @@ def delete_vqpu_remote_yaml(
       timeout_seconds=600,
       name = 'Task-Launch-vQPU',
       )
-async def launch_vqpu(event: EventFile, 
-                      vqpu_id : int,
-                      arguments : str = '', 
-                      path_to_vqpu_script : str = os.path.dirname(os.path.abspath(__file__))+'/../qb-vqpu/', 
-                      spinuptime : float = 30, 
-                      ) -> None:
+async def launch_vqpu(
+    event: EventFile, 
+    vqpu_id : int,
+    arguments : str = '', 
+    path_to_vqpu_script : str = os.path.dirname(os.path.abspath(__file__))+'/../qb-vqpu/', 
+    spinuptime : float = 30, 
+    ) -> None:
     '''
     @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
     once vqpu is launched set event so subsequent circuit tasks can run 
@@ -187,9 +188,10 @@ async def run_vqpu_test(
       retry_delay_seconds = 2, 
       timeout_seconds=600
       )
-async def shutdown_vqpu(arguments: str, 
-                  vqpu_id : int,
-                  ) -> None:
+async def shutdown_vqpu(
+    arguments: str, 
+    vqpu_id : int,
+    ) -> None:
     '''
     @brief base task that shuts down the virtual qpu. Should have minimal retries and a wait between retries 
     '''
@@ -331,6 +333,91 @@ async def circuits_workflow(
         print(f'{c.__name__} return {results}')
     logger.info('Finished all running all circuits')
     circuit_event.set()
+    return results
+
+@task 
+def circuit_event_clean(
+    events : Dict[str,EventFile],
+    vqpu_ids : List[int]
+) -> None:
+    for vqpu_id in vqpu_ids:
+        key = f'vqpu_{vqpu_id}_circuits_finished'
+        events[key].clean()
+
+@task
+async def startup_wait(delay : float) -> None:
+    logger = get_run_logger()
+    logger.info(f'Delay of {delay} seconds before starting ... ')
+    await asyncio.sleep(delay)
+
+
+@flow(name = "Circuits with multi-vQPU, GPU flow", 
+      flow_run_name = "circuits_flow_for_vqpu_{vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
+      description = "Running circutis on the vQPU with the appropriate task runner for launching circuits and also launches a gpu workflow, ", 
+      retries = 3, 
+      retry_delay_seconds = 20, 
+      log_prints = True,
+      )
+async def circuits_with_nqvpuqs_workflow(
+    task_runners : Dict[str, Any],
+    events : Dict[str, EventFile], 
+    circuits : Dict[str, List[Callable]],
+    vqpu_ids : List[int],  
+    arguments : str, 
+    delay_before_start : float = 60.0, 
+    date : datetime.datetime = datetime.datetime.now() 
+    ) -> None:
+    '''
+    @brief a multi vqpu workflow launching circuits on multiple vqpus 
+    and then possibly launching gpu and cpu tasks afterwards 
+    '''
+    if (delay_before_start < 0): delay_before_start = 0
+    # circuit_event_clean.submit(events, vqpu_ids).result()
+    # future = await startup_wait.submit(delay_before_start)
+    # await future.result()
+    for vqpu_id in vqpu_ids:
+        key = f'vqpu_{vqpu_id}_circuits_finished'
+        events[key].clean()
+  
+    logger = get_run_logger()
+    logger.info(f'Delay of {delay_before_start} seconds before starting ... ')
+    await asyncio.sleep(delay_before_start)
+
+    logger = get_run_logger()
+    logger.info(f'Waiting for vqpu-{vqpu_ids} to start ... ')
+
+    # need to convert to a task group but for now 
+    # just have for loop
+    for vqpu_id in vqpu_ids:
+        key = f'vqpu_{vqpu_id}'
+        await events[key+'_launch'].wait()
+        artifact = await Artifact.get(key=f'remote{vqpu_id}')
+        remote = dict(artifact)['data'].split('\n')[1]
+        logger.info(f'vqpu-{vqpu_id} running, submitting circuits ...')
+        for c in circuits[key]:
+            logger.info(f'Running {c.__name__}')
+            future = await run_circuit.submit(
+                circuitfunc = c,
+                arguments = arguments,
+                vqpu_id = vqpu_id, 
+                remote = remote, 
+                )
+            results = await future.result()
+            print(f'{c.__name__} return {results}')
+            # and for now randomly launch a gpu and cpu flow based on 
+            # some random number 
+            if (np.random.uniform() > 0.5):
+                await gpu_workflow.with_options(
+                    task_runner = task_runners['gpu']
+                )(arguments = arguments)
+            for i in range(4):
+                if (np.random.uniform() > 0.2):
+                    await cpu_workflow.with_options(
+                        task_runner = task_runners['cpu']
+                    )(arguments = arguments)
+
+        logger.info('Finished all running all circuits')
+        events[key+'_circuits_finished'].set()
     return results
 
 @task(retries = 10, 
