@@ -3,6 +3,24 @@
 @brief some circuits
 '''
 
+from typing import List, Dict, Any
+
+def _printtostr(thingtoprint: Any) -> str:
+    from io import StringIO
+    f = StringIO()
+    print(thingtoprint, file=f)
+    result = f.getvalue()
+    f.close()
+    return result 
+
+def parse_qb_result(input : Any) -> Dict[str, int]:
+    results = dict()
+    outstr = _printtostr(input)
+    lines = outstr.strip().split('\n')
+    for l in lines:
+        w = l.split(': ')
+        results[w[0]] = int(w[1])
+    return results
 
 def simulator_setup(remote : str, arguments: str = ''):
     import qristal.core
@@ -25,7 +43,7 @@ def simulator_setup(remote : str, arguments: str = ''):
 
     return my_sim
 
-def noisy_circuit(remote : str, arguments : str):
+def noisy_circuit(remote : str, arguments : str) -> Dict[str, int]:
     import qristal.core
     my_sim = simulator_setup(remote, arguments)
 
@@ -69,7 +87,6 @@ def noisy_circuit(remote : str, arguments : str):
 
     # Hit it.
     my_sim.run()
-    return 'ran the circut!!!!!'
-
-    # return my_sim.results
-
+    results = parse_qb_result(my_sim.results[0][0])
+    # now return the dictionary of bit strings and counts 
+    return results

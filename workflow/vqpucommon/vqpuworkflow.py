@@ -5,11 +5,11 @@
 '''
 
 import time, datetime, subprocess, os, select, psutil
+from pathlib import Path
+import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Any, Dict, NamedTuple, Optional, Tuple, Union, Generator, Callable
-from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_job_info, get_flow_runs, SlurmInfo, EventFile
-#from circuits.qristal_circuits import noisy_circuit
-#from circuits.test_circuits import test_circuit
+from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_job_info, get_flow_runs, upload_image_as_artifact, SlurmInfo, EventFile
 import asyncio
 from prefect import flow, task, get_client, pause_flow_run
 # from prefect.context import FlowRunContext
@@ -22,6 +22,34 @@ from prefect.artifacts import Artifact
 # from prefect.client.schemas.filters import FlowRunFilter, FlowFilter
 # from prefect.utilities.timeout import timeout_async, timeout
 
+async def postprocessing_histo_plot(
+        data : Dict[str,int],
+        arguments : str, 
+        normalize : bool = True,  
+    ) -> Dict[str, int] :
+    """Simple post_processing of circuit, creating a histogram, saving the file and also creating a markdown artifact for prefect 
+
+    Args:
+        data (Dict[str,int]): bitstring data
+        arguments (str): arguments that should contain the filename and title
+
+    Returns:
+        Dict[str,int]: Post-processed results. Here no processing is done
+    """
+    filename = arguments.split('--filename=')[1].split(' ')[0]
+    title = arguments.split('--plottitle=')[1].split(' ')[0]
+
+    fig, ax = plt.subplots(1, 1, tight_layout=True)
+    counts = np.array([data[k] for k in data.keys()], dtype=np.float32)
+    if normalize: counts /= np.sum(counts)
+    ax.bar(data.keys(), counts)
+    ax.set_ylabel('Probability')
+    ax.set_xlabel('States')
+    ax.set_title(title)
+    plt.savefig(f'{filename}.png')
+    await upload_image_as_artifact(Path(f'{filename}.png'))
+    return data 
+
 def test_circuit(remote : str, arguments : str):
     results = np.ones([2,3])
     return results
@@ -30,10 +58,10 @@ async def create_vqpu_remote_yaml(
     job_info : Union[SlurmInfo], 
     vqpu_id : int , 
     template_fname : str = 'remote_vqpu_template.yaml'
-    ):
-    '''
-    function that saves the remote backend for the vqpu to an artifcat 
-    '''
+    ) -> None:
+    """Saves the remote backend for the vqpu to an artifact 
+    """
+
     workflow_yaml = f'vqpus/remote_vqpu-{vqpu_id}.yaml'
     template_path = os.path.dirname(os.path.abspath(__file__))
     fname = template_path + '/' + template_fname
@@ -49,7 +77,7 @@ async def create_vqpu_remote_yaml(
 
 def delete_vqpu_remote_yaml(
     vqpu_id : int, 
-    ):
+    ) -> None:
     workflow_yaml = f'vqpus/remote_vqpu-{vqpu_id}.yaml'
     if os.path.isfile(workflow_yaml):
         os.remove(workflow_yaml)
@@ -69,10 +97,10 @@ async def launch_vqpu(
     path_to_vqpu_script : str = os.path.dirname(os.path.abspath(__file__))+'/../qb-vqpu/', 
     spinuptime : float = 30, 
     ) -> None:
-    '''
-    @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
+    """base task that launches the virtual qpu. 
+    Should have minimal retries and a wait between retries
     once vqpu is launched set event so subsequent circuit tasks can run 
-    '''
+    """
     # get flow run information and slurm job information 
     job_info = get_job_info()
     script = f'{path_to_vqpu_script}/vqpu.sh'
@@ -98,10 +126,10 @@ async def launch_vqpu_test(
     vqpu_id : int,
     arguments: str = '', 
     ) -> None:
-    '''
-    @brief base task that launches the virtual qpu. Should have minimal retries and a wait between retries
+    """Base task that launches the virtual qpu. 
+    Should have minimal retries and a wait between retries
     once vqpu is launched set event so subsequent circuit tasks can run 
-    '''
+    """
     job_info = get_job_info()
     logger = get_run_logger()
     logger.info(f'Spinning up Test vQPU-{vqpu_id} backend')
@@ -216,12 +244,28 @@ async def run_circuit(
     vqpu_id : int = 1,
     arguments : str = '',
     remote : str = '', 
-    ) -> None:
+    ) -> Dict[str, int]:
     '''
     @brief run a simple circuit on a given remote backend
     '''
     # note that below since artifcate saves remote file name, don't need the below check and parsing
     results = circuitfunc(remote, arguments)
+    return results
+
+@task(retries = 10, 
+      retry_delay_seconds = 2,
+      retry_jitter_factor=0.5
+      )
+async def run_postprocess(
+    postprocessfunc : Callable, 
+    initial_results : Dict[str,int],
+    arguments : str, 
+    ) -> Any:
+    '''
+    @brief run a simple circuit on a given remote backend
+    '''
+    # note that below since artifcate saves remote file name, don't need the below check and parsing
+    results = await postprocessfunc(initial_results, arguments)
     return results
 
 # @run_circuit.on_rollback
@@ -230,7 +274,7 @@ async def run_circuit(
 #     sleep(2)
 
 
-@flow(name = "launch_vqpu_flow", 
+@flow(name = "Launch vQPU Flow", 
       flow_run_name = "launch_vqpu_{vqpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Launching the vQPU only portion with the appropriate task runner", 
       retries = 3, 
@@ -258,7 +302,7 @@ async def launch_vqpu_workflow(
     await future.result()
     future = await shutdown_vqpu.submit(arguments = arguments, vqpu_id = vqpu_id)
 
-@flow(name = "launch_vqpu_test_flow", 
+@flow(name = "Launch Test vQPU Flow", 
       flow_run_name = "launch_vqpu_test_{vqpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Launching the vQPU only portion with the appropriate task runner", 
       retries = 3, 
@@ -305,7 +349,7 @@ async def circuits_workflow(
     circuits : List[Callable],
     vqpu_id : int = 1,  
     arguments : str = "", 
-    delay_before_start : float = 60.0, 
+    delay_before_start : float = 10.0, 
     date : datetime.datetime = datetime.datetime.now() 
     ) -> None:
     '''
@@ -335,6 +379,56 @@ async def circuits_workflow(
     circuit_event.set()
     return results
 
+@flow(name = "Circuits flow", 
+      flow_run_name = "circuits_flow_for_vqpu_{vqpu_id}_on-{date:%Y-%m-%d:%H:%M:%S}",
+      description = "Running circutis on the vQPU with the appropriate task runner for launching circuits", 
+      retries = 3, 
+      retry_delay_seconds = 20, 
+      log_prints = True,
+      )
+async def circuits_with_processing_workflow(
+    vqpu_event : EventFile, 
+    circuit_event: EventFile,
+    circuitsandprocesing : List[Tuple[Callable,Callable]],
+    vqpu_id : int = 1,  
+    arguments : str = "", 
+    delay_before_start : float = 10.0, 
+    date : datetime.datetime = datetime.datetime.now() 
+    ) -> None:
+    '''
+    @brief vqpu workflow that should be invoked with the appropriate task runner. Mean to launch the vqpu
+    '''
+    if (delay_before_start < 0): delay_before_start = 0
+    circuit_event.clean()
+    logger = get_run_logger()
+    logger.info(f'Delay of {delay_before_start} seconds before starting ... ')
+    await asyncio.sleep(delay_before_start)
+    logger.info(f'Waiting for vqpu-{vqpu_id} to start ... ')
+    await vqpu_event.wait()
+    artifact = await Artifact.get(key=f'remote{vqpu_id}')
+    remote = dict(artifact)['data'].split('\n')[1]
+    logger.info(f'vqpu-{vqpu_id} running, submitting circuits ...')
+    for c,p in circuitsandprocesing:
+        logger.info(f'Running {c.__name__}')
+        future = await run_circuit.submit(
+            circuitfunc = c,
+            arguments = arguments,
+            vqpu_id = vqpu_id, 
+            remote = remote, 
+            )
+        results = await future.result()
+        # for now silly arguments 
+        postprocess_args = f' --filename=plots/{c.__name__}.vqpu-{vqpu_id}.histo --plottitle=testing '
+        future = await run_postprocess.submit(
+            postprocessfunc = p, 
+            initial_results = results,
+            arguments = postprocess_args, 
+        )
+        post_results = await future.result()        
+    logger.info('Finished all running all circuits')
+    circuit_event.set()
+    return results
+
 @task 
 def circuit_event_clean(
     events : Dict[str,EventFile],
@@ -349,7 +443,6 @@ async def startup_wait(delay : float) -> None:
     logger = get_run_logger()
     logger.info(f'Delay of {delay} seconds before starting ... ')
     await asyncio.sleep(delay)
-
 
 @flow(name = "Circuits with multi-vQPU, GPU flow", 
       flow_run_name = "circuits_flow_for_vqpu_{vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
@@ -447,7 +540,6 @@ async def run_gpu(arguments: str) -> None:
     '''
     @brief simple gpu kernel with persistent results
     '''
-    
     logger = get_run_logger()
     logger.info("Launching GPU task")
     cmds = arguments.split('--gpu-exec=')[1].split(' ')[0].split(',')
@@ -456,7 +548,7 @@ async def run_gpu(arguments: str) -> None:
     process = run_a_process(cmds)
     logger.info("Finished GPU task")
 
-@flow(name = "cpu flow", 
+@flow(name = "Simple CPU flow", 
       flow_run_name = "cpu_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Running cpu flows", 
       retries = 3, 
@@ -477,7 +569,7 @@ async def cpu_workflow(
     await future.result()
     logger.info("Finished CPU flow")
 
-@flow(name = "gpu flow", 
+@flow(name = "Simple GPU flow", 
       flow_run_name = "gpu_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Running gpu flows", 
       retries = 3, 

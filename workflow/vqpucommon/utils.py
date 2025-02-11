@@ -4,7 +4,6 @@
 
 '''
 
-
 import datetime
 import os
 import secrets
@@ -14,13 +13,25 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from socket import gethostname
-from typing import List, NamedTuple, Optional, Tuple, Union, Generator
-from prefect.artifacts import create_markdown_artifact
+from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Any
+from prefect.artifacts import create_markdown_artifact, Artifact
 from prefect.logging import get_run_logger
 from prefect import get_client
 from prefect.client.schemas.objects import FlowRun
 from prefect.client.schemas.filters import FlowRunFilter
 import asyncio
+import base64
+from uuid import UUID
+SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
+
+
+def _printtostr(thingtoprint: Any) -> str:
+    from io import StringIO
+    f = StringIO()
+    print(thingtoprint, file=f)
+    result = f.getvalue()
+    f.close()
+    return result 
 
 def get_environment_variable(
     variable: Union[str, None], default: Optional[str] = None
@@ -183,10 +194,17 @@ def run_a_process_bg(
             if error_output:
                 logger.info(f"{error_output.strip()}")
     
+async def async_create_markdown_artifcat(key, markdown, description):
+    await create_markdown_artifact(
+        key=key, 
+        markdown=markdown,
+        description=description
+    )
 
-async def save_artifact(data, 
-                  key : str = 'key', 
-                  description: str = 'Data to be shared between subflows'):
+async def save_artifact(
+    data : Any, 
+    key : str = 'key', 
+    description: str = 'Data to be shared between subflows'):
     '''
     @brief Use this to save data between workflows and tasks. Best used for small artifacts
 
@@ -198,11 +216,56 @@ async def save_artifact(data,
     Returns : 
         a markdown artifact to transmit data between workflows
     '''
-    await create_markdown_artifact(
+    await async_create_markdown_artifcat(
         key=key,
         markdown=f"```json\n{data}\n```",
         description=description
     )
+
+async def upload_image_as_artifact(
+        image_path: Path, 
+        key : str = '', 
+        description: str | None = None,) -> None:
+    """Create and submit a markdown artifact tracked by prefect for an
+    input image. Currently supporting png formatted images.
+
+    The input image is converted to a base64 encoding, and embedded directly
+    within the markdown string. Therefore, be mindful of the image size as this
+    is tracked in the postgres database.
+
+    Args:
+        image_path (Path): Path to the image to upload
+        key (str): A key. Defaults to filename with lower_case.
+        description (Optional[str], optional): A description passed to the markdown artifact. Defaults to None.
+
+    """
+    logger = get_run_logger()
+    image_type = image_path.suffix
+    assert image_path.exists(), f'{image_path} does not exist'
+    assert image_type in SUPPORTED_IMAGE_TYPES, (
+        f'{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}'
+    )
+
+    with open(image_path, "rb") as open_image:
+        logger.info(f'Encoding {image_path} in base64')
+        image_base64 = base64.b64encode(open_image.read()).decode()
+
+    logger.info('Creating markdown tag')
+    markdown = f'![{image_path.stem}](data:image/{image_type};base64,{image_base64})'
+
+    logger.info('Registering artifact')
+    if key == '':
+        key = image_path.name.lower().split(image_path.suffix)[0].replace('.','').replace('_','').replace('-','')
+    await async_create_markdown_artifcat(
+        key = key, 
+        markdown = markdown, 
+        description = description,
+    )
+    logger.info(f'Image saved as artifcat with key = {key}')
+    # artifact = await Artifact.get(key=key)
+    # logger.info(artifact)
+
+
 
 async def get_flow_runs(
         flow_run_filter : FlowRunFilter, 
