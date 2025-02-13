@@ -6,6 +6,7 @@ In the future, will add circuits that turn on noise in a simulation, and how to 
 
 
 from time import sleep
+import datetime
 from typing import List, Dict, NamedTuple, Optional, Tuple, Union, Generator, Any
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
@@ -33,6 +34,7 @@ def sillypost(data : Dict[str, int], arguments : str):
     return data 
 
 @flow(name = "Basic vQPU Test", 
+      flow_run_name = "vQPU_test_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Running a (v)QPU+CPU+GPU hybrid workflow", 
       retries = 3, retry_delay_seconds = 10, 
       log_prints=True, 
@@ -44,7 +46,7 @@ async def workflow(
     vqpu_walltime : float = 86400.0, 
     run_complex_circuits : bool = True,
     add_other_tasks : bool = True, 
-    run_post : bool = True,
+    date : datetime.datetime = datetime.datetime.now() 
     ):
     '''
     @brief overall workflow for hydrid (v)QPU+CPU+GPU
@@ -68,16 +70,10 @@ async def workflow(
         task_runner = task_runners['vqpu'],
         )    
     # lets define the flows with the appropriate task runners 
-    if run_post:
-        circuitflow = circuits_with_processing_workflow.with_options(
-            task_runner = task_runners['circuit'],
-            # want to set some options for the generic task runner here.
-            )
-    else:
-        circuitflow = circuits_workflow.with_options(
-            task_runner = task_runners['circuit'],
-            # want to set some options for the generic task runner here.
-            )
+    circuitflow = circuits_workflow.with_options(
+        task_runner = task_runners['circuit'],
+        # want to set some options for the generic task runner here.
+        )
     gpuflow = gpu_workflow.with_options(
         task_runner = task_runners['gpu'],
         # want to set some options for the gpu task runner here.
@@ -87,16 +83,10 @@ async def workflow(
         # want to set some options for the cpu task runner here.
         )
 
-    if run_post:
-        circuits = [(silly_test, sillypost), (foobar, sillypost)]
-        if run_complex_circuits:
-            circuits = [(noisy_circuit, postprocessing_histo_plot)]
-
-    else:
-        circuits = [silly_test, foobar]
-        if run_complex_circuits:
-            # need to add more complex circuits
-            circuits = [noisy_circuit]
+    circuits = [silly_test, foobar]
+    if run_complex_circuits:
+        # need to add more complex circuits
+        circuits = [(noisy_circuit, postprocessing_histo_plot), noisy_circuit]
 
     async with asyncio.TaskGroup() as tg:
         # either spin up real vqpu
@@ -106,20 +96,12 @@ async def workflow(
                     arguments = arguments, 
                     walltime = vqpu_walltime,  
                     vqpu_id = vqpu_id))
-        if run_post:
-            tg.create_task(circuitflow(vqpu_event = events['vqpu_launch'], 
-                                    circuit_event = events['circuits_finished'], 
-                                    arguments = arguments, 
-                                    vqpu_id = vqpu_id,
-                                    circuitsandprocesing = circuits
-                                    ))
-        else:
-            tg.create_task(circuitflow(vqpu_event = events['vqpu_launch'], 
-                                    circuit_event = events['circuits_finished'], 
-                                    arguments = arguments, 
-                                    vqpu_id = vqpu_id,
-                                    circuits = circuits
-                                    ))
+        tg.create_task(circuitflow(vqpu_event = events['vqpu_launch'], 
+                    circuit_event = events['circuits_finished'], 
+                    arguments = arguments, 
+                    vqpu_id = vqpu_id,
+                    circuits = circuits
+                    ))
         if add_other_tasks:
             tg.create_task(cpuflow(arguments))
             tg.create_task(gpuflow(arguments))

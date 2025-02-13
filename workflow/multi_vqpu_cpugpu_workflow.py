@@ -7,10 +7,11 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 
 
 from time import sleep
-from typing import List, NamedTuple, Optional, Tuple, Union, Generator
+import datetime
+from typing import List, Set
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpuworkflow import launch_vqpu_workflow, circuits_with_nqvpuqs_workflow, circuits_workflow, cpu_workflow, gpu_workflow
+from vqpucommon.vqpuworkflow import launch_vqpu_workflow, circuits_with_nqvpuqs_workflow, circuits_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot
 from vqpucommon.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
@@ -19,6 +20,7 @@ from prefect.logging import get_run_logger
 import numpy as np
 
 @flow(name = "Multi-vQPU Test", 
+      flow_run_name = "Mulit-vQPU_test_{vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
       description = "Running a multi-(v)QPU+CPU+GPU hybrid workflow", 
       retries = 3, retry_delay_seconds = 10, 
       log_prints=True, 
@@ -26,16 +28,23 @@ import numpy as np
 async def workflow(
     task_runners : dict, 
     arguments: str , 
-    vqpu_ids : List[int] = [1,2], 
+    vqpu_ids : Set[int] = [1,2], 
     vqpu_walltimes : List[float] = [86400.0, 500.0], 
     add_other_tasks : bool = True, 
+    date : datetime.datetime = datetime.datetime.now() 
     ):
     '''
     @brief overall workflow for hydrid multi-(v)QPU+CPU+GPU
     '''
+    MAXWALLTIME : float = 86400.0
+    if len(vqpu_walltimes) < len(vqpu_ids):
+        num_to_add = len(vqpu_ids)-len(vqpu_walltimes)
+        for i in range(num_to_add):
+            vqpu_walltimes.append(MAXWALLTIME)
+
     logger = get_run_logger()
     logger.info("Running hybrid multi-(v)QPU workflow")
-    
+
     vqpuflows = dict()
     events = dict()
     circuits = dict() 
@@ -44,36 +53,22 @@ async def workflow(
         # create events: one for the vqpu is running, the other for all circuits finished
         events[f'vqpu_{vqpu_id}_launch'] = EventFile(name = f'vqpu_{vqpu_id}_launch', loc = './events/') 
         events[f'vqpu_{vqpu_id}_circuits_finished'] = EventFile(name = f'vqpu_{vqpu_id}_circuits_finished', loc = './events/') 
-        circuits[f'vqpu_{vqpu_id}'] = [noisy_circuit, noisy_circuit, noisy_circuit]
+        if vqpu_id > 1:
+            circuits[f'vqpu_{vqpu_id}'] = [noisy_circuit, noisy_circuit, noisy_circuit]
+        else:
+            circuits[f'vqpu_{vqpu_id}'] = [(noisy_circuit, postprocessing_histo_plot)]
 
         # lets define the flows with the appropriate task runners 
         # this would be for the real vqpu 
         vqpuflows[f'vqpu_{vqpu_id}'] = launch_vqpu_workflow.with_options(
             task_runner = task_runners['vqpu'],
             )
-    #     # lets define the flows with the appropriate task runners 
-    #     circuitflows[f'vpuq_{vqpu_id}'] = circuits_workflow.with_options(
-    #         task_runner = task_runners['circuit'],
-    #         # want to set some options for the generic task runner here.
-    #         )
-    # gpuflow = gpu_workflow.with_options(
-    #     task_runner = task_runners['gpu'],
-    #     # want to set some options for the gpu task runner here.
-    #     )
-    # cpuflow = cpu_workflow.with_options(
-    #     task_runner = task_runners['cpu'],
-    #     # want to set some options for the cpu task runner here.
-    #     )
-
     circuitflows = circuits_with_nqvpuqs_workflow.with_options(
             task_runner = task_runners['circuit'],
     ) 
-
-    print(type(events))
-    for k in events.keys():
-        print(k, type(events[k]))
-    print(type(circuits))
-
+    # since the set is just used to make sure ids are unique, 
+    # lets convert it back to a list for easy use
+    vqpu_ids = list(vqpu_ids)
     async with asyncio.TaskGroup() as tg:
         # either spin up real vqpu
         for i in range(len(vqpu_ids)):
