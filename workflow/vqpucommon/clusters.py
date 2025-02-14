@@ -72,7 +72,7 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
 def get_dask_runners(
     cluster: str = "ella",
     extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
-) -> Dict[str,DaskTaskRunner]:
+) -> Dict[str, DaskTaskRunner | Dict[str,str]]:
     '''
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
     to manage a set of dask-workers. 

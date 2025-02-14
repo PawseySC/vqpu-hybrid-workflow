@@ -82,17 +82,6 @@ async def workflow(
                     vqpu_id = vqpu_id, 
                     arguments = arguments, 
                     ))
-        #     tg.create_task(
-        #         circuitflows[f'vqpu_{vqpu_id}'](
-        #             vqpu_event = events[f'vqpu_{vqpu_id}_launch'], 
-        #             circuit_event = events[f'circuits_finished_vqpu_{vqpu_id}'], 
-        #             arguments = arguments, 
-        #             vqpu_id = vqpu_id,
-        #             circuits = circuits
-        #         ))
-        # if add_other_tasks:
-        #     tg.create_task(cpuflow(arguments))
-        #     tg.create_task(gpuflow(arguments))
 
         tg.create_task(circuitflows(
             task_runners = task_runners, 

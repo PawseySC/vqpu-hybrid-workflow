@@ -10,7 +10,7 @@ import datetime
 from typing import List, Dict, NamedTuple, Optional, Tuple, Union, Generator, Any
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, circuits_workflow, circuits_with_processing_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, upload_image_as_artifact
+from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, circuits_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, upload_image_as_artifact
 from vqpucommon.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
