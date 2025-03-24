@@ -234,7 +234,7 @@ async def task_walltime(walltime : float, vqpu_id : int) -> str:
     return 'Walltime complete'
 
 @task(retries = 0, 
-      task_run_name = 'Task-Launch-vQPU-{vqpu_id}',
+      task_run_name = 'Task-Run-vQPU-{vqpu_id}',
       )
 async def run_vqpu(
     event : EventFile,
@@ -553,6 +553,7 @@ async def circuits_workflow(
     vqpu_id : int = 1,  
     arguments : str = "", 
     delay_before_start : float = 10.0, 
+    circuits_complete : bool = True, 
     date : datetime.datetime = datetime.datetime.now() 
     ) -> None:
     """Flow for running circuits (and any postprocessing)
@@ -580,7 +581,7 @@ async def circuits_workflow(
         result = await run_circuitandpost.fn(circuit=c, vqpu_id=vqpu_id, arguments=arguments, remote=remote)
         results.append(result)
     logger.info('Finished all running all circuits')
-    circuit_event.set()
+    if circuits_complete: circuit_event.set()
     return results
 
 @task 
@@ -605,6 +606,7 @@ async def run_circuits_once_vqpu_ready(
     circuits : Dict[str, List[Callable | Tuple[Callable, Callable]]],
     vqpu_id : int,  
     arguments : str, 
+    circuits_complete : bool = True, 
     run_silly_compute_test : bool = True,
     ):
     results = list()
@@ -629,7 +631,7 @@ async def run_circuits_once_vqpu_ready(
                     await cpu_workflow.with_options(
                         task_runner = task_runners['cpu']
                     )(arguments = arguments)
-    events[key+'_circuits_finished'].set()
+    if circuits_complete: events[key+'_circuits_finished'].set()
     return results
 
 @flow(name = "Circuits with multi-vQPU, GPU flow", 
@@ -646,6 +648,8 @@ async def circuits_with_nqvpuqs_workflow(
     vqpu_ids : List[int],  
     arguments : str, 
     delay_before_start : float = 10.0,
+    circuits_complete : bool = True, 
+    run_silly_compute_test : bool = True,
     date : datetime.datetime = datetime.datetime.now() 
     ) -> None:
     """Flow for running circuits (and any postprocessing) on multiple vqpus
@@ -686,7 +690,10 @@ async def circuits_with_nqvpuqs_workflow(
                 events = events,
                 circuits = circuits,
                 vqpu_id = vqpu_id, 
-                arguments = arguments)
+                arguments = arguments, 
+                circuits_complete=circuits_complete,
+                run_silly_compute_test=run_silly_compute_test,
+                )
             )
     results = {f'vqpu-{name}': task.result() for name, task in tasks.items()}
     logger.debug(results)
