@@ -7,7 +7,7 @@ from dask_jobqueue import SLURMCluster
 
 def GetEllaClusters():
     # this path is currently not global so need to add it when deploying a vqpu job
-    vqpu_mod_path = "/software/projects/pawsey1116/vQPU-QB/modules/"
+    vqpu_mod_path = "/software/ella/2025.02/modules/custom/"
     vqpu_mod = "vQPU-QB/1.7.0"
 
     gpu_kwargs = {

@@ -85,7 +85,7 @@ vqpu:
     walltime: "24:00:00"
     env_extra: null
     job_script_prologue: 
-      - "module use /software/projects/pawsey1116/vQPU-QB/modules/"
+      - "module use /software/ella/2025.02/modules/custom/"
       - "module load vQPU-QB/1.7.0"
       # - "source /software/projects/pawsey0001/pelahi/py-venv-vqpu/bin/activate"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
