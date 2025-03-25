@@ -1,8 +1,8 @@
-'''
+"""
 @file utils.py
 @brief Collection of functions and tooling intended for general usage.
 
-'''
+"""
 
 import datetime
 import os
@@ -58,27 +58,27 @@ def get_environment_variable(
 
 
 class SlurmInfo(NamedTuple):
-    '''
+    """
     @brief simple class to store slurm information 
-    '''
+    """
     hostname: str
-    '''The hostname of the slurm job'''
+    """The hostname of the slurm job"""
     resource: str = None
-    '''The slurm resource request'''
+    """The slurm resource request"""
     job_id: Optional[str] = None
-    '''The job ID of the slurm job'''
+    """The job ID of the slurm job"""
     task_id: Optional[str] = None
-    '''The task ID of the slurm job'''
+    """The task ID of the slurm job"""
     time: Optional[str] = None
-    '''The time time the job information was gathered'''
+    """The time time the job information was gathered"""
 
 
 def get_slurm_info() -> SlurmInfo:
-    '''Collect key slurm attributes of a job
+    """Collect key slurm attributes of a job
 
     Returns:
         SlurmInfo: Collection of slurm items from the job environment
-    '''
+    """
 
     hostname = gethostname()
     job_id = get_environment_variable("SLURM_JOB_ID")
@@ -89,7 +89,7 @@ def get_slurm_info() -> SlurmInfo:
 
 
 def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
-    '''Get the job information for the supplied mode
+    """Get the job information for the supplied mode
 
     Args:
         mode (str, optional): Which mode to poll information for. Defaults to "slurm".
@@ -99,7 +99,7 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
 
     Returns:
         Union[SlurmInfo]: The specified mode
-    '''
+    """
     # TODO: Add other modes? Return a default?
     modes = ("slurm",)
 
@@ -112,11 +112,11 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
 
 
 def log_slurm_job_environment(logger) -> SlurmInfo:
-    '''Log components of the slurm environment. Currently only support slurm
+    """Log components of the slurm environment. Currently only support slurm
 
     Returns:
         SlurmInfo: Collection of slurm items from the job environment
-    '''
+    """
     # TODO: Expand this to allow potentially other job queue systems
     slurm_info = get_slurm_info()
 
@@ -132,11 +132,11 @@ def run_a_srun_process(
         add_output_to_log : bool = False,
         logger = None, 
         ) -> subprocess.Popen:
-    '''runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess.Popen: new proccess spawned by the shell_cmd 
-    '''
+    """
     wrappername = secrets.token_hex(12)
     wrappercmd = ['#!/bin/bash', 
                   'export OMP_PLACES=cores', 
@@ -158,11 +158,11 @@ def run_a_process(
         add_output_to_log : bool = False, 
         logger = None, 
         ):
-    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd 
-    '''
+    """
     process = subprocess.run(shell_cmd, capture_output=add_output_to_log, text=add_output_to_log)
     if add_output_to_log and logger != None:
         logger.info(process.stdout)
@@ -174,11 +174,11 @@ def run_a_process_bg(
         sleeplength : float = 5, 
         logger = None, 
         ) -> None:
-    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd 
-    '''
+    """
 
     process = subprocess.run(shell_cmd, capture_output=add_output_to_log, text=add_output_to_log)
     time.sleep(sleeplength)
@@ -205,7 +205,7 @@ async def save_artifact(
     data : Any, 
     key : str = 'key', 
     description: str = 'Data to be shared between subflows'):
-    '''
+    """
     @brief Use this to save data between workflows and tasks. Best used for small artifacts
 
     Args:
@@ -215,7 +215,7 @@ async def save_artifact(
 
     Returns : 
         a markdown artifact to transmit data between workflows
-    '''
+    """
     await async_create_markdown_artifcat(
         key=key,
         markdown=f"```json\n{data}\n```",
@@ -282,19 +282,19 @@ async def get_flow_runs(
     return flow_runs 
 
 class EventFile:
-    '''
+    """
     @brief simple class to create a file for a given event.  
-    '''
+    """
     event_loc: str
-    '''directory where to store file event locks'''
+    """directory where to store file event locks"""
     sampling: float
-    '''how often to check for event file'''
+    """how often to check for event file"""
     identifer : str
-    '''unique identifer'''
+    """unique identifer"""
     event_time : str 
-    '''Time of event creation'''
+    """Time of event creation"""
     event_set : int  = 0
-    '''Counter for number of times set'''
+    """Counter for number of times set"""
     
     def __init__(self, name : str, loc : str, sampling : float = 0.01): 
         self.event_loc = loc

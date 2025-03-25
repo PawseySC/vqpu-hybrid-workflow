@@ -1,14 +1,15 @@
-'''
+"""
 @file vqpuworkflow.py
 @brief Collection of tasks and flows related to vqpu and circuits
 
-'''
+"""
 
 import time, datetime, subprocess, os, select, psutil
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Any, Dict, NamedTuple, Optional, Tuple, Union, Generator, Callable
+from vqpucommon.clusters import get_dask_runners
 from vqpucommon.utils import save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_job_info, get_flow_runs, upload_image_as_artifact, SlurmInfo, EventFile
 import asyncio
 from prefect_dask import DaskTaskRunner
@@ -16,11 +17,530 @@ from prefect import flow, task, get_client, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.artifacts import Artifact
 from prefect.context import get_run_context
-# from prefect.input import RunInput
-# from prefect.runtime import flow_run
-# from prefect.events import emit_event, DeploymentEventTrigger
-# from prefect.client.schemas.filters import FlowRunFilter, FlowFilter
-# from prefect.utilities.timeout import timeout_async, timeout
+
+class HybridQuantumWorkflowBase:
+    """
+    A class that contains basic tasks for running hybrid vQPU workflows.
+    """
+
+    cluster: str
+    """cluster name for slurm configurations"""
+    maxvqpu: int
+    """max number of virtual qpus"""
+    vqpu_script : str =  f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu.sh'
+    """vqpu start up script to run"""
+    vqpu_temmplate_yaml : str = f'{os.path.dirname(os.path.abspath(__file__))}/remote_vqpu_template.yaml'
+    """vqpu remote yaml template"""
+    vqpu_yaml_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
+    """directory where to store the active vqpu yamls"""
+    vqpu_exec : str = 'qcstack'
+    """vqpu executable. Default is QB's vQPU executable"""
+    vqpu_ids : List[int]
+    """list of active vqpus"""
+    events : Dict[str, EventFile]
+    """list of events"""
+    eventloc : str
+    """location of where to store event files"""
+    taskrunners : Dict[str, DaskTaskRunner | Dict[str,str]]
+    """The slurm configuration stored in the DaskTaskRunner used by Prefect"""
+    backends : List[str]
+    """List of allowed backends"""
+
+    def __init__(self, cluster : str, 
+                 vqpu_ids : List[int] = [1], 
+                 backends : List[str] = ['qb-vqpu', 'braket', 'quera', 'qiskit'], 
+                 eventloc : str = './events/', 
+                 vqpu_script : str | None = None, 
+                 vqpu_template_yaml : str | None = None, 
+                 ):
+        """
+        Constructs all the necessary attributes for the person object.
+
+        Args:
+            cluster (str): cluster name.
+            maxvqpu (int): max number of vqpus to launch
+        """
+
+        self.cluster = cluster
+        self.taskrunners = get_dask_runners(cluster=self.cluster)
+        self.backends = backends
+        self.vqpu_ids = vqpu_ids
+        self.eventloc = eventloc
+        if 'qb-vqpu' in backends:
+            if vqpu_script != None:
+                self.vqpu_script = vqpu_script
+            if vqpu_template_yaml != None:
+                self.vqpu_temmplate_yaml = vqpu_template_yaml
+            for vqpu_id in self.vqpu_ids:
+                self.events[f'vqpu_{vqpu_id}_launch'] = EventFile(name = f'vqpu_{vqpu_id}_launch', loc = self.eventloc) 
+                self.events[f'vqpu_{vqpu_id}_circuits_finished'] = EventFile(name = f'vqpu_{vqpu_id}_circuits_finished', loc = self.eventloc)
+
+    def report_config(self):
+        """
+        Report config of the hybrid workflow
+        """
+        logger = get_run_logger()
+        logger.info('Hybrid Quantum Workflow running on ')
+        logger.info(f'Cluster : {self.cluster}')
+        for key, value in self.taskrunners['jobscript'].items():
+            logger.info(f'Slurm configuration {key}: {value}')
+        logger.info(f'Allowed QPU backends : {self.backends}')
+
+    async def __create_vqpu_remote_yaml(
+        self, 
+        job_info : Union[SlurmInfo], 
+        vqpu_id : int 
+        ) -> None:
+        """Saves the remote backend for the vqpu to a yaml file and artifact
+        having extracted the hostname running the vqpu from the slurm job
+
+        Args:
+            job_info (Union[SlurmInfo]): slurm job information 
+            vqpu_id (int): The vqpu id
+        """
+        # where to save the workflow yaml
+        workflow_yaml = f'{self.vqpu_yaml_dir}/remote_vqpu-{vqpu_id}.yaml'
+        # here there is an assumption of the path to the template
+        lines = open(self.vqpu_temmplate_yaml, 'r').readlines()
+        fout = open(workflow_yaml, 'w')
+        # update the HOSTNAME 
+        for line in lines:
+            if 'HOSTNAME' in line:
+                line = line.replace('HOSTNAME', job_info.hostname)
+            fout.write(line)
+        # to store the results of this task, make use of a helper function that creates artifcat 
+        await save_artifact(workflow_yaml, key=f'remote{vqpu_id}')
+        await save_artifact(job_info.job_id, key=f'vqpujobid{vqpu_id}')
+        
+    def __delete_vqpu_remote_yaml(
+        self, 
+        vqpu_id : int, 
+        ) -> None:
+        """Removes the yaml file of the vqpu
+
+        Args:
+            vqpu_id (int): The vqpu id
+        """
+
+        workflow_yaml = f'{self.vqpu_yaml_dir}/remote_vqpu-{vqpu_id}.yaml'
+        if os.path.isfile(workflow_yaml):
+            os.remove(workflow_yaml)
+    
+    @task(retries = 5, 
+        retry_delay_seconds = 10, 
+        timeout_seconds=600,
+        task_run_name = 'Task-Launch-vQPU-{vqpu_id}',
+        )
+    async def launch_vqpu(
+        self,
+        vqpu_id : int,
+        spinuptime : float = 30, 
+        arguments : str | None = None, 
+        ) -> None:
+        """Base task that launches the virtual qpu. 
+        Should have minimal retries and a wait between retries
+        once vqpu is launched set event so subsequent circuit tasks can run 
+
+        Args:
+            event (EventFile): The event file that is used to mark vqpu has started
+            vqpu_id (int): The vqpu id
+            spinuptime (float): The delay time to sleep for representing how long it takes to spin-up the vqpu
+            arguments (str): Arguments that could be used 
+        """
+        if 'qb-vqpu' not in self.backends: 
+            raise RuntimeError("vQPU requested to be launched yet qb-vqpu not in list of acceptable backends. Terminating")
+        if vqpu_id not in self.vqpu_ids:
+            raise RuntimeError(f"vQPU ID {vqpu_id} requested yet not in allowed list of ids. Terminating")
+
+
+        # get flow run information and slurm job information 
+        job_info = get_job_info()
+        logger = get_run_logger()
+        logger.info(f'Spinning up vQPU-{vqpu_id} backend')
+        logger.info(f'vQPU-{vqpu_id}: setting config yamls')
+        await self.__create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
+        logger.info(f'vQPU-{vqpu_id}: running script {self.vqpu_script}')
+        cmds = [self.vqpu_script]
+        process = run_a_process(cmds)
+        await asyncio.sleep(spinuptime)
+        logger.info(f'vQPU-{vqpu_id}: script running ... ')
+        # read the output of the process in a non-blocking manner 
+        self.events[f'vqpu_{vqpu_id}_launch'].set()
+        logger.info(f'Running vQPU-{vqpu_id} ... ')
+
+    async def task_circuitcomplete(
+            self,
+            vqpu_id : int
+            ) -> str:
+        """Async task that indicates why vqpu can proceed to be shutdown as all circuits have been run
+
+        Args:
+            vqpu_id (int): The vqpu id
+
+        Returns: 
+            returns a message of what has completed 
+        """
+        await self.events[f'vqpu_{vqpu_id}_circuits_finished'].wait()
+        return "Circuits completed!"
+
+    async def task_walltime(walltime : float, vqpu_id : int) -> str:
+        """Async task that indicates why vqpu can proceed to be shutdown as has exceeded walltime
+
+        Args:
+            walltime (float): Walltime to wait before shutting down vqpu 
+            vqpu_id (int): The vqpu id
+        Returns: 
+            returns a message of what has completed 
+        """
+        await asyncio.sleep(walltime)
+        return 'Walltime complete'
+
+    @task(retries = 0, 
+        task_run_name = 'Task-Run-vQPU-{vqpu_id}',
+        )
+    async def run_vqpu(
+        self, 
+        vqpu_id : int,
+        walltime : float = 86400, # one day
+        ) -> None:
+        """Runs a task that waits to keep flow active
+        so long as there are circuits to be run or have not exceeded the walltime
+
+        Args:
+            event (EventFile): The event file that is used to mark circuits have completed 
+            vqpu_id (int): The vqpu id
+            walltime (float): Walltime to wait before shutting down vqpu 
+        """
+        logger = get_run_logger()
+        logger.info(f'vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... ')
+        # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
+        tasks = [
+            asyncio.create_task(self.task_circuitcomplete(self.events[f'vqpu_{vqpu_id}_circuits_finished'], vqpu_id=vqpu_id)),
+            asyncio.create_task(self.task_walltime(walltime, vqpu_id=vqpu_id)),
+        ]
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        results = f"vQPU-{vqpu_id} can be shutdown. Reason : "
+        for d in done:
+            results += d.result()
+        for remaining in pending:
+            remaining.cancel()
+        logger.info(results)
+
+    @task(retries = 5, 
+        retry_delay_seconds = 2, 
+        timeout_seconds=600,
+        task_run_name = 'Task-Shutdown-vQPU-{vqpu_id}',
+        )
+    async def shutdown_vqpu(
+        self, 
+        vqpu_id : int,
+        ) -> None:
+        """Shuts down vqpu 
+
+        Args:
+            vqpu_id (int): The vqpu id
+        """
+        logger = get_run_logger()
+        logger.info(f'Shutdown vQPU-{vqpu_id} backend')
+        self.__delete_vqpu_remote_yaml(vqpu_id)
+        for proc in psutil.process_iter():
+            # check whether the process name matches
+            if proc.name() == self.vqpu_exec:
+                proc.kill()
+        logger.info("vQPU(s) shutdown")
+    
+    def __getcircuitandpost(
+            self, 
+            c : Any) -> Tuple:
+        """process a possible circuit and any post processing to do 
+
+        Args:
+            c : possible combintation of circuit and post or just circuit
+        """
+
+        if not (isinstance(c, Callable) or isinstance(c, Tuple)):
+            errmessage : str = "circuits argument was passed a List not containing either a callable function"
+            errmessage += " or a tuple of callable fuctions consisting of a circuit and some post processing"
+            errmessage += f"got type {type(c)}"
+            raise ValueError(errmessage)
+        # if the list contains a tuple then the circuit is 
+        # followed by some post processing
+        post = None
+        circ = c
+        if isinstance(c, Tuple) :
+            # unpack the tuple and store the postprocessing call, p
+            circ, post = c
+            if not isinstance(circ, Callable) and not isinstance(post, Callable):
+                errmessage : str = "circuits argument was passed a Tuple that did not consist of two callable functions"
+                errmessage += " a circuit and some post processing"
+                errmessage += f"got type {type(circ)} and {type(post)}"
+                raise ValueError(errmessage)
+        return circ, post
+
+    async def postprocessing_histo_plot(
+            self, 
+            data : Dict[str,int],
+            arguments : str, 
+            normalize : bool = True,
+            cmapname : str = 'viridis',
+        ) -> Dict[str, int] :
+        """Simple post_processing of circuit, creating a histogram, 
+        saving the file and also creating a markdown artifact for prefect
+        This is a useful post processing step 
+
+        Args:
+            data (Dict[str,int]): bitstring data
+            arguments (str): arguments that should contain the filename and title
+
+        Returns:
+            Dict[str,int]: Post-processed results. Here no processing is done
+        """
+        filename = arguments.split('--filename=')[1].split(' ')[0]
+        title = arguments.split('--plottitle=')[1].split(' ')[0]
+
+        counts = np.array([data[k] for k in data.keys()], dtype=np.float32)
+        if normalize: 
+            counts /= np.sum(counts)
+            maxnormval = 1
+        else:
+            maxnormval = np.sum(counts)
+
+        fig, ax = plt.subplots(1, 1, tight_layout=True, figsize=(8,8))
+        norm = plt.Normalize(vmin=0, vmax=maxnormval)
+        cmap = plt.cm.get_cmap(cmapname)
+        colors = cmap(norm(counts))
+        # Create bars
+        bars = ax.bar(data.keys(), counts, color=colors)
+        ax.set_ylabel('Probability')
+        ax.set_xlabel('States')
+        ax.set_title(title)
+        plt.savefig(f'{filename}.png')
+        # save the figure so that it can be directly viewed from the Prefect UI
+        await upload_image_as_artifact(Path(f'{filename}.png'))
+        return data 
+
+    @task(retries = 10, 
+        retry_delay_seconds = 2,
+        retry_jitter_factor = 0.5,
+        task_run_name = 'Run_circuit-{circuitfunc.__name__}-vqpu-{vqpu_id}',
+        )
+    async def run_circuit(
+        self, 
+        circuitfunc : Callable, 
+        vqpu_id : int = 1,
+        arguments : str = '',
+        remote : str = '', 
+        ) -> Tuple[Dict[str, int], int]:
+        """Run a circuit on a given remote backend
+
+        Args:
+            circuitfunc (Callable) : function to run 
+            vqpu_id (int): The vqpu id to use 
+            arguments (str): string of arguments to pass to circuit function
+            remote (str) : remote vQPU to use 
+
+        Returns:
+            Tuple[Dict[str, int], int]: Dictionary results from a circuit that consists of bitstrings and counts along with the id of this task running the circuit
+        """
+        # note that below since artifcate saves remote file name, don't need the below check and parsing
+        results = circuitfunc(remote, arguments)
+        context = get_run_context()
+        task_run_id = context.task_run.id
+        return results, task_run_id
+
+    @task(retries = 10, 
+        retry_delay_seconds = 2,
+        retry_jitter_factor=0.5,
+        task_run_name = 'Run_postprocess-{postprocessfunc.__name__}-circuit_id-{circuit_job_id}',
+        )
+    async def run_postprocess(
+        self, 
+        postprocessfunc : Callable, 
+        initial_results : Dict[str,int],
+        circuit_job_id : int, 
+        arguments : str, 
+        ) -> Tuple[Any, int]:
+        """Run a small postprocessing
+
+        Args:
+            postprocessfunc (Callable) : function to run postprocessing results from a circuit
+            initial_results (Dict[str,int]) : results from the circuit 
+            circuit_job_id (int): The job id of the circuit producing the initial results 
+            arguments (str): string of arguments to pass to circuit function
+
+        Returns:
+            Tuple[Any, int]: The postprocessing rsult and task running the postprocessing
+        """
+        # note that below since artifcate saves remote file name, don't need the below check and parsing
+        results = await postprocessfunc(initial_results, arguments)
+        context = get_run_context()
+        task_run_id = context.task_run.id
+        return results, task_run_id
+
+    @task(retries = 10, 
+        retry_delay_seconds = 2,
+        retry_jitter_factor = 0.5,
+        task_run_name = 'Run_circuitsandpost-vqpu-{vqpu_id}',
+        )
+    async def run_circuitandpost(
+        self, 
+        circuit : Callable | Tuple[Callable, Callable],
+        vqpu_id : int,
+        arguments : str,
+        remote : str,
+        produce_histo : bool = True,
+        ) -> Dict[str, Any]:
+        """Run circuit (and possibly postprocessing) on a given remote backend
+
+        Args:
+            circuit (Callable | Tuple[Callable, Callabe]) : function(s) to run 
+            vqpu_id (int): The vqpu id to use 
+            arguments (str): string of arguments to pass to circuit function
+            remote (str) : remote vQPU to use 
+            produce_histo (bool) : produce a histogram of initial bitstrings
+
+        Returns:
+            Dict[str, Any]: Dictionary storing initial and postprocessed results
+        """
+        logger = get_run_logger()
+        results = {'circuit': None, 'post' : None}
+        circ, post = getcircuitandpost(circuit)
+        logger.info(f'Running {circ.__name__}')
+        future = await run_circuit.submit(
+            circuitfunc = circ,
+            arguments = arguments,
+            vqpu_id = vqpu_id, 
+            remote = remote, 
+            )
+        circ_results, circ_id = await future.result()
+        results['circuit'] = {'results': circ_results, 'name': circ.__name__, 'id': circ_id}
+        logger.debug(f'{circ.__name__} with {circ_id} results: {circ_results}')
+        results['post'] = {'results': None, 'name': None, 'id': None}
+        if post != None :
+            postprocess_args = f' --filename=plots/{circ.__name__}.vqpu-{vqpu_id}.{circ_id}.histo --plottitle=testing '
+            future = await run_postprocess.submit(
+                postprocessfunc = post, 
+                initial_results = circ_results,
+                circuit_job_id = circ_id, 
+                arguments = postprocess_args, 
+            )
+            post_results, post_id = await future.result()
+            results['post'] = {'results': post_results, 'name': post.__name__, 'id': post_id}
+            logger.debug(f'Results from postprocessing {post.__name__} : {post_results}')
+        return results
+
+    @task(
+        task_run_name = 'clean_circuit_event_files-{vqpu_id}',            
+    )
+    def circuit_event_clean(
+        events : Dict[str,EventFile],
+        vqpu_ids : List[int]
+        ) -> None:
+        """Clean circuit finished event files. Useful to do on start-up to ensure proper event file creation
+
+        Args:
+            events (Dict[str,EventFile]) : event files 
+            vqpu_ids (List[int]): list of vqpu ids
+        """
+        for vqpu_id in vqpu_ids:
+            key = f'vqpu_{vqpu_id}_circuits_finished'
+            events[key].clean()
+
+    @task(
+        task_run_name = 'Run_circuits_when-vqpu-{vqpu_id}-ready',
+    )
+    async def run_circuits_once_vqpu_ready(
+        self,
+        circuits : Dict[str, List[Callable | Tuple[Callable, Callable]]],
+        vqpu_id : int,  
+        arguments : str, 
+        circuits_complete : bool = True, 
+        ):
+        """Run set of circuits (and possibly post processing) once the appropriate vqpu is ready
+
+        Args:
+            circuits (Dict[str, List[Callable | Tuple[Callable, Callable]]]): circuits (and postprocessing) to run for a given vqpu 
+            vqpu_id (int): vqpu id on which to run circuits
+            arguments (str): string of arguments to pass extra options to running circuits and postprocessing
+            circuits_complete (bool) : Whether to trigger the circuits complete shutdown of vqpu
+        """
+        results = list()
+        logger = get_run_logger()
+        key = f'vqpu_{vqpu_id}'
+        await self.events[key+'_launch'].wait()
+        artifact = await Artifact.get(key=f'remote{vqpu_id}')
+        remote = dict(artifact)['data'].split('\n')[1]
+        logger.info(f'vqpu-{vqpu_id} running, submitting circuits ...')
+        for c in circuits[key]:
+            result = await run_circuitandpost.fn(circuit=c, vqpu_id=vqpu_id, arguments=arguments, remote=remote)
+            results.append(result)
+        # if circuits completed should trigger a shutdown of the vqpu, then set the circuits complete event
+        if circuits_complete: self.events[key+'_circuits_finished'].set()
+        return results
+
+
+    @flow(name = "Circuits with multi-vQPU, GPU flow", 
+        flow_run_name = "circuits_flow_for_vqpu_{vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
+        description = "Running circutis on the vQPU with the appropriate task runner for launching circuits and also launches a gpu workflow, ", 
+        retries = 3, 
+        retry_delay_seconds = 20, 
+        log_prints = True,
+        )
+    async def circuits_with_nqvpuqs_workflow(
+        self, 
+        circuits : Dict[str, List[Callable | Tuple[Callable, Callable]]],
+        arguments : str, 
+        delay_before_start : float = 10.0,
+        circuits_complete : bool = True, 
+        date : datetime.datetime = datetime.datetime.now() 
+        ) -> None:
+        """Example flow for running circuits (and any postprocessing) on multiple vqpus
+
+        Args:
+            circuits (Dict[str, List[Callable | Tuple[Callable, Callable]]]): circuits (and postprocessing) to run for a given vqpu 
+            arguments (str): string of arguments to pass extra options to running circuits and postprocessing
+            delay_before_start (float) : seconds to wait before trying to run circuits 
+            circuits_complete (bool) : Whether to trigger the circuits complete shutdown of vqpu
+        """
+
+        logger = get_run_logger()
+
+        if (delay_before_start < 0): delay_before_start = 0
+        # clean-up any events 
+        for vqpu_id in self.vqpu_ids:
+            key = f'vqpu_{vqpu_id}_circuits_finished'
+            self.events[key].clean()
+
+        # run delay 
+        if delay_before_start > 0:
+            logger.info(f'Delay of {delay_before_start} seconds before starting ... ')
+            await asyncio.sleep(delay_before_start)
+
+        logger.info(f'Waiting for vqpu-{self.vqpu_ids} to start ... ')
+
+        # due to task runners, serializing the run_circuits_once_vqpu_ready
+        # task cannot be submitted using future = await run_circuits_once_vqpu_ready.submit() it appears
+        # but an easy option is to use a task group 
+        tasks = dict()
+        async with asyncio.TaskGroup() as tg:
+            # either spin up real vqpu
+            for vqpu_id in self.vqpu_ids:
+                tasks[vqpu_id] = tg.create_task(run_circuits_once_vqpu_ready(
+                    circuits = circuits,
+                    vqpu_id = vqpu_id, 
+                    arguments = arguments, 
+                    circuits_complete=circuits_complete,
+                    )
+                )
+        results = {f'vqpu-{name}': task.result() for name, task in tasks.items()}
+        logger.debug(results)
+        return results
+
+
+class MyHybridWorkflow(HybridQuantumWorkflowBase): 
+    """
+    Example class inheriting the basic workflow tasks for running vQPU workflows
+    """
 
 
 async def postprocessing_histo_plot(
@@ -320,7 +840,6 @@ async def shutdown_vqpu(
             if proc.name() == procname:
                 proc.kill()
     logger.info("vQPU(s) shutdown")
-
 
 def getcircuitandpost(c : Any) -> Tuple:
     """process a possible circuit and any post processing to do 
