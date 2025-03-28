@@ -1,9 +1,9 @@
-'''
+"""
 @brief This example shows how to structure a multi-vqpu workflow. 
 
 This workflow spins up two or more vqpus and then has a workflow that runs cpu/gpu flows that also then spawn circuit flows. 
 
-'''
+"""
 
 
 from time import sleep
@@ -102,9 +102,9 @@ async def workflow(
     add_other_tasks : bool = True, 
     date : datetime.datetime = datetime.datetime.now() 
     ):
-    '''
+    """
     @brief overall workflow for hydrid multi-(v)QPU+CPU+GPU
-    '''
+    """
     MAXWALLTIME : float = 86400.0
     if len(vqpu_walltimes) < len(vqpu_ids):
         num_to_add = len(vqpu_ids)-len(vqpu_walltimes)
@@ -195,9 +195,9 @@ async def workflow(
     logger.info("Finished hybrid multi-(v)QPU workflow")
 
 def wrapper_to_async_flow(arguments: str):
-    '''
+    """
     @brief run the workflow with the appropriate task runner
-    '''
+    """
     task_runners = get_dask_runners(cluster='ella-qb')
     asyncio.run(workflow(task_runners, arguments, vqpu_ids = set([1,2,3,16]), vqpu_walltimes=[86400, 500, 1000, 1000]))
 

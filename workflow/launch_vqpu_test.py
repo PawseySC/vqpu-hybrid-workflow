@@ -1,6 +1,6 @@
-'''
+"""
 @brief This example shows how to turn on noise in a simulation, and how to modify the default noise model used.
-'''
+"""
 
 from time import sleep
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
@@ -21,9 +21,9 @@ from prefect.logging import get_run_logger
       )
 async def workflow(task_runners : dict, 
              arguments: str = "", ):
-    '''
+    """
     @brief start and shutdown vqpu
-    '''
+    """
     logger = get_run_logger()
     logger.info("Running vQPU")
     
@@ -49,9 +49,9 @@ async def workflow(task_runners : dict,
         events[k].clean()
     
 def run_flow(arguments: str):
-    '''
+    """
     @brief run the workflow with the appropriate task runner
-    '''
+    """
     task_runners = get_dask_runners(cluster='ella-qb')
 
     asyncio.run(workflow.with_options(
