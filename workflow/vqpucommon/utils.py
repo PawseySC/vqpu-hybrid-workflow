@@ -5,6 +5,7 @@
 """
 
 import datetime
+import importlib
 import os
 import secrets
 import subprocess
@@ -19,11 +20,19 @@ from prefect.logging import get_run_logger
 from prefect import get_client
 from prefect.client.schemas.objects import FlowRun
 from prefect.client.schemas.filters import FlowRunFilter
+from prefect.context import TaskRunContext, get_run_context
 import asyncio
 import base64
 from uuid import UUID
 SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
 
+def check_python_installation(library : str):
+    try:
+        importlib.import_module(library)
+        return True
+    except ImportError:
+        print(f"{library} is not installed.")
+        return False
 
 def _printtostr(thingtoprint: Any) -> str:
     from io import StringIO
@@ -265,6 +274,15 @@ async def upload_image_as_artifact(
     # artifact = await Artifact.get(key=key)
     # logger.info(artifact)
 
+def get_task_run_id() -> str:
+    """Get the Task ID of the task calling this function. If there is no context, then the task_run_id is set to a descriptive, non-unique value
+    """
+    if TaskRunContext.get():
+        context = get_run_context()
+        task_run_id = context.task_run.id
+    else:
+        task_run_id = 'not_a_task'
+    return task_run_id
 
 
 async def get_flow_runs(
