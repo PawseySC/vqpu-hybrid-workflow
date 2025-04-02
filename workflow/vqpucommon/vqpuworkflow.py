@@ -4,7 +4,8 @@
 
 """
 
-import time, datetime, subprocess, os, select, psutil
+import time, datetime, subprocess, os, select, psutil, copy
+import json
 from pathlib import Path
 import importlib
 import numpy as np
@@ -17,42 +18,24 @@ from prefect import flow, task, get_client, pause_flow_run
 from prefect.logging import get_run_logger
 from prefect.artifacts import Artifact
 from prefect.context import get_run_context, TaskRunContext
+from prefect.serializers import Serializer, JSONSerializer 
 
 class HybridQuantumWorkflowBase:
     """
     A class that contains basic tasks for running hybrid vQPU workflows.
     """
 
-    cluster: str
-    """cluster name for slurm configurations"""
-    maxvqpu: int
-    """max number of virtual qpus"""
-    vqpu_script : str =  f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu.sh'
-    """vqpu start up script to run"""
-    vqpu_temmplate_yaml : str = f'{os.path.dirname(os.path.abspath(__file__))}/remote_vqpu_template.yaml'
-    """vqpu remote yaml template"""
-    vqpu_yaml_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
-    """directory where to store the active vqpu yamls"""
-    vqpu_exec : str = 'qcstack'
-    """vqpu executable. Default is QB's vQPU executable"""
-    vqpu_ids : List[int]
-    """list of active vqpus"""
-    events : Dict[str, EventFile] = dict()
-    """list of events"""
-    eventloc : str = f'{os.path.dirname(os.path.abspath(__file__))}/../events/'
-    """location of where to store event files"""
-    taskrunners : Dict[str, DaskTaskRunner | Dict[str,str]]
-    """The slurm configuration stored in the DaskTaskRunner used by Prefect"""
-    backends : List[str] = ['qb-vqpu', 'braket', 'quera', 'qiskit', 'pennylane', 'cudaq']
-    """List of allowed backends"""
-
     def __init__(self, 
                  cluster : str, 
                  vqpu_ids : List[int] = [i for i in range(100)], 
+                 name : str = 'myflow', 
                  backends : List[str] | None = None, 
                  eventloc : str | None = None, 
                  vqpu_script : str | None = None, 
                  vqpu_template_yaml : str | None = None, 
+                 vqpu_yaml_dir : str | None = None, 
+                 vqpu_exec : str | None = None, 
+                 events : Dict[str, EventFile] | None = None,
                  ):
         """
         Constructs all the necessary attributes for the person object.
@@ -62,6 +45,32 @@ class HybridQuantumWorkflowBase:
             maxvqpu (int): max number of vqpus to launch
         """
 
+        self.name: str
+        """name of workflow"""
+        self.cluster: str
+        """cluster name for slurm configurations"""
+        self.maxvqpu: int = 100
+        """max number of virtual qpus"""
+        self.vqpu_script : str =  f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu.sh'
+        """vqpu start up script to run"""
+        self.vqpu_temmplate_yaml : str = f'{os.path.dirname(os.path.abspath(__file__))}/remote_vqpu_template.yaml'
+        """vqpu remote yaml template"""
+        self.vqpu_yaml_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
+        """directory where to store the active vqpu yamls"""
+        self.vqpu_exec : str = 'qcstack'
+        """vqpu executable. Default is QB's vQPU executable"""
+        self.vqpu_ids : List[int]
+        """list of active vqpus"""
+        self.events : Dict[str, EventFile] = dict()
+        """list of events"""
+        self.eventloc : str = f'{os.path.dirname(os.path.abspath(__file__))}/../events/'
+        """location of where to store event files"""
+        self.taskrunners : Dict[str, DaskTaskRunner | Dict[str,str]]
+        """The slurm configuration stored in the DaskTaskRunner used by Prefect"""
+        self.backends : List[str] = ['qb-vqpu', 'braket', 'quera', 'qiskit', 'pennylane', 'cudaq']
+        """List of allowed backends"""
+
+        self.name = name
         self.cluster = cluster
         self.taskrunners = get_dask_runners(cluster=self.cluster)
         # check that taskrunners has minimum set of defined cluster configurations
@@ -88,17 +97,25 @@ class HybridQuantumWorkflowBase:
         self.vqpu_ids = vqpu_ids
         if eventloc != None:
             self.eventloc = eventloc
-        if 'qb-vqpu' in self.backends:
-            if vqpu_script != None:
-                self.vqpu_script = vqpu_script
-            if vqpu_template_yaml != None:
-                self.vqpu_temmplate_yaml = vqpu_template_yaml
-            for vqpu_id in self.vqpu_ids:
-                self.events[f'vqpu_{vqpu_id}_launch'] = EventFile(name = f'vqpu_{vqpu_id}_launch', loc = self.eventloc) 
-                self.events[f'vqpu_{vqpu_id}_circuits_finished'] = EventFile(name = f'vqpu_{vqpu_id}_circuits_finished', loc = self.eventloc)
+        if vqpu_yaml_dir != None:
+            self.vqpu_yaml_dir = vqpu_yaml_dir
+        if vqpu_exec != None:
+            self.vqpu_exec = vqpu_exec
+        if vqpu_script != None:
+            self.vqpu_script = vqpu_script
+        if vqpu_template_yaml != None:
+            self.vqpu_template_yaml = vqpu_template_yaml
+        if events == None:
+            if 'qb-vqpu' in self.backends:
+                for vqpu_id in self.vqpu_ids:
+                    self.events[f'vqpu_{vqpu_id}_launch'] = EventFile(name = f'vqpu_{vqpu_id}_launch', loc = self.eventloc) 
+                    self.events[f'vqpu_{vqpu_id}_circuits_finished'] = EventFile(name = f'vqpu_{vqpu_id}_circuits_finished', loc = self.eventloc)
+        else:
+            # do a deep copy 
+            self.events = copy.deepcopy(events)
 
     def __str__(self):
-        message : str = 'Hybrid Quantum Workflow running on\n'
+        message : str = f'Hybrid Quantum Workflow {self.name} running on\n'
         message += f'Cluster : {self.cluster}\n'
         for key, value in self.taskrunners['jobscript'].items():
             message += f'Slurm configuration {key}: {value}\n'
@@ -110,12 +127,60 @@ class HybridQuantumWorkflowBase:
         Report config of the hybrid workflow
         """
         logger = get_run_logger()
-        logger.info('Hybrid Quantum Workflow running on ')
-        logger.info(f'Cluster : {self.cluster}')
-        for key, value in self.taskrunners['jobscript'].items():
-            logger.info(f'Slurm configuration {key}: {value}')
-        logger.info(f'Allowed QPU backends : {self.backends}')
+        message = self.__str__()
+        logger.info(message)
 
+    def to_dict(self) -> Dict:
+        """Converts class to dictionary for serialisation
+        """
+        eventdict = dict()
+        for k,e in self.events.items():
+            eventdict[k]=e.to_dict()
+        return {
+            'HybridQuantumWorkflowBase' : {
+            'name' : self.name, 
+            'cluster': self.cluster,
+            'maxvqpu': self.maxvqpu,
+            'vqpu_script':self.vqpu_script,
+            'vqpu_template_yaml': self.vqpu_temmplate_yaml,
+            'vqpu_yaml_dir': self.vqpu_yaml_dir,
+            'vqpu_exec': self.vqpu_exec,
+            'vqpu_ids': self.vqpu_ids,
+            'events': eventdict,
+            'eventloc': self.eventloc,
+            'backends' : self.backends,
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data : Dict):
+        """Create an object from a dictionary
+        """
+        # print('hybridworlfow from_dict', data.keys())
+        if 'HybridQuantumWorkflowBase' not in list(data.keys()):
+            raise ValueError('Not an HybridQuantumWorkflowBase dictionary')
+        data = data['HybridQuantumWorkflowBase']
+        eventdict = dict()
+        for k,e in data['events'].items():
+            eventdict[k]=EventFile.from_dict(e)
+        return cls(
+            name=data['name'],
+            cluster=data['cluster'],
+            # maxvqpu=data['maxvpuq'],
+            vqpu_script=data['vqpu_script'],
+            vqpu_template_yaml=data['vqpu_template_yaml'],
+            vqpu_yaml_dir=data['vqpu_yaml_dir'],
+            vqpu_exec=data['vqpu_exec'],
+            vqpu_ids=data['vqpu_ids'],
+            events=eventdict,
+            backends=data['backends'],
+            )
+
+    def __eq__(self, other):
+        if isinstance(other, HybridQuantumWorkflowBase):
+            return self.to_dict() == other.to_dict()
+        return False
+        
     async def __create_vqpu_remote_yaml(
         self, 
         job_info : Union[SlurmInfo], 
@@ -259,6 +324,11 @@ class HybridQuantumWorkflowBase:
             self,
             vqpu_id : int,
     ) -> str:
+        """Waits for a vqpu launch event and then returns the path to the yaml file that defines access to the remote service 
+
+        Args:
+            vqpu_id (int): vqpu_id to wait for and get remote of
+        """
         await self.events[f'vqpu_{vqpu_id}_launch'].wait()
         artifact = await Artifact.get(key=f'remote{vqpu_id}')
         remote = dict(artifact)['data'].split('\n')[1]
@@ -268,7 +338,13 @@ class HybridQuantumWorkflowBase:
             self, 
             backend : str = 'qb-vqpu', 
             checktype : str = 'launch'
-            ):
+            ) -> None:
+        """Runs a number of checks of the backend to see if enabled set of backends
+
+        Args:
+            backend (str): backend to check
+            checktype (str): whether checking launch or circuits or other types
+        """
         if backend == '':
             return 
         if checktype == 'launch':
@@ -281,57 +357,94 @@ class HybridQuantumWorkflowBase:
                 raise RuntimeError(f"Circuits running using unknown backend {backend}. Allowed backends: {self.backends}. Terminating")
 
 
-    def checkvqpuid(self, vqpu_id : int):
+    def checkvqpuid(self, vqpu_id : int) -> None:
+        """Checks if vqpu_id in allowed ids
+
+        Args:
+            vqpu_id (int): id to check
+        """
         if vqpu_id not in self.vqpu_ids:
             raise RuntimeError(f'vQPU ID {vqpu_id} requested yet not in allowed list of ids. Allowed ids {self.vqpu_ids}. Terminating')
+        pass 
 
-    # Prefect IO gave me the wrong answer for tasks in a class. 
-    # what I would have to do is defined them as async functions 
-    # and just call them in tasks since Prefect's @task decorator expects a standalone function, 
-    # just like @flow. Two suggestions on how to handle it:
-    '''
-### Option 1: External Task Function
-python
-from prefect import task
+# class HybridWorkflowSerializer(Serializer):
+#     def dumps(self, obj) -> bytes:
+#         # Serialize the object to JSON-compatible bytes
+#         return json.dumps(obj.to_dict()).encode('utf-8')
 
-class MyTaskClass:
-    def __init__(self, value):
-        self.value = value
+#     def loads(self, blob: bytes):
+#         # Deserialize the JSON bytes back into an object
+#         data = json.loads(blob.decode('utf-8'))
+#         return HybridQuantumWorkflowBase.from_dict(data)
 
-def my_task(instance):
-    return f"Task with value: {instance.value}"
+# Custom encoder and decoder functions
+### Key Points:
+# - Type Checking: Use Python's isinstance() to determine the class of the object during serialization.
+# - Type Field: Include a type field in your serialized data to help identify which class the data should be deserialized into.
+# - Error Handling: Implement error handling to manage unknown types gracefully.
+# @classmethod
+# def custom_object_encoder(obj):
+#     if isinstance(obj, HybridQuantumWorkflowBase):
+#         return obj.to_dict()
+#     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
-# Usage
-my_instance = MyTaskClass(value=42)
-result = my_task(my_instance)
-print(result)
-### Option 2: Static Method
-python
-from prefect import task
+# @classmethod
+# def custom_object_decoder(dct):
+#     if 'custom_class_marker' in dct:
+#         return HybridQuantumWorkflowBase.from_dict(dct)
+#     return dct
 
-class MyTaskClass:
-    def __init__(self, value):
-        self.value = value
 
-    @staticmethod
-    @task
-    def my_task(value):
-        return f"Task with value: {value}"
+# I think the best bet is to define a custom serializer 
 
-# Usage
-my_instance = MyTaskClass(value=42)
-result = MyTaskClass.my_task(my_instance.value)
-print(result)
-'''
-    # In these examples, the task function is either external to the class or a static method, avoiding the self parameter and thus preventing the ParameterBindError.
-    # I think what I will have to do is define tasks as I had done before
-    # and instead of self, pass instance of the HybridQuantumWorkflowBase class    
+class HybridQuantumWorkflowSerializer(JSONSerializer):
 
+    # import types
+    standard_types = [
+    int, float, str, bool, list, tuple, dict, set, complex, 
+    ]
+    """list standard types which the JSONSerializer should be able to handle"""
+
+    def serialize(self, value : Any) -> Dict:
+        """Return a dictionary. Assumes that classes have a to_dict() function
+        
+        Args: 
+            value (Any) : value to serialize to a dictionary 
+        
+        Returns:
+            returns a dictionary that JSON serialize would be happy with 
+        """
+        print(type(value))
+        if isinstance(value, HybridQuantumWorkflowBase):
+            return value.to_dict()
+        elif isinstance(value, EventFile):
+            return value.to_dict()
+        # elif type(value) not in self.standard_types:
+        #     return value.to_dict()
+        return super().dumps(value)
+
+    def deserialize(self, value : Dict) -> Any:
+        """Return an instance of a class or some value
+        
+        Args: 
+            value (Dict) : value to deserialize to a an instance of some class 
+        
+        Returns:
+            returns an instance of some class or simple object 
+        """
+        try:
+            return HybridQuantumWorkflowBase.from_dict(value)
+        except Exception:
+            try:
+                return EventFile.from_dict(value)
+            except:
+                return super().loads(value)
 
 @task(retries = 5, 
     retry_delay_seconds = 10, 
     timeout_seconds=600,
     task_run_name = 'Task-Launch-vQPU-{vqpu_id}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def launch_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -365,6 +478,7 @@ async def launch_vqpu(
 
 @task(retries = 0, 
     task_run_name = 'Task-Run-vQPU-{vqpu_id}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -398,6 +512,7 @@ async def run_vqpu(
     retry_delay_seconds = 2, 
     timeout_seconds=600,
     task_run_name = 'Task-Shutdown-vQPU-{vqpu_id}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def shutdown_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -420,6 +535,7 @@ async def shutdown_vqpu(
     retries = 3, 
     retry_delay_seconds = 10, 
     log_prints=True, 
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def launch_vqpu_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -506,6 +622,7 @@ async def postprocessing_histo_plot(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit_vqpu-{circuitfunc.__name__}-vqpu-{vqpu_id}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -535,6 +652,7 @@ async def run_circuit_vqpu(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit_remote-{circuitfunc.__name__}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit_remote(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -561,6 +679,7 @@ async def run_circuit_remote(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit_sim-{circuitfunc.__name__}-with-{backend_sel}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit_sim(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -588,6 +707,7 @@ async def run_circuit_sim(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit-{circuitfunc.__name__}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -649,6 +769,7 @@ async def run_circuit(
     retry_delay_seconds = 2,
     retry_jitter_factor=0.5,
     task_run_name = 'Run_postprocess-{postprocessfunc.__name__}-circuit_id-{circuit_job_id}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_postprocess(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -679,6 +800,7 @@ async def run_postprocess(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuitsandpost-vqpu-{vqpu_id}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuitandpost_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -744,6 +866,7 @@ async def run_circuitandpost_vqpu(
     retry_delay_seconds = 0.5,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuits_when-vqpu-{vqpu_id}-ready',
+    result_serializer=HybridQuantumWorkflowSerializer(),
 )
 async def run_circuits_once_vqpu_ready(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -779,6 +902,7 @@ async def run_circuits_once_vqpu_ready(
     retries = 3, 
     retry_delay_seconds = 20, 
     log_prints = True,
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def circuits_vqpu_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -824,6 +948,7 @@ async def circuits_vqpu_workflow(
     retries = 3, 
     retry_delay_seconds = 20, 
     log_prints = True,
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def circuits_with_nqvpuqs_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -898,12 +1023,14 @@ def run_workflow_circuits_with_nqvpuqs(
 @task(retries = 10, 
     retry_delay_seconds = 2,
     timeout_seconds=3600,
-    task_run_name = 'Run_cpu_{cpuexec}',
+    task_run_name = 'Run_cpu_{exec}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_cpu(
-    myqpuworkflow : HybridQuantumWorkflowBase,
     exec : str, 
-    arguments: str) -> None:
+    arguments: str,
+    myqpuworkflow : HybridQuantumWorkflowBase | None = None
+    ) -> None:
     """Running CPU based programs. 
 
     Args:
@@ -911,10 +1038,12 @@ async def run_cpu(
         arguments (str): string of arguments to pass extra options to run cpu 
     """
     logger = get_run_logger()
-    logger.info("Launching CPU task")
-    
-    cmds = list(exec)
-    cmds += arguments.split(',')
+    logger.info('Launching CPU task')
+    cmds = [exec]
+    if ','in arguments:
+        cmds += arguments.split(',')
+    else:
+        cmds.append(arguments)
     logger.info(cmds)
     process = run_a_process(cmds)
     logger.info("Finished CPU task")
@@ -922,12 +1051,14 @@ async def run_cpu(
 @task(retries = 10, 
     retry_delay_seconds = 2,
     timeout_seconds=3600,
-    task_run_name = 'Run_gpu_{gpuexec}',
+    task_run_name = 'Run_gpu_{exec}',
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_gpu(
-    myqpuworkflow : HybridQuantumWorkflowBase,
     exec: str, 
-    arguments: str) -> None:
+    arguments: str,
+    myqpuworkflow : HybridQuantumWorkflowBase | None = None,
+    ) -> None:
     """Running GPU based programs. 
 
     Args:
@@ -936,8 +1067,11 @@ async def run_gpu(
     """
     logger = get_run_logger()
     logger.info("Launching GPU task")
-    cmds = list(exec)
-    cmds += arguments.split(',')
+    cmds = [exec]
+    if ','in arguments:
+        cmds += arguments.split(',')
+    else:
+        cmds.append(arguments)
     logger.info(cmds)
     process = run_a_process(cmds)
     logger.info("Finished GPU task")
@@ -948,11 +1082,12 @@ async def run_gpu(
     retries = 3, 
     retry_delay_seconds = 10, 
     log_prints=True, 
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def cpu_workflow(
-    myqpuworkflow : HybridQuantumWorkflowBase,
     execs: List[str], 
     arguments : List[str],
+    myqpuworkflow : HybridQuantumWorkflowBase | None = None,
     date : datetime.datetime = datetime.datetime.now() 
     ) -> None:
     """Flow for running cpu based programs.
@@ -966,9 +1101,10 @@ async def cpu_workflow(
     # submit the task and wait for results
     futures = []
     for exec, args in zip(execs, arguments):
-        futures.append(await run_cpu.submit(myqpuworkflow, exec, args))
+        futures.append(await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec = exec, arguments = args))
     for f in futures:
         await f.result()
+    
     logger.info("Finished CPU flow")
 
 @flow(name = "Simple GPU flow", 
@@ -977,12 +1113,13 @@ async def cpu_workflow(
     retries = 3, 
     retry_delay_seconds = 10, 
     log_prints=True, 
+    result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def gpu_workflow(
-    myqpuworkflow : HybridQuantumWorkflowBase,
     execs: List[str], 
     arguments : List[str],
-    date : datetime.datetime = datetime.datetime.now() 
+    myqpuworkflow : HybridQuantumWorkflowBase | None = None,
+    date : datetime.datetime = datetime.datetime.now(),
     ) -> None:
     """Flow for running GPU based programs.
 
@@ -995,7 +1132,7 @@ async def gpu_workflow(
     # submit the task and wait for results
     futures = []
     for exec, args in zip(execs, arguments):
-        futures.append(await run_gpu.submit(myqpuworkflow, exec, args))
+        futures.append(await run_gpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args))
     for f in futures:
         await f.result()
     logger.info("Finished GPU flow")
@@ -1031,3 +1168,46 @@ def run_workflow_gpu(
         task_runner = myqpuworkflow.taskrunners['gpu'],
     )
     asyncio.run(my_flow(myqpuworkflow=myqpuworkflow, execs=execs, arguments=arguments))
+
+
+# class DaskTaskRunners:
+#     def __init__(self, cluster : str):
+#         self.taskrunners : Dict[str, DaskTaskRunner | Dict[str,str]] = get_dask_runners(cluster)
+    
+#     def to_dict(self) -> Dict:
+#         """Converts class to dictionary for serialisation
+#         """
+#         tr = dict()
+#         for k in list(self.taskrunners.keys()):
+#             if k == 'jobscript':
+#                 tr[k] = copy.deepcopy(self.taskrunners[k])
+
+#         return {
+#             'DaskTaskRunners' : {
+#             'cluster': self.cluster,
+
+#             }
+#         }
+
+class SillyTestClass:
+    """To run unit tests and check flows
+    """
+    y : int = 0
+    def __init__(self, x=2):
+        self.x : float = x
+    
+@task()
+def TaskForSillyTestClass(obj1 : SillyTestClass, obj2 : SillyTestClass):
+    obj1.x += 2
+    obj2.x -= 1
+    obj1.y = 1
+    obj2.y = 2
+
+@flow()
+def FlowForSillyTestClass(baseobj : SillyTestClass | None = None):
+    if baseobj != None:
+        baseobj.x = baseobj.y
+    obj1 = SillyTestClass(x=100)
+    obj2 = SillyTestClass(x=0)
+    future = TaskForSillyTestClass.submit(obj1 = obj1, obj2 = obj2)
+    future.result()

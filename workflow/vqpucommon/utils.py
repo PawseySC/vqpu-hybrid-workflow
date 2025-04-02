@@ -5,6 +5,7 @@
 """
 
 import datetime
+import json
 import importlib
 import os
 import secrets
@@ -14,7 +15,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from socket import gethostname
-from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Any
+from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Dict, Any
 from prefect.artifacts import create_markdown_artifact, Artifact
 from prefect.logging import get_run_logger
 from prefect import get_client
@@ -303,53 +304,127 @@ class EventFile:
     """
     @brief simple class to create a file for a given event.  
     """
-    event_loc: str
-    """directory where to store file event locks"""
-    sampling: float
-    """how often to check for event file"""
-    identifer : str
-    """unique identifer"""
-    event_time : str 
-    """Time of event creation"""
-    event_set : int  = 0
-    """Counter for number of times set"""
     
-    def __init__(self, name : str, loc : str, sampling : float = 0.01): 
+    def __init__(
+            self, 
+            name : str, 
+            loc : str, 
+            sampling : float = 0.01,
+            id : str | None = None, 
+            etime : str | None = None,
+            eset : int | None = None,  
+            ): 
+        self.event_loc: str = ''
+        """directory where to store file event locks"""
+        self.event_name: str = ''
+        """The name of the event"""
+        self.fname: str = ''
+        """File name where event will be saved""" 
+        self.sampling: float = 0.01
+        """how often to check for event file"""
+        self.identifer : str = ''
+        """unique identifer"""
+        self.event_time : str = '' 
+        """Time of event creation"""
+        self.event_set : int = 0
+        """Counter for number of times set"""
+
+        # now set values 
         self.event_loc = loc
         self.event_name = name 
-        self.identifer = secrets.token_hex(12)
+        if id == None:
+           self.identifer = secrets.token_hex(12)
+        else: 
+            self.identifer = id
         self.fname = self.event_loc+'/'+ self.event_name + '.' + self.identifer + '.txt'
         self.sampling = sampling
-        self.event_time = ''
+        # if etime != None:
+        #     self.event_time = etime 
+        # if eset != None:
+        #     self.event_set = eset 
+
+    def __str__(self):
+        message : str = f'Event {self.event_name} with id={self.identifer} saved to {self.fname} : '
+        if not os.path.isfile(self.fname):
+            message += f'- not set\n'
+        else:
+            with open(self.fname, "r") as f:
+                data = f.readline().strip().split(', ')
+                eset = int(data[0])
+                etime = data[1]
+            message += f'- set at {etime} with {eset}\n'
+        return message
 
     def set(self) -> None:
-        if self.event_set == 0:
+        if not os.path.isfile(self.fname):
             current_time = datetime.datetime.now() 
             self.event_time = current_time.strftime('%Y-%m-%D::%H:%M:%S')
             self.event_set += 1
             with open(self.fname, "w") as f:
                 f.write(f'{self.event_set}, {self.event_time}')
         else:
-            # need to throw exception 
-            pass
+            # need to throw exception
+            eset : int
+            etime : str 
+            with open(self.fname, "r") as f:
+                data = f.readline().strip().split(', ')
+                eset = int(data[0])
+                etime = data[1]
+            message : str = f'Event {self.event_name} id={self.identifer} has already been set at {etime} and {eset} is being requested to be set again.'                    
+            raise RuntimeError(message) 
         
     async def wait(self) -> None:
         while not os.path.isfile(self.fname):
             await asyncio.sleep(self.sampling)
         with open(self.fname, "r") as f:
-            time = f.readline().strip('\n').split(', ')[1]
-        correct = (time == self.event_time)
-        # need to throw exception if not true 
+            data = f.readline().strip('\n').split(', ')
+            eset = int(data[0])
+            etime = data[1]
+        if etime != self.event_time or eset != self.event_set:
+            self.event_time = etime
+            self.event_set = eset
 
     def clean(self) -> None:
         # remove the file as a lock 
         if os.path.isfile(self.fname): 
             os.remove(self.fname)
-            # if local dask runner copy has been used to call clean then 
-            # also reduce the event time and set 
-            if self.event_set > 0:
-                self.event_time = ''
-                self.event_set -= 1
-            
+        self.event_time = ''
+        self.event_set = 0
+            # # if local dask runner copy has been used to call clean then 
+            # # also reduce the event time and set 
+            # if self.event_set > 0:
+            #     self.event_time = ''
+            #     self.event_set -= 1
+
+    def to_dict(self) -> Dict:
+        """Converts class to dictionary for serialisation
+        """
+        return {
+            'EventFile' : {
+            'name': self.event_name,
+            'loc': self.event_loc,
+            'sampling': self.sampling,
+            'id': self.identifer,
+            'etime': self.event_time,
+            'eset': self.event_set,
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data : Dict):
+        """Create an object from a dictionary
+        """
+        if 'EventFile' not in list(data.keys()):
+            raise ValueError('Not an EventFile dictionary')
+        data = data['EventFile']
+        return cls(
+            name=data['name'],
+            loc=data['loc'],
+            sampling=data['sampling'],
+            id=data['id'],
+            etime=data['etime'],
+            eset=data['eset'],
+            )
+
 
 

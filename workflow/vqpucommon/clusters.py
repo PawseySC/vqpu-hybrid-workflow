@@ -9,7 +9,7 @@ operations.
 import os 
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import yaml
 from prefect_dask import DaskTaskRunner
@@ -105,7 +105,7 @@ def get_dask_runners(
 def get_test_dask_runners(
     cluster: str = "test",
     extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
-) -> DaskTaskRunner:
+) -> Tuple[DaskTaskRunner, str]:
     """
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
     to manage a set of dask-workers. 
@@ -121,5 +121,6 @@ def get_test_dask_runners(
 
     specs = get_cluster_spec(cluster)
     task_runner = DaskTaskRunner(**specs)
+    jobscript = SLURMCluster(**cluster_config['cluster_kwargs']).job_script()
 
-    return task_runner
+    return task_runner, jobscript 
