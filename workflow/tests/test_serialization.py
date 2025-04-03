@@ -10,7 +10,9 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 #sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../vqpucommon/')
 import json
-from vqpucommon.vqpuworkflow import HybridQuantumWorkflowBase, HybridQuantumWorkflowSerializer, launch_vqpu_workflow, cpu_workflow, SillyTestClass, TaskForSillyTestClass, FlowForSillyTestClass
+# from vqpucommon.vqpuworkflow import HybridQuantumWorkflowBase, HybridQuantumWorkflowSerializer, launch_vqpu_workflow, cpu_workflow, SillyTestClass, TaskForSillyTestClass, FlowForSillyTestClass
+from vqpucommon.vqpubase import HybridQuantumWorkflowBase, HybridQuantumWorkflowSerializer, SillyTestClass
+from vqpucommon.vqpuflow import launch_vqpu_workflow, cpu_workflow, FlowForSillyTestClass
 from vqpucommon.utils import EventFile
 from vqpucommon.clusters import get_dask_runners
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
@@ -156,9 +158,13 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         print('Check simple flow with SillyTestClass defined in vqpucommon.vqpuworkflow works')
-        task_runners = get_dask_runners('ella-qb')
-        myflow = FlowForSillyTestClass.with_options(task_runner = task_runners['cpu'])
-        myflow()
+        #task_runners = get_dask_runners('ella-qb')
+        # myflow = FlowForSillyTestClass.with_options(task_runner = task_runners['cpu'])
+        # myflow()
+        obj = SillyTestClass(cluster = 'ella-qb')
+        task_runner = obj.gettaskrunner('cpu')
+        myflow = FlowForSillyTestClass.with_options(task_runner = task_runner)
+        myflow(baseobj = obj)
 
     def test_flowwithdasktaskrunner(self):
         frame = inspect.currentframe()
@@ -171,7 +177,8 @@ class TestCustomSerializer(unittest.TestCase):
             cluster = 'ella-qb', 
             vqpu_ids = [1, 2, 3, 16], 
         )
-        cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
+        # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
+        cpuflow = cpu_workflow.with_options(task_runner = myflow.gettaskrunner('cpu'))
         print('Check if simple flow without vQPU related classes with dask task runner works')
         asyncio.run(cpuflow(execs=['ls'], arguments=['/opt/']))
 
@@ -186,7 +193,8 @@ class TestCustomSerializer(unittest.TestCase):
             cluster = 'ella-qb', 
             vqpu_ids = [1, 2, 3, 16], 
         )
-        cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
+        # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
+        cpuflow = cpu_workflow.with_options(task_runner = myflow.gettaskrunner('cpu'))
         print('Check if simple flow without vQPU related classes with dask task runner works')
         asyncio.run(cpuflow(myqpuworkflow = myflow, execs=['ls'], arguments=['/usr/local/']))
 
@@ -202,10 +210,14 @@ class TestCustomSerializer(unittest.TestCase):
             cluster = 'ella-qb', 
             vqpu_ids = [1, 2, 3, 16], 
         )
+        # asyncio.run(launch_vqpu_workflow.with_options(
+        #     task_runner = myflow.taskrunners['vqpu'],
+        #     result_serializer=HybridQuantumWorkflowSerializer(),
+        #     )(myqpuworkflow=myflow, vqpu_id = 1, walltime = 400))
         asyncio.run(launch_vqpu_workflow.with_options(
-            task_runner = myflow.taskrunners['vqpu'],
+            task_runner = myflow.gettaskrunner('vqpu'),
             result_serializer=HybridQuantumWorkflowSerializer(),
-            )(myqpuworkflow=myflow, vqpu_id = 1, walltime = 400))
+            )(myqpuworkflow=myflow, vqpu_id = 1, walltime = 10))
 
 if __name__ == '__main__':
     unittest.main()
