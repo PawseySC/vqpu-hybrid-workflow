@@ -6,13 +6,14 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 """
 
 import sys, os
-sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/vqpucommon/')
+#sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/vqpucommon/')
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
-from options import vQPUWorkflow
-from vqpuworkflow import HybridQuantumWorkflowBase, launch_vqpu_workflow, circuits_with_nqvpuqs_workflow, circuits_vqpu_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, run_cpu, run_circuits_once_vqpu_ready
-from utils import EventFile, save_artifact
+from vqpucommon.options import vQPUWorkflow
+from vqpucommon.vqpubase import HybridQuantumWorkflowBase
+from vqpucommon.vqpuflow import launch_vqpu_workflow, circuits_with_nqvpuqs_workflow, circuits_vqpu_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, run_cpu, run_circuits_once_vqpu_ready
+from vqpucommon.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import flow
@@ -22,7 +23,7 @@ import numpy as np
 
 
 @flow(name = "Example CPU flow with QPU-circuit sumbission", 
-    flow_run_name = "cpu_qpu_flow_on_vqpu_{vqpu_ids}-{date:%Y-%m-%d:%H:%M:%S}",
+    flow_run_name = "cpu_qpu_flow_on_vqpu_{vqpu_ids_subset}-{date:%Y-%m-%d:%H:%M:%S}",
     description = "Running CPU flows than can also create QPU-circuits for submission", 
     retries = 3, 
     retry_delay_seconds = 10, 
@@ -52,7 +53,8 @@ async def cpu_with_random_qpu_workflow(
     # submit the task and wait for results
     futures = []
     for exec, args in zip(cpuexecs,cpuargs):
-        futures.append(await run_cpu.submit(exec = exec, arguments = args))
+        logger.info(f'Running {exec} with {args}')
+        futures.append(await run_cpu.submit(myqpuworkflow = myqpuworkflow, exec = exec, arguments = args))
     for f in futures:
         await f.result()
     tasks = {
@@ -64,23 +66,26 @@ async def cpu_with_random_qpu_workflow(
         tasks['qpu'][vqpu_id] = list()
 
     circflow = circuits_vqpu_workflow.with_options(
-                    task_runner = myqpuworkflow.taskrunners['circuit'],
+                    task_runner = myqpuworkflow.gettaskrunner('circuit'),
                 )
     async with asyncio.TaskGroup() as tg:
         for i in range(max_num_gpu_launches):
             if (np.random.uniform() > 0.5):
-                tasks['gpu'].append(tg.create_task(gpu_workflow.with_options(task_runner = myqpuworkflow.taskrunners['gpu'])(myqpuworkflow=myqpuworkflow, execs = gpuexecs, arguments = gpuargs)))
+                # tasks['gpu'].append(
+                #     tg.create_task(
+                #         gpu_workflow.with_options(task_runner = myqpuworkflow.gettaskrunner('gpu'))(myqpuworkflow=myqpuworkflow, execs = gpuexecs, arguments = gpuargs)))
                 if (np.random.uniform() > 0.75):
-                    tasks['cpu'].append(tg.create_task(cpu_workflow.with_options(
-                        task_runner = myqpuworkflow.taskrunners['cpu']
-                    )(myqpuworkflow, execs = cpuexecs, arguments = cpuexecs)))
+                    tasks['cpu'].append(
+                        tg.create_task(
+                            cpu_workflow.with_options(task_runner = myqpuworkflow.gettaskrunner('cpu'))(myqpuworkflow = myqpuworkflow, execs = cpuexecs, arguments = cpuargs)))
         # either spin up real vqpu
         for vqpu_id in vqpu_ids_subset:
+            # myqpuworkflow.events[f'vqpu_{vqpu_id}_circuits_finished'].set() 
             if (np.random.uniform() > 0.5):
                 tasks['qpu'][vqpu_id] = tg.create_task(circflow(
                     myqpuworkflow = myqpuworkflow,
                     vqpu_id = vqpu_id,
-                    circuits = circuits, 
+                    circuits = circuits[f'vqpu_{vqpu_id}'], 
                     arguments = circuitargs, 
                     circuits_complete = True, 
                     )
@@ -91,7 +96,7 @@ async def cpu_with_random_qpu_workflow(
     logger.info("Finished CPU with QPU flow")
 
 @flow(name = "Multi-vQPU Test", 
-    flow_run_name = "Mulit-vQPU_test_{vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
+    flow_run_name = "Mulit-vQPU_test_{myqpuworkflow.vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
     description = "Running a multi-(v)QPU+CPU+GPU hybrid workflow", 
     retries = 3, retry_delay_seconds = 10, 
     log_prints=True, 
@@ -121,7 +126,7 @@ async def workflow(
     vqpuflows = dict()
     circuits = dict() 
     circuitflows = dict()
-    for vqpu_id in self.vqpu_ids:
+    for vqpu_id in myqpuworkflow.vqpu_ids:
         if vqpu_id > 1 and vqpu_id < 3:
             circuits[f'vqpu_{vqpu_id}'] = [noisy_circuit, noisy_circuit, noisy_circuit]
         elif vqpu_id > 3:
@@ -133,25 +138,21 @@ async def workflow(
         # lets define the flows with the appropriate task runners 
         # this would be for the real vqpu 
         vqpuflows[f'vqpu_{vqpu_id}'] = launch_vqpu_workflow.with_options(
-            task_runner = myqpuworkflow.taskrunners['vqpu'],
+            task_runner = myqpuworkflow.gettaskrunner('vqpu'),
             )
     circuitflows = circuits_with_nqvpuqs_workflow.with_options(
-        task_runner = myqpuworkflow.taskrunners['circuit'],
+        task_runner = myqpuworkflow.gettaskrunner('circuit'),
     )
     othercircuitflows = cpu_with_random_qpu_workflow.with_options(
-        task_runner = myqpuworkflow.task_runners['cpu'],
+        task_runner = myqpuworkflow.gettaskrunner('cpu'),
     )
-
-    # since the set is just used to make sure ids are unique, 
-    # lets convert it back to a list for easy use
-    vqpu_ids = list(vqpu_ids)
 
     # silly change so that any vqpu_ids past 3 are 
     # not provided to circuitflows but rather 
     # set aside to the cpu flow that can spawn vqpus
     circ_vqpu_ids = list()
     other_vqpu_ids = list()
-    for vqpu_id in vqpu_ids:
+    for vqpu_id in myqpuworkflow.vqpu_ids:
         if vqpu_id >= 3:
             other_vqpu_ids.append(vqpu_id)
         else:
@@ -159,8 +160,8 @@ async def workflow(
             
     async with asyncio.TaskGroup() as tg:
         # either spin up real vqpu
-        for i in range(len(vqpu_ids)):
-            vqpu_id = vqpu_ids[i]
+        for i in range(len(myqpuworkflow.vqpu_ids)):
+            vqpu_id = myqpuworkflow.vqpu_ids[i]
             vqpu_walltime = vqpu_walltimes[i]
             tg.create_task(
                 vqpuflows[f'vqpu_{vqpu_id}'](
@@ -175,7 +176,7 @@ async def workflow(
         tg.create_task(circuitflows(
             myqpuworkflow = myqpuworkflow,
             circuits = circuits,
-            vqpu_ids = circ_vqpu_ids, 
+            vqpu_ids_subset = circ_vqpu_ids, 
             arguments = circuitargs, 
         ))
         tg.create_task(othercircuitflows(
@@ -193,6 +194,48 @@ async def workflow(
         myqpuworkflow.events[k].clean()
 
     logger.info("Finished hybrid multi-(v)QPU workflow")
+
+@flow(name = "Multi-vQPU Test", 
+    flow_run_name = "Mulit-vQPU_test_{myqpuworkflow.vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
+    description = "Running a multi-(v)QPU+CPU+GPU hybrid workflow", 
+    retries = 3, retry_delay_seconds = 10, 
+    log_prints=True, 
+    )
+async def workflow2(
+    myqpuworkflow : HybridQuantumWorkflowBase, 
+    circuitargs : str,  
+    date : datetime.datetime = datetime.datetime.now() 
+    ):
+    circflow = circuits_vqpu_workflow.with_options(
+                    task_runner = myqpuworkflow.gettaskrunner('circuit'),
+                )
+
+    vqpuflows = dict()
+    circuits = dict()
+    for vqpu_id in myqpuworkflow.vqpu_ids:
+        vqpuflows[f'vqpu_{vqpu_id}'] = launch_vqpu_workflow.with_options(
+            task_runner = myqpuworkflow.gettaskrunner('vqpu'),
+            )
+    for vqpu_id in myqpuworkflow.vqpu_ids:
+        circuits[f'vqpu_{vqpu_id}'] = [noisy_circuit, noisy_circuit, noisy_circuit]
+
+    async with asyncio.TaskGroup() as tg:
+        for vqpu_id in myqpuworkflow.vqpu_ids:
+            tg.create_task(
+                vqpuflows[f'vqpu_{vqpu_id}'](
+                    myqpuworkflow = myqpuworkflow, 
+                    walltime = 200,  
+                    vqpu_id = vqpu_id, 
+                    ))
+        for vqpu_id in myqpuworkflow.vqpu_ids:
+            tg.create_task(
+                circflow(
+                    myqpuworkflow = myqpuworkflow, 
+                    vqpu_id=vqpu_id,
+                    circuits = circuits[f'vqpu_{vqpu_id}'], 
+                    arguments = circuitargs, 
+                    circuits_complete = True, 
+                    ))
 
 
 def wrapper_to_async_flow(
@@ -223,29 +266,21 @@ def wrapper_to_async_flow(
         cluster = 'ella-qb', 
         vqpu_ids = [1, 2, 3, 16], 
     )
-    myflow_message = print(myflow)
 
-    # Serialize the object to a JSON string
-    import json
-    json_string = json.dumps(myflow.to_dict())
-    print("Serialized JSON:", json_string)
-
-    # Deserialize the JSON string back into an object
-    loaded_object = HybridQuantumWorkflowBase.from_dict(json.loads(json_string))
-    loaded_object_message = print(loaded_object)
-    print(myflow_message == loaded_object_message)
-
-    # asyncio.run(launch_vqpu_workflow.with_options(task_runner = myflow.taskrunners['vqpu'])(myqpuworkflow=myflow, vqpu_id = 1, walltime = 400))
-
-    # asyncio.run(myflow.workflow(
+    # asyncio.run(workflow2(
     #     myqpuworkflow=myflow,
-    #     circuitargs=circuitargs,
-    #     cpuexecs=cpuexecs,
-    #     cpuargs= cpuargs,
-    #     gpuexecs=gpuexecs,
-    #     gpuargs=gpuargs,
-    #     vqpu_walltimes=[86400, 500, 1000, 1000])
+    #     circuitargs=circuitargs)
     # )
+
+    asyncio.run(workflow(
+        myqpuworkflow=myflow,
+        circuitargs=circuitargs,
+        cpuexecs=cpuexecs,
+        cpuargs= cpuargs,
+        gpuexecs=gpuexecs,
+        gpuargs=gpuargs,
+        vqpu_walltimes=[86400, 500, 1000, 1000])
+    )
 
 def cli(
         local_run : bool = False, 

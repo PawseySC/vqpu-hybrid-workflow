@@ -12,7 +12,8 @@ import numpy as np
 from typing import List, Any, Dict, NamedTuple, Optional, Tuple, Union, Generator, Callable
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.utils import check_python_installation, save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_task_run_id, get_job_info, get_flow_runs, upload_image_as_artifact, SlurmInfo, EventFile
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase, HybridQuantumWorkflowSerializer, SillyTestClass
+from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
+#from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
 import asyncio
 from prefect import flow, task
 from prefect.logging import get_run_logger
@@ -22,7 +23,7 @@ from prefect.artifacts import Artifact
     retry_delay_seconds = 10, 
     timeout_seconds=600,
     task_run_name = 'Task-Launch-vQPU-{vqpu_id}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def launch_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -55,8 +56,8 @@ async def launch_vqpu(
 
 
 @task(retries = 0, 
-    task_run_name = 'Task-Run-vQPU-{vqpu_id}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    task_run_name = 'Task-Run-vQPU-{vqpu_id}-walltime-{walltime}',
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -90,7 +91,7 @@ async def run_vqpu(
     retry_delay_seconds = 2, 
     timeout_seconds=600,
     task_run_name = 'Task-Shutdown-vQPU-{vqpu_id}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def shutdown_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -113,7 +114,7 @@ async def shutdown_vqpu(
     retries = 3, 
     retry_delay_seconds = 10, 
     log_prints=True, 
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def launch_vqpu_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -174,7 +175,7 @@ async def postprocessing_histo_plot(
     import matplotlib.pyplot as plt
     filename = arguments.split('--filename=')[1].split(' ')[0]
     title = arguments.split('--plottitle=')[1].split(' ')[0]
-
+    
     counts = np.array([data[k] for k in data.keys()], dtype=np.float32)
     if normalize: 
         counts /= np.sum(counts)
@@ -200,7 +201,7 @@ async def postprocessing_histo_plot(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit_vqpu-{circuitfunc.__name__}-vqpu-{vqpu_id}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -230,7 +231,7 @@ async def run_circuit_vqpu(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit_remote-{circuitfunc.__name__}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit_remote(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -257,7 +258,7 @@ async def run_circuit_remote(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit_sim-{circuitfunc.__name__}-with-{backend_sel}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit_sim(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -285,7 +286,7 @@ async def run_circuit_sim(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuit-{circuitfunc.__name__}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuit(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -347,7 +348,7 @@ async def run_circuit(
     retry_delay_seconds = 2,
     retry_jitter_factor=0.5,
     task_run_name = 'Run_postprocess-{postprocessfunc.__name__}-circuit_id-{circuit_job_id}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_postprocess(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -378,7 +379,7 @@ async def run_postprocess(
     retry_delay_seconds = 2,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuitsandpost-vqpu-{vqpu_id}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_circuitandpost_vqpu(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -406,6 +407,7 @@ async def run_circuitandpost_vqpu(
     circ, post = myqpuworkflow.getcircuitandpost(circuit)
     logger.info(f'Running {circ.__name__}')
     future = await run_circuit_vqpu.submit(
+        myqpuworkflow = myqpuworkflow, 
         circuitfunc = circ,
         arguments = arguments,
         vqpu_id = vqpu_id, 
@@ -413,10 +415,12 @@ async def run_circuitandpost_vqpu(
         )
     circ_results, circ_id = await future.result()
     results['circuit'] = {'results': circ_results, 'name': circ.__name__, 'id': circ_id}
-    logger.debug(f'{circ.__name__} with {circ_id} results: {circ_results}')
     results['post'] = {'results': None, 'name': None, 'id': None}
-    if post != None :
+    logger.debug(f'{circ.__name__} with {circ_id} results: {circ_results}')
+    # results['post'] = {'results': None, 'name': None, 'id': None}
+    if post != None and post != postprocessing_histo_plot:
         future = await run_postprocess.submit(
+            myqpuworkflow = myqpuworkflow,
             postprocessfunc = post, 
             initial_results = circ_results,
             circuit_job_id = circ_id, 
@@ -425,17 +429,17 @@ async def run_circuitandpost_vqpu(
         post_results, post_id = await future.result()
         results['post'] = {'results': post_results, 'name': post.__name__, 'id': post_id}
         logger.debug(f'Results from postprocessing {post.__name__} : {post_results}')    
-    elif produce_histo:
+    elif produce_histo or post == postprocessing_histo_plot:
         postprocess_args = f' --filename=plots/{circ.__name__}.vqpu-{vqpu_id}.{circ_id}.histo --plottitle=testing '
+        post = postprocessing_histo_plot
         future = await run_postprocess.submit(
-            postprocessfunc = postprocessing_histo_plot, 
+            myqpuworkflow = myqpuworkflow,
+            postprocessfunc = post, 
             initial_results = circ_results,
             circuit_job_id = circ_id, 
             arguments = postprocess_args, 
         )
         post_results, post_id = await future.result()
-        results['post'] = {'results': post_results, 'name': post.__name__, 'id': post_id}
-        logger.debug(f'Results from postprocessing {post.__name__} : {post_results}')
 
     return results
 
@@ -444,11 +448,11 @@ async def run_circuitandpost_vqpu(
     retry_delay_seconds = 0.5,
     retry_jitter_factor = 0.5,
     task_run_name = 'Run_circuits_when-vqpu-{vqpu_id}-ready',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
 )
 async def run_circuits_once_vqpu_ready(
     myqpuworkflow : HybridQuantumWorkflowBase,
-    circuits : Dict[str, List[Callable | Tuple[Callable, Callable]]],
+    circuits : List[Callable | Tuple[Callable, Callable]],
     vqpu_id : int,  
     arguments : str, 
     circuits_complete : bool = True, 
@@ -465,9 +469,9 @@ async def run_circuits_once_vqpu_ready(
     results = list()
     logger = get_run_logger()
     key = f'vqpu_{vqpu_id}'
-    remote = await myqpuworkflow.getremoteafterlaunch(vqpu_id = vqpu_id)
+    remote = await myqpuworkflow.getremoteaftervqpulaunch(vqpu_id = vqpu_id)
     logger.info(f'{key} running, submitting circuits ...')
-    for c in circuits[key]:
+    for c in circuits:
         result = await run_circuitandpost_vqpu.fn(myqpuworkflow=myqpuworkflow, circuit=c, vqpu_id=vqpu_id, arguments=arguments, remote=remote)
         results.append(result)
     # if circuits completed should trigger a shutdown of the vqpu, then set the circuits complete event
@@ -480,7 +484,7 @@ async def run_circuits_once_vqpu_ready(
     retries = 3, 
     retry_delay_seconds = 20, 
     log_prints = True,
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def circuits_vqpu_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
@@ -490,7 +494,7 @@ async def circuits_vqpu_workflow(
     delay_before_start : float = 10.0, 
     circuits_complete : bool = True, 
     date : datetime.datetime = datetime.datetime.now() 
-    ) -> None:
+    ) -> List[Dict[str, Any]]:
     """Flow for running circuits (and any postprocessing)
 
     Args:
@@ -501,41 +505,49 @@ async def circuits_vqpu_workflow(
         delay_before_start (float): how much time to wait before running circuits
         circuits_complete (bool): whether to issue circuits complete vqpu shutdown signal 
 
+    Returns:
+        List of results from circuits and postprocessing contain in Dict of 'circuit' and 'post'
     """
     if (delay_before_start < 0): delay_before_start = 0
     # clean-up any events
-    myqpuworkflow.cleanupbeforestart() 
+    # myqpuworkflow.cleanupbeforestart(vqpu_id = vqpu_id) 
     logger = get_run_logger()
     logger.info(f'Delay of {delay_before_start} seconds before starting circuit submission ... ')
     await asyncio.sleep(delay_before_start)
     logger.info(f'Waiting for vqpu-{vqpu_id} to start ... ')
-    remote = myqpuworkflow.getremoteaftervqpulaunch(vqpu_id=vqpu_id)
+    remote = await myqpuworkflow.getremoteaftervqpulaunch(vqpu_id=vqpu_id)
     
     logger.info(f'vqpu-{vqpu_id} running, submitting circuits ...')
     results = list()
     for c in circuits:
-        result = await run_circuitandpost_vqpu.fn(myqpuworkflow=myqpuworkflow, circuit=c, vqpu_id=vqpu_id, arguments=arguments, remote=remote)
+        result = await run_circuitandpost_vqpu.fn(
+            myqpuworkflow=myqpuworkflow, 
+            circuit=c, 
+            vqpu_id=vqpu_id, 
+            arguments=arguments, 
+            remote=remote)
         results.append(result)
     logger.info('Finished all running all circuits')
     if circuits_complete: myqpuworkflow.events[f'vqpu_{vqpu_id}_circuits_finished'].set()
     return results
 
 @flow(name = "Circuits with multi-vQPU, GPU flow", 
-    flow_run_name = "circuits_flow_for_vqpu_{vqpu_ids}_on-{date:%Y-%m-%d:%H:%M:%S}",
+    flow_run_name = "circuits_flow_for_vqpu_{vqpu_ids_subset}_on-{date:%Y-%m-%d:%H:%M:%S}",
     description = "Running circutis on the vQPU with the appropriate task runner for launching circuits and also launches a gpu workflow, ", 
     retries = 3, 
     retry_delay_seconds = 20, 
     log_prints = True,
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def circuits_with_nqvpuqs_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
     circuits : Dict[str, List[Callable | Tuple[Callable, Callable]]],
-    arguments : str, 
+    arguments : str,
+    vqpu_ids_subset : List[int] | None = None,
     delay_before_start : float = 10.0,
     circuits_complete : bool = True, 
     date : datetime.datetime = datetime.datetime.now() 
-    ) -> None:
+    ) -> Dict[str, List[Dict[str, Any]]]:
     """Example flow for running circuits (and any postprocessing) on multiple vqpus
 
     Args:
@@ -544,6 +556,8 @@ async def circuits_with_nqvpuqs_workflow(
         arguments (str): string of arguments to pass extra options to running circuits and postprocessing
         delay_before_start (float) : seconds to wait before trying to run circuits 
         circuits_complete (bool) : Whether to trigger the circuits complete shutdown of vqpu
+    Returns:
+        A dictionary per vqpu of List per circuit run of 'circuit' and 'post' results
     """
 
     logger = get_run_logger()
@@ -556,6 +570,11 @@ async def circuits_with_nqvpuqs_workflow(
         logger.info(f'Delay of {delay_before_start} seconds before starting ... ')
         await asyncio.sleep(delay_before_start)
 
+    if vqpu_ids_subset == None:
+        vqpu_ids_subset = myqpuworkflow.vqpu_ids
+    else:
+        if not all(item in myqpuworkflow.vqpu_ids for item in vqpu_ids_subset):
+            raise ValueError('Desired subset of vqpus to run not in allowed ids')
     logger.info(f'Waiting for vqpu-{myqpuworkflow.vqpu_ids} to start ... ')
 
     # due to task runners, serializing the run_circuits_once_vqpu_ready
@@ -564,16 +583,16 @@ async def circuits_with_nqvpuqs_workflow(
     tasks = dict()
     async with asyncio.TaskGroup() as tg:
         # either spin up real vqpu
-        for vqpu_id in myqpuworkflow.vqpu_ids:
+        for vqpu_id in vqpu_ids_subset:
             tasks[vqpu_id] = tg.create_task(run_circuits_once_vqpu_ready(
                 myqpuworkflow=myqpuworkflow,
-                circuits = circuits,
+                circuits = circuits[f'vqpu_{vqpu_id}'],
                 vqpu_id = vqpu_id, 
                 arguments = arguments, 
                 circuits_complete=circuits_complete,
                 )
             )
-    results = {f'vqpu-{name}': task.result() for name, task in tasks.items()}
+    results = {f'vqpu_{name}': task.result() for name, task in tasks.items()}
     logger.debug(results)
     return results
 
@@ -602,7 +621,7 @@ def run_workflow_circuits_with_nqvpuqs(
     retry_delay_seconds = 2,
     timeout_seconds=3600,
     task_run_name = 'Run_cpu_{exec}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_cpu(
     exec : str, 
@@ -614,6 +633,7 @@ async def run_cpu(
     Args:
         exec (str) : executable to run as a process
         arguments (str): string of arguments to pass extra options to run cpu 
+        myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages workflow
     """
     logger = get_run_logger()
     logger.info('Launching CPU task')
@@ -630,7 +650,7 @@ async def run_cpu(
     retry_delay_seconds = 2,
     timeout_seconds=3600,
     task_run_name = 'Run_gpu_{exec}',
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def run_gpu(
     exec: str, 
@@ -642,9 +662,10 @@ async def run_gpu(
     Args:
         exec (str) : executable to run as a process
         arguments (str): string of arguments to pass extra options to run cpu 
+        myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages workflow
     """
     logger = get_run_logger()
-    logger.info("Launching GPU task")
+    logger.info('Launching GPU task')
     cmds = [exec]
     if ','in arguments:
         cmds += arguments.split(',')
@@ -652,7 +673,7 @@ async def run_gpu(
         cmds.append(arguments)
     logger.info(cmds)
     process = run_a_process(cmds)
-    logger.info("Finished GPU task")
+    logger.info('Finished GPU task')
 
 @flow(name = "Simple CPU flow", 
     flow_run_name = "cpu_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
@@ -660,7 +681,7 @@ async def run_gpu(
     retries = 3, 
     retry_delay_seconds = 10, 
     log_prints=True, 
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def cpu_workflow(
     execs: List[str], 
@@ -673,17 +694,22 @@ async def cpu_workflow(
     Args:
         execs (List[str]): List of execs to run in a CPU oriented DaskTaskScheduler 
         arguments (List[str]): List of corresponding arguments 
+        myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages workflow
     """
     logger = get_run_logger()
-    logger.info("Launching CPU flow")
+    logger.info('Launching CPU flow')
     # submit the task and wait for results
     futures = []
     for exec, args in zip(execs, arguments):
-        futures.append(await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec = exec, arguments = args))
+        logger.info(f'Running {exec} with {args}')
+        futures.append(await run_cpu.submit(
+            myqpuworkflow=myqpuworkflow, 
+            exec = exec, 
+            arguments = args))
     for f in futures:
         await f.result()
     
-    logger.info("Finished CPU flow")
+    logger.info('Finished CPU flow')
 
 @flow(name = "Simple GPU flow", 
     flow_run_name = "gpu_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
@@ -691,7 +717,7 @@ async def cpu_workflow(
     retries = 3, 
     retry_delay_seconds = 10, 
     log_prints=True, 
-    result_serializer=HybridQuantumWorkflowSerializer(),
+    # result_serializer=HybridQuantumWorkflowSerializer(),
     )
 async def gpu_workflow(
     execs: List[str], 
@@ -704,16 +730,21 @@ async def gpu_workflow(
     Args:
         execs (List[str]): List of execs to run in a GPU oriented DaskTaskScheduler 
         arguments (List[str]): List of corresponding arguments 
+        myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages workflow
     """
     logger = get_run_logger()
-    logger.info("Launching GPU flow")
+    logger.info('Launching GPU flow')
     # submit the task and wait for results
     futures = []
     for exec, args in zip(execs, arguments):
-        futures.append(await run_gpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args))
+        logger.info(f'Running {exec} with {args}')
+        futures.append(await run_gpu.submit(
+            myqpuworkflow=myqpuworkflow, 
+            exec=exec, 
+            arguments=args))
     for f in futures:
         await f.result()
-    logger.info("Finished GPU flow")
+    logger.info('Finished GPU flow')
 
 def run_workflow_cpu(
     myqpuworkflow : HybridQuantumWorkflowBase,

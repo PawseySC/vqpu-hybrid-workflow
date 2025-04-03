@@ -387,48 +387,48 @@ class HybridQuantumWorkflowBase:
             raise RuntimeError(f'vQPU ID {vqpu_id} requested yet not in allowed list of ids. Allowed ids {self.vqpu_ids}. Terminating')
         pass 
 
-class HybridQuantumWorkflowSerializer(JSONSerializer):
+# class HybridQuantumWorkflowSerializer(JSONSerializer):
 
-    # import types
-    standard_types = [
-    int, float, str, bool, list, tuple, dict, set, complex, 
-    ]
-    """list standard types which the JSONSerializer should be able to handle"""
+#     # import types
+#     standard_types = [
+#     int, float, str, bool, list, tuple, dict, set, complex, 
+#     ]
+#     """list standard types which the JSONSerializer should be able to handle"""
 
-    def serialize(self, value : Any) -> Dict:
-        """Return a dictionary. Assumes that classes have a to_dict() function
+#     def serialize(self, value : Any) -> Dict:
+#         """Return a dictionary. Assumes that classes have a to_dict() function
         
-        Args: 
-            value (Any) : value to serialize to a dictionary 
+#         Args: 
+#             value (Any) : value to serialize to a dictionary 
         
-        Returns:
-            returns a dictionary that JSON serialize would be happy with 
-        """
-        print(type(value))
-        if isinstance(value, HybridQuantumWorkflowBase):
-            return value.to_dict()
-        elif isinstance(value, EventFile):
-            return value.to_dict()
-        # elif type(value) not in self.standard_types:
-        #     return value.to_dict()
-        return super().dumps(value)
+#         Returns:
+#             returns a dictionary that JSON serialize would be happy with 
+#         """
+#         print(type(value))
+#         if isinstance(value, HybridQuantumWorkflowBase):
+#             return value.to_dict()
+#         elif isinstance(value, EventFile):
+#             return value.to_dict()
+#         # elif type(value) not in self.standard_types:
+#         #     return value.to_dict()
+#         return super().dumps(value)
 
-    def deserialize(self, value : Dict) -> Any:
-        """Return an instance of a class or some value
+#     def deserialize(self, value : Dict) -> Any:
+#         """Return an instance of a class or some value
         
-        Args: 
-            value (Dict) : value to deserialize to a an instance of some class 
+#         Args: 
+#             value (Dict) : value to deserialize to a an instance of some class 
         
-        Returns:
-            returns an instance of some class or simple object 
-        """
-        try:
-            return HybridQuantumWorkflowBase.from_dict(value)
-        except Exception:
-            try:
-                return EventFile.from_dict(value)
-            except:
-                return super().loads(value)
+#         Returns:
+#             returns an instance of some class or simple object 
+#         """
+#         try:
+#             return HybridQuantumWorkflowBase.from_dict(value)
+#         except Exception:
+#             try:
+#                 return EventFile.from_dict(value)
+#             except:
+#                 return super().loads(value)
 
 class SillyTestClass:
     """To run unit tests and check flows
