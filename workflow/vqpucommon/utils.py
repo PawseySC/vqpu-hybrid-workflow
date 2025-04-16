@@ -203,7 +203,41 @@ def run_a_process_bg(
             error_output = process.stderr.readline()
             if error_output:
                 logger.info(f"{error_output.strip()}")
-    
+
+def getnumgpus() -> Tuple[int, str]:
+    """Poll node for number of gpus
+
+    Returns:
+        int number of gpus on a node and the type
+    """
+    cmd = ['lspci']
+    process = subprocess.run(cmd, capture_output=True, text=True)
+    lines = process.stdout.strip().split('\n')
+    gputypes = ['NVIDIA', 'AMD', 'INTEL']
+    gpucmds = {
+        'NVIDIA': ['nvidia-smi',  '--query-gpu=name', '--format=csv,noheader'],
+        'AMD': ['rocm-smi', '--showtopo', '--csv']
+              }
+    gpucmd = list()
+    for l in lines:
+        if 'PCI bridge:' in l:
+            for gt in gputypes:
+                if gt in l:
+                    gpucmd = gpucmds[gt]
+                    gputype = gt
+                    break
+    process = subprocess.run(gpucmd, capture_output=True, text=True)
+    numgpu = len(process.stdout.strip().split('\n'))
+    if gputype == 'AMD':
+        numgpu -= 1
+    return numgpu, gt
+
+def multinodenumberofgpus():
+    """Get the number of gpus per host
+
+    """
+    pass
+
 async def async_create_markdown_artifcat(key, markdown, description):
     await create_markdown_artifact(
         key=key, 

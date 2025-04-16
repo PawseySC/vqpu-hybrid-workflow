@@ -11,7 +11,7 @@ import importlib
 import numpy as np
 from typing import List, Any, Dict, NamedTuple, Optional, Tuple, Union, Generator, Callable
 from vqpucommon.clusters import get_dask_runners
-from vqpucommon.utils import check_python_installation, save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_task_run_id, get_job_info, get_flow_runs, upload_image_as_artifact, SlurmInfo, EventFile
+from vqpucommon.utils import check_python_installation, save_artifact, run_a_srun_process, run_a_process, run_a_process_bg, get_task_run_id, get_job_info, get_flow_runs, upload_image_as_artifact, SlurmInfo, EventFile, getnumgpus
 from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
 #from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
 import asyncio
@@ -696,6 +696,9 @@ async def cpu_workflow(
         arguments (List[str]): List of corresponding arguments 
         myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages workflow
     """
+    if len(execs) != len(arguments):
+        message : str = f'Mismatch in number of executables and arguments lists : # exec = {len(execs)}, # args {len(arguments)}.'
+        raise ValueError(message)
     logger = get_run_logger()
     logger.info('Launching CPU flow')
     # submit the task and wait for results
@@ -732,18 +735,29 @@ async def gpu_workflow(
         arguments (List[str]): List of corresponding arguments 
         myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages workflow
     """
+    if len(execs) != len(arguments):
+        message : str = f'Mismatch in number of executables and arguments lists : # exec = {len(execs)}, # args {len(arguments)}.'
+        raise ValueError(message)
     logger = get_run_logger()
     logger.info('Launching GPU flow')
     # submit the task and wait for results
     futures = []
-    for exec, args in zip(execs, arguments):
-        logger.info(f'Running {exec} with {args}')
-        futures.append(await run_gpu.submit(
+    # get number of gpus available to chunk submission of tasks 
+    ngpus, gputype = getnumgpus()
+    logger.info(f'Running on {ngpus} {gputype} gpus')
+    nchunks = np.int32(np.ceil(float(len(execs))/float(ngpus)))
+    offset = 0
+    for i in range(nchunks):
+        chunksize = int(np.min([len(execs)-offset, ngpus]))
+        for exec, args in zip(execs[offset:offset+chunksize], arguments[offset:offset+chunksize]):
+            logger.info(f'Running {exec} with {args}')
+            futures.append(await run_gpu.submit(
             myqpuworkflow=myqpuworkflow, 
             exec=exec, 
             arguments=args))
-    for f in futures:
-        await f.result()
+        for f in futures:
+            await f.result()
+        offset += chunksize
     logger.info('Finished GPU flow')
 
 def run_workflow_cpu(
