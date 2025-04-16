@@ -82,7 +82,8 @@ async def multivqpuworkflow(
                     ))
 
 
-class TestCustomSerializer(unittest.TestCase):
+class TestHybridWorkflowBasics(unittest.TestCase):
+    cluster : str = 'ella-qb'
 
     def test_jsonserialization(self):
         frame = inspect.currentframe()
@@ -93,7 +94,7 @@ class TestCustomSerializer(unittest.TestCase):
         print(f"Function name: {function_name}, Line number: {line_number}")
 
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         # Serialize the object to a JSON string
@@ -113,7 +114,7 @@ class TestCustomSerializer(unittest.TestCase):
     #     print(f"Function name: {function_name}, Line number: {line_number}")
     #     serializer = HybridQuantumWorkflowSerializer()
     #     myflow = HybridQuantumWorkflowBase(
-    #         cluster = 'ella-qb', 
+    #         cluster = self.cluster, 
     #         vqpu_ids = [1, 2, 3, 16], 
     #     )
     #     serialized = serializer.serialize(myflow)
@@ -146,7 +147,7 @@ class TestCustomSerializer(unittest.TestCase):
     #     print(f"Function name: {function_name}, Line number: {line_number}")
     #     serializer = HybridQuantumWorkflowSerializer()
     #     myflow = HybridQuantumWorkflowBase(
-    #         cluster = 'ella-qb', 
+    #         cluster = self.cluster, 
     #         vqpu_ids = [1, 2, 3, 16], 
     #     )
     #     data = myflow.to_dict()  # Use a dictionary representing the serialized form
@@ -182,7 +183,7 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         print('Check if simple flow without vQPU related classes with local task runner works')
@@ -196,10 +197,10 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         print('Check simple flow with SillyTestClass defined in vqpucommon.vqpuworkflow works')
-        #task_runners = get_dask_runners('ella-qb')
+        #task_runners = get_dask_runners(self.cluster)
         # myflow = FlowForSillyTestClass.with_options(task_runner = task_runners['cpu'])
         # myflow()
-        obj = SillyTestClass(cluster = 'ella-qb')
+        obj = SillyTestClass(cluster = self.cluster)
         task_runner = obj.gettaskrunner('cpu')
         myflow = FlowForSillyTestClass.with_options(task_runner = task_runner)
         myflow(baseobj = obj)
@@ -212,7 +213,7 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
@@ -228,7 +229,7 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
@@ -244,7 +245,7 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
@@ -261,7 +262,7 @@ class TestCustomSerializer(unittest.TestCase):
         print(f"Function name: {function_name}, Line number: {line_number}")
         # serializer = HybridQuantumWorkflowSerializer()
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         asyncio.run(launch_vqpu_workflow.with_options(
@@ -276,7 +277,7 @@ class TestCustomSerializer(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         myflow = HybridQuantumWorkflowBase(
-            cluster = 'ella-qb', 
+            cluster = self.cluster, 
             vqpu_ids = [1, 2, 3, 16], 
         )
         asyncio.run(launch_vqpu_workflow.with_options(
@@ -284,4 +285,7 @@ class TestCustomSerializer(unittest.TestCase):
             )(myqpuworkflow=myflow, vqpu_id = 1, walltime = 10))
 
 if __name__ == '__main__':
+
+    # if necessary, alter the cluster yaml configuration name
+    TestHybridWorkflowBasics.cluster = 'ella-qb'
     unittest.main()
