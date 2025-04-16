@@ -1,15 +1,15 @@
-'''
+"""
 @file clusters.py
 @brief Some utility functions around the creation of Prefect task runners.
 
 For this work we will be using Dask backed workers to perform the compute
 operations.
-'''
+"""
 
 import os 
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 import yaml
 from prefect_dask import DaskTaskRunner
@@ -17,13 +17,13 @@ from dask_jobqueue import SLURMCluster
 
 
 def list_packaged_clusters(yaml_files_dir : str = "./") -> List[str]:
-    '''
+    """
     @brief Return a list of cluster names that are available in the packaged set of
     dask_jobqueue specification YAML files.
 
     Returns:
         list[str]: A list of preinstalled dask_jobqueue cluster specification files
-    '''
+    """
 
     yaml_files = glob(f"{yaml_files_dir}/*yaml")
     clusters = [Path(f).stem for f in yaml_files]
@@ -32,7 +32,7 @@ def list_packaged_clusters(yaml_files_dir : str = "./") -> List[str]:
 
 
 def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
-    '''
+    """
     @brief Given a cluster name, obtain the appropriate SLURM configuration
     file appropriate for use with SLURMCluster.
 
@@ -48,7 +48,7 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
 
     Returns:
         dict[Any, Any]: Dictionary of know options/parameters for dask_jobqueue.SLURMCluster
-    '''
+    """
 
     KNOWN_CLUSTERS = ('ella', 'setonix')
     yaml_file = None
@@ -73,7 +73,7 @@ def get_dask_runners(
     cluster: str = "ella",
     extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, DaskTaskRunner | Dict[str,str]]:
-    '''
+    """
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
     to manage a set of dask-workers. 
 
@@ -84,7 +84,7 @@ def get_dask_runners(
 
     Returns:
         DaskTaskRunner: A dask task runner capable of being used as a task_runner for a prefect flow
-    '''
+    """
 
     specs = get_cluster_spec(cluster)
     cluster = dict()
@@ -105,8 +105,8 @@ def get_dask_runners(
 def get_test_dask_runners(
     cluster: str = "test",
     extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
-) -> DaskTaskRunner:
-    '''
+) -> Tuple[DaskTaskRunner, str]:
+    """
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
     to manage a set of dask-workers. 
 
@@ -117,9 +117,10 @@ def get_test_dask_runners(
 
     Returns:
         DaskTaskRunner: A dask task runner capable of being used as a task_runner for a prefect flow
-    '''
+    """
 
     specs = get_cluster_spec(cluster)
     task_runner = DaskTaskRunner(**specs)
+    jobscript = SLURMCluster(**cluster_config['cluster_kwargs']).job_script()
 
-    return task_runner
+    return task_runner, jobscript 

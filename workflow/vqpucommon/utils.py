@@ -1,10 +1,12 @@
-'''
+"""
 @file utils.py
 @brief Collection of functions and tooling intended for general usage.
 
-'''
+"""
 
 import datetime
+import json
+import importlib
 import os
 import secrets
 import subprocess
@@ -13,17 +15,25 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from socket import gethostname
-from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Any
+from typing import List, NamedTuple, Optional, Tuple, Union, Generator, Dict, Any
 from prefect.artifacts import create_markdown_artifact, Artifact
 from prefect.logging import get_run_logger
 from prefect import get_client
 from prefect.client.schemas.objects import FlowRun
 from prefect.client.schemas.filters import FlowRunFilter
+from prefect.context import TaskRunContext, get_run_context
 import asyncio
 import base64
 from uuid import UUID
 SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
 
+def check_python_installation(library : str):
+    try:
+        importlib.import_module(library)
+        return True
+    except ImportError:
+        print(f"{library} is not installed.")
+        return False
 
 def _printtostr(thingtoprint: Any) -> str:
     from io import StringIO
@@ -58,27 +68,27 @@ def get_environment_variable(
 
 
 class SlurmInfo(NamedTuple):
-    '''
+    """
     @brief simple class to store slurm information 
-    '''
+    """
     hostname: str
-    '''The hostname of the slurm job'''
+    """The hostname of the slurm job"""
     resource: str = None
-    '''The slurm resource request'''
+    """The slurm resource request"""
     job_id: Optional[str] = None
-    '''The job ID of the slurm job'''
+    """The job ID of the slurm job"""
     task_id: Optional[str] = None
-    '''The task ID of the slurm job'''
+    """The task ID of the slurm job"""
     time: Optional[str] = None
-    '''The time time the job information was gathered'''
+    """The time time the job information was gathered"""
 
 
 def get_slurm_info() -> SlurmInfo:
-    '''Collect key slurm attributes of a job
+    """Collect key slurm attributes of a job
 
     Returns:
         SlurmInfo: Collection of slurm items from the job environment
-    '''
+    """
 
     hostname = gethostname()
     job_id = get_environment_variable("SLURM_JOB_ID")
@@ -89,7 +99,7 @@ def get_slurm_info() -> SlurmInfo:
 
 
 def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
-    '''Get the job information for the supplied mode
+    """Get the job information for the supplied mode
 
     Args:
         mode (str, optional): Which mode to poll information for. Defaults to "slurm".
@@ -99,7 +109,7 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
 
     Returns:
         Union[SlurmInfo]: The specified mode
-    '''
+    """
     # TODO: Add other modes? Return a default?
     modes = ("slurm",)
 
@@ -112,11 +122,11 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
 
 
 def log_slurm_job_environment(logger) -> SlurmInfo:
-    '''Log components of the slurm environment. Currently only support slurm
+    """Log components of the slurm environment. Currently only support slurm
 
     Returns:
         SlurmInfo: Collection of slurm items from the job environment
-    '''
+    """
     # TODO: Expand this to allow potentially other job queue systems
     slurm_info = get_slurm_info()
 
@@ -132,11 +142,11 @@ def run_a_srun_process(
         add_output_to_log : bool = False,
         logger = None, 
         ) -> subprocess.Popen:
-    '''runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess.Popen: new proccess spawned by the shell_cmd 
-    '''
+    """
     wrappername = secrets.token_hex(12)
     wrappercmd = ['#!/bin/bash', 
                   'export OMP_PLACES=cores', 
@@ -158,11 +168,11 @@ def run_a_process(
         add_output_to_log : bool = False, 
         logger = None, 
         ):
-    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd 
-    '''
+    """
     process = subprocess.run(shell_cmd, capture_output=add_output_to_log, text=add_output_to_log)
     if add_output_to_log and logger != None:
         logger.info(process.stdout)
@@ -174,11 +184,11 @@ def run_a_process_bg(
         sleeplength : float = 5, 
         logger = None, 
         ) -> None:
-    '''runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a process given by the shell command. If given a logger and asked to append, adds to the logger
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd 
-    '''
+    """
 
     process = subprocess.run(shell_cmd, capture_output=add_output_to_log, text=add_output_to_log)
     time.sleep(sleeplength)
@@ -193,7 +203,41 @@ def run_a_process_bg(
             error_output = process.stderr.readline()
             if error_output:
                 logger.info(f"{error_output.strip()}")
-    
+
+def getnumgpus() -> Tuple[int, str]:
+    """Poll node for number of gpus
+
+    Returns:
+        int number of gpus on a node and the type
+    """
+    cmd = ['lspci']
+    process = subprocess.run(cmd, capture_output=True, text=True)
+    lines = process.stdout.strip().split('\n')
+    gputypes = ['NVIDIA', 'AMD', 'INTEL']
+    gpucmds = {
+        'NVIDIA': ['nvidia-smi',  '--query-gpu=name', '--format=csv,noheader'],
+        'AMD': ['rocm-smi', '--showtopo', '--csv']
+              }
+    gpucmd = list()
+    for l in lines:
+        if 'PCI bridge:' in l:
+            for gt in gputypes:
+                if gt in l:
+                    gpucmd = gpucmds[gt]
+                    gputype = gt
+                    break
+    process = subprocess.run(gpucmd, capture_output=True, text=True)
+    numgpu = len(process.stdout.strip().split('\n'))
+    if gputype == 'AMD':
+        numgpu -= 1
+    return numgpu, gt
+
+def multinodenumberofgpus():
+    """Get the number of gpus per host
+
+    """
+    pass
+
 async def async_create_markdown_artifcat(key, markdown, description):
     await create_markdown_artifact(
         key=key, 
@@ -205,7 +249,7 @@ async def save_artifact(
     data : Any, 
     key : str = 'key', 
     description: str = 'Data to be shared between subflows'):
-    '''
+    """
     @brief Use this to save data between workflows and tasks. Best used for small artifacts
 
     Args:
@@ -215,7 +259,7 @@ async def save_artifact(
 
     Returns : 
         a markdown artifact to transmit data between workflows
-    '''
+    """
     await async_create_markdown_artifcat(
         key=key,
         markdown=f"```json\n{data}\n```",
@@ -265,6 +309,15 @@ async def upload_image_as_artifact(
     # artifact = await Artifact.get(key=key)
     # logger.info(artifact)
 
+def get_task_run_id() -> str:
+    """Get the Task ID of the task calling this function. If there is no context, then the task_run_id is set to a descriptive, non-unique value
+    """
+    if TaskRunContext.get():
+        context = get_run_context()
+        task_run_id = context.task_run.id
+    else:
+        task_run_id = 'not_a_task'
+    return task_run_id
 
 
 async def get_flow_runs(
@@ -282,56 +335,130 @@ async def get_flow_runs(
     return flow_runs 
 
 class EventFile:
-    '''
+    """
     @brief simple class to create a file for a given event.  
-    '''
-    event_loc: str
-    '''directory where to store file event locks'''
-    sampling: float
-    '''how often to check for event file'''
-    identifer : str
-    '''unique identifer'''
-    event_time : str 
-    '''Time of event creation'''
-    event_set : int  = 0
-    '''Counter for number of times set'''
+    """
     
-    def __init__(self, name : str, loc : str, sampling : float = 0.01): 
+    def __init__(
+            self, 
+            name : str, 
+            loc : str, 
+            sampling : float = 0.01,
+            id : str | None = None, 
+            etime : str | None = None,
+            eset : int | None = None,  
+            ): 
+        self.event_loc: str = ''
+        """directory where to store file event locks"""
+        self.event_name: str = ''
+        """The name of the event"""
+        self.fname: str = ''
+        """File name where event will be saved""" 
+        self.sampling: float = 0.01
+        """how often to check for event file"""
+        self.identifer : str = ''
+        """unique identifer"""
+        self.event_time : str = '' 
+        """Time of event creation"""
+        self.event_set : int = 0
+        """Counter for number of times set"""
+
+        # now set values 
         self.event_loc = loc
         self.event_name = name 
-        self.identifer = secrets.token_hex(12)
+        if id == None:
+           self.identifer = secrets.token_hex(12)
+        else: 
+            self.identifer = id
         self.fname = self.event_loc+'/'+ self.event_name + '.' + self.identifer + '.txt'
         self.sampling = sampling
-        self.event_time = ''
+        # if etime != None:
+        #     self.event_time = etime 
+        # if eset != None:
+        #     self.event_set = eset 
+
+    def __str__(self):
+        message : str = f'Event {self.event_name} with id={self.identifer} saved to {self.fname} : '
+        if not os.path.isfile(self.fname):
+            message += f'- not set\n'
+        else:
+            with open(self.fname, "r") as f:
+                data = f.readline().strip().split(', ')
+                eset = int(data[0])
+                etime = data[1]
+            message += f'- set at {etime} with {eset}\n'
+        return message
 
     def set(self) -> None:
-        if self.event_set == 0:
+        if not os.path.isfile(self.fname):
             current_time = datetime.datetime.now() 
             self.event_time = current_time.strftime('%Y-%m-%D::%H:%M:%S')
             self.event_set += 1
             with open(self.fname, "w") as f:
                 f.write(f'{self.event_set}, {self.event_time}')
         else:
-            # need to throw exception 
-            pass
+            # need to throw exception
+            eset : int
+            etime : str 
+            with open(self.fname, "r") as f:
+                data = f.readline().strip().split(', ')
+                eset = int(data[0])
+                etime = data[1]
+            message : str = f'Event {self.event_name} id={self.identifer} has already been set at {etime} and {eset} is being requested to be set again.'                    
+            raise RuntimeError(message) 
         
     async def wait(self) -> None:
         while not os.path.isfile(self.fname):
             await asyncio.sleep(self.sampling)
         with open(self.fname, "r") as f:
-            time = f.readline().strip('\n').split(', ')[1]
-        correct = (time == self.event_time)
-        # need to throw exception if not true 
+            data = f.readline().strip('\n').split(', ')
+            eset = int(data[0])
+            etime = data[1]
+        if etime != self.event_time or eset != self.event_set:
+            self.event_time = etime
+            self.event_set = eset
 
     def clean(self) -> None:
         # remove the file as a lock 
         if os.path.isfile(self.fname): 
             os.remove(self.fname)
-            # if local dask runner copy has been used to call clean then 
-            # also reduce the event time and set 
-            if self.event_set > 0:
-                self.event_time = ''
-                self.event_set -= 1
-            
+        self.event_time = ''
+        self.event_set = 0
+            # # if local dask runner copy has been used to call clean then 
+            # # also reduce the event time and set 
+            # if self.event_set > 0:
+            #     self.event_time = ''
+            #     self.event_set -= 1
+
+    def to_dict(self) -> Dict:
+        """Converts class to dictionary for serialisation
+        """
+        return {
+            'EventFile' : {
+            'name': self.event_name,
+            'loc': self.event_loc,
+            'sampling': self.sampling,
+            'id': self.identifer,
+            'etime': self.event_time,
+            'eset': self.event_set,
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data : Dict):
+        """Create an object from a dictionary
+        """
+        if 'EventFile' not in list(data.keys()):
+            raise ValueError('Not an EventFile dictionary')
+        data = data['EventFile']
+        return cls(
+            name=data['name'],
+            loc=data['loc'],
+            sampling=data['sampling'],
+            id=data['id'],
+            etime=data['etime'],
+            eset=data['eset'],
+            )
+
 
 

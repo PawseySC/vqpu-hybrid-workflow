@@ -5,13 +5,14 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 
 '''
 
-
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpuworkflow import launch_vqpu_workflow, circuits_with_nqvpuqs_workflow, circuits_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, run_cpu, run_circuits_once_vqpu_ready
+from vqpucommon.vqpuworkflow_deprecated import launch_vqpu_workflow, circuits_with_nqvpuqs_workflow, circuits_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, run_cpu, run_circuits_once_vqpu_ready
 from vqpucommon.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio

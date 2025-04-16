@@ -5,12 +5,14 @@ In the future, will add circuits that turn on noise in a simulation, and how to 
 '''
 
 
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 from time import sleep
 import datetime
 from typing import List, Dict, NamedTuple, Optional, Tuple, Union, Generator, Any
 from vqpucommon.clusters import get_dask_runners
 from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpuworkflow import launch_vqpu_workflow, launch_vqpu_test_workflow, circuits_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, upload_image_as_artifact
+from vqpucommon.vqpuworkflow_deprecated import launch_vqpu_workflow, launch_vqpu_test_workflow, circuits_workflow, cpu_workflow, gpu_workflow, postprocessing_histo_plot, upload_image_as_artifact
 from vqpucommon.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
