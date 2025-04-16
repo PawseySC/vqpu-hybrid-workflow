@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 import json
 from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
 #from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
-from vqpucommon.vqpuflow import launch_vqpu_workflow, cpu_workflow, FlowForSillyTestClass, circuits_vqpu_workflow
+from vqpucommon.vqpuflow import launch_vqpu_workflow, cpu_workflow, gpu_workflow, FlowForSillyTestClass, circuits_vqpu_workflow
 from vqpucommon.utils import EventFile
 from vqpucommon.clusters import get_dask_runners
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
@@ -235,6 +235,22 @@ class TestCustomSerializer(unittest.TestCase):
         cpuflow = cpu_workflow.with_options(task_runner = myflow.gettaskrunner('cpu'))
         print('Check if simple flow without vQPU related classes with dask task runner works')
         asyncio.run(cpuflow(myqpuworkflow = myflow, execs=['ls'], arguments=['/usr/local/']))
+
+    def test_gpu_flow(self):
+        frame = inspect.currentframe()
+        # Get the function name
+        function_name = frame.f_code.co_name
+        # Get the line number
+        line_number = frame.f_lineno
+        print(f"Function name: {function_name}, Line number: {line_number}")
+        myflow = HybridQuantumWorkflowBase(
+            cluster = 'ella-qb', 
+            vqpu_ids = [1, 2, 3, 16], 
+        )
+        # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
+        cpuflow = gpu_workflow.with_options(task_runner = myflow.gettaskrunner('gpu'))
+        print('Check if simple flow without vQPU related classes with dask task runner works')
+        asyncio.run(cpuflow(myqpuworkflow = myflow, execs=['nvidia-smi', 'nvidia-smi', 'nvidia-smi'], arguments=['', '', '']))
 
     def test_vqpu_flow(self):
         frame = inspect.currentframe()

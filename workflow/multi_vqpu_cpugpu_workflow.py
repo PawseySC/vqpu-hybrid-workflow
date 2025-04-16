@@ -71,16 +71,15 @@ async def cpu_with_random_qpu_workflow(
     async with asyncio.TaskGroup() as tg:
         for i in range(max_num_gpu_launches):
             if (np.random.uniform() > 0.5):
-                # tasks['gpu'].append(
-                #     tg.create_task(
-                #         gpu_workflow.with_options(task_runner = myqpuworkflow.gettaskrunner('gpu'))(myqpuworkflow=myqpuworkflow, execs = gpuexecs, arguments = gpuargs)))
+                tasks['gpu'].append(
+                    tg.create_task(
+                        gpu_workflow.with_options(task_runner = myqpuworkflow.gettaskrunner('gpu'))(myqpuworkflow=myqpuworkflow, execs = gpuexecs, arguments = gpuargs)))
                 if (np.random.uniform() > 0.75):
                     tasks['cpu'].append(
                         tg.create_task(
                             cpu_workflow.with_options(task_runner = myqpuworkflow.gettaskrunner('cpu'))(myqpuworkflow = myqpuworkflow, execs = cpuexecs, arguments = cpuargs)))
         # either spin up real vqpu
         for vqpu_id in vqpu_ids_subset:
-            # myqpuworkflow.events[f'vqpu_{vqpu_id}_circuits_finished'].set() 
             if (np.random.uniform() > 0.5):
                 tasks['qpu'][vqpu_id] = tg.create_task(circflow(
                     myqpuworkflow = myqpuworkflow,
