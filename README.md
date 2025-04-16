@@ -45,3 +45,17 @@ We discuss `example_flows/multi_vqpu_cpugpu_workflow.py` here. This flow uses so
 This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and how to run these flows in an asynchronous fashion. 
 
 We strongly suggest you alter the CPU and GPU commands before trialling this workflow. 
+
+## Installation
+
+You can use the [pyproject.toml](pyproject.toml) and pip to install the package 
+```bash
+# Install a package with its pyproject.toml configuration
+pip install .
+
+# Install in development mode
+pip install -e .
+
+# Install with optional dependencies
+pip install ".[dev]"
+```
