@@ -5,6 +5,8 @@ In the future, will add circuits that turn on noise in a simulation, and how to 
 '''
 
 
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 from time import sleep
 import datetime
 from typing import List, Dict, NamedTuple, Optional, Tuple, Union, Generator, Any

@@ -2,6 +2,8 @@
 @brief This example shows how to turn on noise in a simulation, and how to modify the default noise model used.
 '''
 
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 from time import sleep
 from typing import List, NamedTuple, Optional, Tuple, Union, Generator
 from vqpucommon.clusters import get_dask_runners

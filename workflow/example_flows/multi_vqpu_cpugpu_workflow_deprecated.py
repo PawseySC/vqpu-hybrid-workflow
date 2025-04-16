@@ -5,7 +5,8 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 
 '''
 
-
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
