@@ -9,6 +9,7 @@ VQPU_SYSTEM=${VQPU_SYSTEM:-vqpu}
 VQPU_MAX_CIRCUIT_DEPTH=${VQPU_MAX_CIRCUIT_DEPTH:-1000}
 VQPU_SECRET=${VQPU_SECRET:-QuantumBrillianceVQPU}
 VQPU_SSL_CERT_DIR=${VQPU_SSL_CERT_DIR:-$PAWSEY_QRISTAL_PATH/qcstack/certs}
+VQPU_SSL=${VQPU_SSL:-ON}
 
 # Specify the location of the virtual QPU license here.
 export VQPU_LICENSE_FILE=${VQPU_LICENSE_FILE:-/software/ella/2025.02/qb/qristal/license.json}

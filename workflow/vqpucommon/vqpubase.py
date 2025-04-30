@@ -44,6 +44,8 @@ class HybridQuantumWorkflowBase:
         'cudaq:qb_purification': 'Description: noise-aware state purification using QIR',
         'cudaq:dm': 'Description: The CUDA Quantum density matrix simulator, built on CuQuantum libraries',
     }
+
+    vqpu_backend_default : str = 'qpp'
  
     def __init__(self, 
                  cluster : str, 
@@ -54,7 +56,7 @@ class HybridQuantumWorkflowBase:
                  eventloc : str | None = None, 
                  vqpu_template_script : str | None = None, 
                  vqpu_template_yaml : str | None = None, 
-                 vqpu_yaml_dir : str | None = None, 
+                 vqpu_run_dir : str | None = None, 
                  vqpu_exec : str | None = None, 
                  events : Dict[str, EventFile] | None = None,
                  ):
@@ -65,19 +67,19 @@ class HybridQuantumWorkflowBase:
             cluster (str): cluster name.
             maxvqpu (int): max number of vqpus to launch
         """
-
+        fpath : str = str(os.path.dirname(os.path.abspath(__file__)))
         self.name: str
         """name of workflow"""
         self.cluster: str
         """cluster name for slurm configurations"""
         self.maxvqpu: int = 100
         """max number of virtual qpus"""
-        self.vqpu_template_script : str =  f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template.sh'
+        self.vqpu_template_script : str = f'{fpath}/../qb-vqpu/vqpu_template.sh'
         """template vqpu start up script to run"""
-        self.vqpu_template_yaml : str = f'{os.path.dirname(os.path.abspath(__file__))}/remote_vqpu_template.yaml'
+        self.vqpu_template_yaml : str = f'{fpath}/../vqpucommon/remote_vqpu_template.yaml'
         """vqpu remote yaml template"""
-        self.vqpu_yaml_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
-        """directory where to store the active vqpu yamls"""
+        self.vqpu_run_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
+        """directory where to store the active vqpu yamls and scripts"""
         self.vqpu_exec : str = 'qcstack'
         """vqpu executable. Default is QB's vQPU executable"""
         self.vqpu_ids : List[int]
@@ -133,14 +135,25 @@ class HybridQuantumWorkflowBase:
 
         if eventloc != None:
             self.eventloc = eventloc
-        if vqpu_yaml_dir != None:
-            self.vqpu_yaml_dir = vqpu_yaml_dir
+        if vqpu_run_dir != None:
+            self.vqpu_run_dir = vqpu_run_dir
         if vqpu_exec != None:
             self.vqpu_exec = vqpu_exec
         if vqpu_template_script != None:
             self.vqpu_template_script = vqpu_template_script
         if vqpu_template_yaml != None:
             self.vqpu_template_yaml = vqpu_template_yaml
+        # this is very odd, don't know why default is being saved as tuple
+        if isinstance(self.vqpu_template_yaml, tuple):
+            self.vqpu_template_yaml = self.vqpu_template_yaml[0]
+            
+        if not os.path.isfile(self.vqpu_template_yaml):
+            message : str = f'Template yaml file {self.vqpu_template_yaml} not found. Please ensure file exists.'
+            raise ValueError(message)        
+        if not os.path.isfile(self.vqpu_template_script):
+            message : str = f'Template vqpu start-up script file {self.vqpu_template_script} not found. Please ensure file exists.'
+            raise ValueError(message)
+
         if events == None:
             if 'qb-vqpu' in self.backends:
                 for vqpu_id in self.vqpu_ids:
@@ -179,7 +192,7 @@ class HybridQuantumWorkflowBase:
             'maxvqpu': self.maxvqpu,
             'vqpu_script':self.vqpu_template_script,
             'vqpu_template_yaml': self.vqpu_template_yaml,
-            'vqpu_yaml_dir': self.vqpu_yaml_dir,
+            'vqpu_run_dir': self.vqpu_run_dir,
             'vqpu_exec': self.vqpu_exec,
             'vqpu_ids': self.vqpu_ids,
             'events': eventdict,
@@ -205,7 +218,7 @@ class HybridQuantumWorkflowBase:
             # maxvqpu=data['maxvpuq'],
             vqpu_template_script=data['vqpu_script'],
             vqpu_template_yaml=data['vqpu_template_yaml'],
-            vqpu_yaml_dir=data['vqpu_yaml_dir'],
+            vqpu_run_dir=data['vqpu_run_dir'],
             vqpu_exec=data['vqpu_exec'],
             vqpu_ids=data['vqpu_ids'],
             events=eventdict,
@@ -242,7 +255,7 @@ class HybridQuantumWorkflowBase:
             vqpu_id (int): The vqpu id
         """
         # where to save the workflow yaml
-        workflow_yaml = f'{self.vqpu_yaml_dir}/remote_vqpu-{vqpu_id}.yaml'
+        workflow_yaml = f'{self.vqpu_run_dir}/remote_vqpu-{vqpu_id}.yaml'
         # here there is an assumption of the path to the template
         lines = open(self.vqpu_template_yaml, 'r').readlines()
         fout = open(workflow_yaml, 'w')
@@ -265,7 +278,7 @@ class HybridQuantumWorkflowBase:
             vqpu_id (int): The vqpu id
         """
 
-        workflow_yaml = f'{self.vqpu_yaml_dir}/remote_vqpu-{vqpu_id}.yaml'
+        workflow_yaml = f'{self.vqpu_run_dir}/remote_vqpu-{vqpu_id}.yaml'
         if os.path.isfile(workflow_yaml):
             os.remove(workflow_yaml)
 
@@ -282,11 +295,11 @@ class HybridQuantumWorkflowBase:
             vqpu_backend (str): The backend to use for this vqpu
         """
         # where to save the vqpu start up script
-        vqpu_script = f'{self.vqpu_yaml_dir}/vqpu-{vqpu_id}.sh'
+        vqpu_script = f'{self.vqpu_run_dir}/vqpu-{vqpu_id}.sh'
         # here there is an assumption of the path to the template
         lines = open(self.vqpu_template_script, 'r').readlines()
         fout = open(vqpu_script, 'w')
-        if vqpu_backend == None: vqpu_backend = 'qsim'
+        if vqpu_backend == None: vqpu_backend = self.vqpu_backend_default
         self.checkvqpubackends(vqpu_id = vqpu_id, vqpu_backend=vqpu_backend)
         
         # update the backend 
