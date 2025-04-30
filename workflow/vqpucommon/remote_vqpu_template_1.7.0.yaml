@@ -1,0 +1,10 @@
+loopback:
+  url: https://HOSTNAME:8443
+  poll_secs: 2
+  poll_retries: 100
+  recursive: true
+  resample: false
+  resample_above_percentage: 100
+  exclusive_access: false
+  exclusive_access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbmRfdGltZSI6NjAxNzA3OTY5ODYzLjAyMjQ2LCJpc3MiOiJRcmlzdGFsIiwicmVxdWVzdGVkX2F0IjoxNzA3OTY5OTIzLjAzNDE3OTIsInNlc3Npb25faWQiOiJRcmlzdGFsX0NJX3Jlc2VydmF0aW9uX3Rlc3QifQ.0g7nVcvPLhyG9r4n2VUuR5R10Qjv-Pd7jzbAjKGxDjw
+  use_default_contrast_settings: true
