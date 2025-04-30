@@ -6,7 +6,7 @@ For this work we will be using Dask backed workers to perform the compute
 operations.
 """
 
-import os 
+import os
 from glob import glob
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, Tuple
@@ -16,7 +16,7 @@ from prefect_dask import DaskTaskRunner
 from dask_jobqueue import SLURMCluster
 
 
-def list_packaged_clusters(yaml_files_dir : str = "./") -> List[str]:
+def list_packaged_clusters(yaml_files_dir: str = "./") -> List[str]:
     """
     @brief Return a list of cluster names that are available in the packaged set of
     dask_jobqueue specification YAML files.
@@ -50,13 +50,15 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
         dict[Any, Any]: Dictionary of know options/parameters for dask_jobqueue.SLURMCluster
     """
 
-    KNOWN_CLUSTERS = ('ella', 'setonix')
+    KNOWN_CLUSTERS = ("ella", "setonix")
     yaml_file = None
 
     if Path(cluster).exists():
         yaml_file = cluster
     else:
-        yaml_file = f'{os.path.dirname(os.path.abspath(__file__))}/../clusters/{cluster}.yaml'
+        yaml_file = (
+            f"{os.path.dirname(os.path.abspath(__file__))}/../clusters/{cluster}.yaml"
+        )
 
     if yaml_file is None or not Path(yaml_file).exists():
         raise ValueError(
@@ -72,10 +74,10 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
 def get_dask_runners(
     cluster: str = "ella",
     extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
-) -> Dict[str, DaskTaskRunner | Dict[str,str]]:
+) -> Dict[str, DaskTaskRunner | Dict[str, str]]:
     """
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
-    to manage a set of dask-workers. 
+    to manage a set of dask-workers.
 
     Keyword Args:
         cluster (Union[str,Path]): The cluster name that will be used to search for a cluster specification file.
@@ -88,16 +90,19 @@ def get_dask_runners(
 
     specs = get_cluster_spec(cluster)
     cluster = dict()
-    task_runners = {'jobscript': dict()}
+    task_runners = {"jobscript": dict()}
     for specname in specs.keys():
         # still need to figure out how to encorporated distributed options
-        if specname == 'distributed': continue
+        if specname == "distributed":
+            continue
         cluster_config = specs[specname]
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
-        
+
         task_runners[specname] = DaskTaskRunner(**cluster_config)
-        task_runners['jobscript'][specname] = SLURMCluster(**cluster_config['cluster_kwargs']).job_script()
+        task_runners["jobscript"][specname] = SLURMCluster(
+            **cluster_config["cluster_kwargs"]
+        ).job_script()
 
     return task_runners
 
@@ -108,7 +113,7 @@ def get_test_dask_runners(
 ) -> Tuple[DaskTaskRunner, str]:
     """
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
-    to manage a set of dask-workers. 
+    to manage a set of dask-workers.
 
     Keyword Args:
         cluster (Union[str,Path]): The cluster name that will be used to search for a cluster specification file.
@@ -121,6 +126,6 @@ def get_test_dask_runners(
 
     specs = get_cluster_spec(cluster)
     task_runner = DaskTaskRunner(**specs)
-    jobscript = SLURMCluster(**cluster_config['cluster_kwargs']).job_script()
+    jobscript = SLURMCluster(**cluster_config["cluster_kwargs"]).job_script()
 
-    return task_runner, jobscript 
+    return task_runner, jobscript
