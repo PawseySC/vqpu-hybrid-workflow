@@ -266,7 +266,7 @@ def wrapper_to_async_flow(
     @brief run the workflow with the appropriate task runner
     """
     if yaml_template == None:
-        yaml_template = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpucommon/remote_vqpu_template_1.7.0.yaml', 
+        yaml_template = f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_template_1.7.0.yaml', 
     if script_template == None:
         script_template = f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_1.7.0.sh'
     if cluster == None: 

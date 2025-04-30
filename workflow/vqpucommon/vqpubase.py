@@ -76,7 +76,7 @@ class HybridQuantumWorkflowBase:
         """max number of virtual qpus"""
         self.vqpu_template_script : str = f'{fpath}/../qb-vqpu/vqpu_template.sh'
         """template vqpu start up script to run"""
-        self.vqpu_template_yaml : str = f'{fpath}/../vqpucommon/remote_vqpu_template.yaml'
+        self.vqpu_template_yaml : str = f'{fpath}/../qb-vqpu/remote_vqpu_template.yaml'
         """vqpu remote yaml template"""
         self.vqpu_run_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
         """directory where to store the active vqpu yamls and scripts"""
