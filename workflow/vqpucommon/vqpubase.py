@@ -5,6 +5,7 @@
 """
 
 import time, datetime, subprocess, os, select, psutil, copy
+import functools
 import json
 from pathlib import Path
 import importlib
@@ -27,14 +28,31 @@ class HybridQuantumWorkflowBase:
 
     reqclusconfigs : List[str] = ['generic', 'circuit', 'vqpu', 'cpu', 'gpu']
     """List of required configurations for running workflow."""
+    vqpu_allowed_backends : Dict[str, str] = {
+        'qsim': 'Description: A noise-aware, GPU-enabled state-vector simulator developed by Quantum Brilliance, built atop the Google Cirq qsim simulator',
+        'sparse-sim': 'Description: Microsoft Quantum sparse state-vector simulator allows a high number of qubits to be simulated whenever the quantum circuit being executed preserves sparsity. It utilises a sparse representation of the state vector and methods to delay the application of some gates (e.g. Hadamard).',
+        'qpp': 'Description: Quantum++ state vector simulator, configured to use XACC IR',
+        'cuda:qpp': 'Description: Quantum++ state vector simulator using QIR',
+        'custatevec:fp32': 'Description: Single (custatevec:fp32) CUDA Quantum state vector simulator, built on CuQuantum libraries.',
+        'custatevec:fp64': 'Description: double-precision CUDA Quantum state vector',
+        'aer': 'Description: IBM Qiskit Aer noise-aware state-vector (and MPS and density-matrix simulator',
+        'qb-mps': 'Description: Quantum Brilliance noise-aware MPS simulator, configured to use XACC IR (qb-mps). The MPS method represents the quantum wavefunction as a tensor contraction of individual qubit quantum state. Each qubit quantum state is a rank-3 tensor (rank-2 tensor for boundary qubits).',
+        'cudaq:qb_mps': 'Description: MPS using QIR.',
+        'qb-mpdo': 'Description: Quantum Brilliance noise-aware matrix-product density operator (MPDO) simulator, configured to use XACC IR (qb-mpdo). The MPDO method represents the density matrix as a tensor contraction of individual qubit density operator. Each qubit density operator is a rank-4 tensor (rank-3 tensor for boundary qubits).',
+        'cudaq:qb_mpdo': 'Description: MPDO using QIR',
+        'qb-purification': 'Descrption: Quantum Brilliance noise-aware state purification simulator, configured to use XACC IR (qb-purification). The purification method represents the purified quantum state as a tensor contraction of individual qubit purified state. Each qubit purified state is a rank-4 tensor (rank-3 tensor for boundary qubits).',
+        'cudaq:qb_purification': 'Description: noise-aware state purification using QIR',
+        'cudaq:dm': 'Description: The CUDA Quantum density matrix simulator, built on CuQuantum libraries',
+    }
  
     def __init__(self, 
                  cluster : str, 
                  vqpu_ids : List[int] = [i for i in range(100)], 
                  name : str = 'myflow', 
+                 vqpu_backends : List[str] | None = None, 
                  backends : List[str] | None = None, 
                  eventloc : str | None = None, 
-                 vqpu_script : str | None = None, 
+                 vqpu_template_script : str | None = None, 
                  vqpu_template_yaml : str | None = None, 
                  vqpu_yaml_dir : str | None = None, 
                  vqpu_exec : str | None = None, 
@@ -54,9 +72,9 @@ class HybridQuantumWorkflowBase:
         """cluster name for slurm configurations"""
         self.maxvqpu: int = 100
         """max number of virtual qpus"""
-        self.vqpu_script : str =  f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu.sh'
-        """vqpu start up script to run"""
-        self.vqpu_temmplate_yaml : str = f'{os.path.dirname(os.path.abspath(__file__))}/remote_vqpu_template.yaml'
+        self.vqpu_template_script : str =  f'{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template.sh'
+        """template vqpu start up script to run"""
+        self.vqpu_template_yaml : str = f'{os.path.dirname(os.path.abspath(__file__))}/remote_vqpu_template.yaml'
         """vqpu remote yaml template"""
         self.vqpu_yaml_dir : str = f'{os.path.dirname(os.path.abspath(__file__))}/../vqpus/'
         """directory where to store the active vqpu yamls"""
@@ -64,6 +82,8 @@ class HybridQuantumWorkflowBase:
         """vqpu executable. Default is QB's vQPU executable"""
         self.vqpu_ids : List[int]
         """list of active vqpus"""
+        self.vqpu_backends : List[str]
+        """list of backend end used of the vqpu (state-vector, density-matrix, MPS)"""
         self.events : Dict[str, EventFile] = dict()
         """list of events"""
         self.eventloc : str = f'{os.path.dirname(os.path.abspath(__file__))}/../events/'
@@ -103,14 +123,22 @@ class HybridQuantumWorkflowBase:
             raise ValueError(f'Missing minimum req backends. Minimum set required is {reqbackends}. Missing {valerr}')
         
         self.vqpu_ids = vqpu_ids
+        # set the default backend. Not clear if this structure is really necessary
+        if vqpu_backends != None:
+            self.vqpu_backends = vqpu_backends
+            if (len(self.vqpu_backends)<len(self.vqpu_ids)):
+                self.vqpu_backends.append(None)
+        else:
+            self.vqpu_backends = None
+
         if eventloc != None:
             self.eventloc = eventloc
         if vqpu_yaml_dir != None:
             self.vqpu_yaml_dir = vqpu_yaml_dir
         if vqpu_exec != None:
             self.vqpu_exec = vqpu_exec
-        if vqpu_script != None:
-            self.vqpu_script = vqpu_script
+        if vqpu_template_script != None:
+            self.vqpu_template_script = vqpu_template_script
         if vqpu_template_yaml != None:
             self.vqpu_template_yaml = vqpu_template_yaml
         if events == None:
@@ -149,8 +177,8 @@ class HybridQuantumWorkflowBase:
             'name' : self.name, 
             'cluster': self.cluster,
             'maxvqpu': self.maxvqpu,
-            'vqpu_script':self.vqpu_script,
-            'vqpu_template_yaml': self.vqpu_temmplate_yaml,
+            'vqpu_script':self.vqpu_template_script,
+            'vqpu_template_yaml': self.vqpu_template_yaml,
             'vqpu_yaml_dir': self.vqpu_yaml_dir,
             'vqpu_exec': self.vqpu_exec,
             'vqpu_ids': self.vqpu_ids,
@@ -175,7 +203,7 @@ class HybridQuantumWorkflowBase:
             name=data['name'],
             cluster=data['cluster'],
             # maxvqpu=data['maxvpuq'],
-            vqpu_script=data['vqpu_script'],
+            vqpu_template_script=data['vqpu_script'],
             vqpu_template_yaml=data['vqpu_template_yaml'],
             vqpu_yaml_dir=data['vqpu_yaml_dir'],
             vqpu_exec=data['vqpu_exec'],
@@ -216,7 +244,7 @@ class HybridQuantumWorkflowBase:
         # where to save the workflow yaml
         workflow_yaml = f'{self.vqpu_yaml_dir}/remote_vqpu-{vqpu_id}.yaml'
         # here there is an assumption of the path to the template
-        lines = open(self.vqpu_temmplate_yaml, 'r').readlines()
+        lines = open(self.vqpu_template_yaml, 'r').readlines()
         fout = open(workflow_yaml, 'w')
         # update the HOSTNAME 
         for line in lines:
@@ -241,11 +269,41 @@ class HybridQuantumWorkflowBase:
         if os.path.isfile(workflow_yaml):
             os.remove(workflow_yaml)
 
+    async def __create_vqpu_script(
+        self, 
+        vqpu_id : int,
+        vqpu_backend : str | None = None, 
+        ) -> str:
+        """Saves the script backend for the vqpu to a yaml file and artifact
+        having extracted the hostname running the vqpu from the slurm job
+
+        Args:
+            vqpu_id (int): The vqpu id
+            vqpu_backend (str): The backend to use for this vqpu
+        """
+        # where to save the vqpu start up script
+        vqpu_script = f'{self.vqpu_yaml_dir}/vqpu-{vqpu_id}.sh'
+        # here there is an assumption of the path to the template
+        lines = open(self.vqpu_template_script, 'r').readlines()
+        fout = open(vqpu_script, 'w')
+        if vqpu_backend == None: vqpu_backend = 'qsim'
+        self.checkvqpubackends(vqpu_id = vqpu_id, vqpu_backend=vqpu_backend)
+        
+        # update the backend 
+        for line in lines:
+            if 'MY_VQPU_BACKEND' in line:
+                line = line.replace('MY_VQPU_BACKEND', vqpu_backend)
+            fout.write(line)
+        # to store the results of this task, make use of a helper function that creates artifcat 
+        await save_artifact(vqpu_script, key=f'vqpuscript{vqpu_id}')
+        return vqpu_script
+
     async def launch_vqpu(
             self,
             job_info : SlurmInfo,  
             vqpu_id : int,
             spinuptime : float,
+            vqpu_backend : str | None = None, 
             ) -> None:
         """Launchs the vqpu service and generates events to indicate it has been launched
 
@@ -255,7 +313,8 @@ class HybridQuantumWorkflowBase:
             spinuptime (float) : The time to wait before setting the event 
         """
         await self.__create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
-        cmds = [self.vqpu_script]
+        vqpu_script = await self.__create_vqpu_script(vqpu_id=vqpu_id, vqpu_backend=vqpu_backend)
+        cmds = ['bash', vqpu_script]
         process = run_a_process(cmds)
         await asyncio.sleep(spinuptime)
         self.events[f'vqpu_{vqpu_id}_launch'].set()
@@ -387,6 +446,24 @@ class HybridQuantumWorkflowBase:
             raise RuntimeError(f'vQPU ID {vqpu_id} requested yet not in allowed list of ids. Allowed ids {self.vqpu_ids}. Terminating')
         pass 
 
+    def checkvqpubackends(
+            self, 
+            vqpu_id : int, 
+            vqpu_backend : str 
+            ) -> None:
+        """Runs a number of checks of the backend to see if enabled set of backends
+
+        Args:
+            vqpu_id (int): id to check
+            vqpu_backend (str): backend to check
+        """
+        if vqpu_backend != None:
+            allowed = list(self.vqpu_allowed_backends.keys())
+            if vqpu_backend not in allowed:
+                message : str = f'vqpu {vqpu_id} set to use {vqpu_backend}, which is not in allowed backends. Please use one of {allowed}'
+                raise ValueError(message)
+
+
 # class HybridQuantumWorkflowSerializer(JSONSerializer):
 
 #     # import types
@@ -460,3 +537,13 @@ class SillyTestClass:
             raise ValueError(f'Cluster {self.cluster} configuration does not have runner {task-task_runner_name}.')
         return runners[task_runner_name]
 
+# Defining some useful decorators. 
+def measure_time(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(f"Execution time : {end - start:.6f} s")
+        return result
+    return wrapper

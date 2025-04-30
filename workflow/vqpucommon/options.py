@@ -1,6 +1,6 @@
 """
 @file options.py
-@brief options class for handling arguments of workflow 
+@brief options class for handling arguments of workflow. Not yet implemented
 """
 from datetime import datetime
 from pydantic import BaseModel, ValidationError
