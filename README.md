@@ -59,3 +59,11 @@ pip install -e .
 # Install with optional dependencies
 pip install ".[dev]"
 ```
+
+## Future work
+
+- Better integration with the DaskTaskRunner and Slurm so that a node check is run (if desired) upon submission of a flow to check for node(s) health. If the nodes are not healthy, raise exception to retry (possibly on different nodes)
+- Better handling of errors from remote qpu backend
+- Running service infront of remote back end that can be contact to better handle QPU queue
+- Better suspend/restart handling.
+
