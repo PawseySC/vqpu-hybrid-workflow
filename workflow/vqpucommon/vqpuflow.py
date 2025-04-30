@@ -18,6 +18,7 @@ import asyncio
 from prefect import flow, task
 from prefect.logging import get_run_logger
 from prefect.artifacts import Artifact
+from prefect_dask import DaskTaskRunner
 
 @task(retries = 5, 
     retry_delay_seconds = 10, 
@@ -30,6 +31,7 @@ async def launch_vqpu(
     vqpu_id : int,
     spinuptime : float = 30, 
     arguments : str | None = None, 
+    vqpu_backend : str | None = None, 
     ) -> None:
     """Base task that launches the virtual qpu. 
     Should have minimal retries and a wait between retries
@@ -43,6 +45,7 @@ async def launch_vqpu(
     """
     myqpuworkflow.checkbackends()
     myqpuworkflow.checkvqpuid(vqpu_id)
+    myqpuworkflow.checkvqpubackends(vqpu_id = vqpu_id, vqpu_backend = vqpu_backend)
 
     # get flow run information and slurm job information 
     job_info = get_job_info()
@@ -50,8 +53,13 @@ async def launch_vqpu(
 
     logger.info(f'Spinning up vQPU-{vqpu_id} backend')
     logger.info(f'vQPU-{vqpu_id}: setting config yamls')
-    logger.info(f'vQPU-{vqpu_id}: running script {myqpuworkflow.vqpu_script}')
-    await myqpuworkflow.launch_vqpu(job_info = job_info, vqpu_id = vqpu_id, spinuptime = spinuptime)
+    logger.info(f'vQPU-{vqpu_id}: running script ')
+    await myqpuworkflow.launch_vqpu(
+        job_info = job_info, 
+        vqpu_id = vqpu_id, 
+        spinuptime = spinuptime,
+        vqpu_backend = vqpu_backend
+        )
     logger.info(f'Running vQPU-{vqpu_id} ... ')
 
 
@@ -105,7 +113,7 @@ async def shutdown_vqpu(
     """
     logger = get_run_logger()
     logger.info(f'Shutdown vQPU-{vqpu_id} backend')
-    myqpuworkflow.shutdown_vqpu(vqpu_id=vqpu_id)
+    await myqpuworkflow.shutdown_vqpu(vqpu_id=vqpu_id)
     logger.info("vQPU(s) shutdown")
 
 @flow(name = "Launch vQPU Flow", 
@@ -120,7 +128,8 @@ async def launch_vqpu_workflow(
     myqpuworkflow : HybridQuantumWorkflowBase,
     vqpu_id : int = 1,
     walltime : float = 86400, 
-    arguments : str = "", 
+    arguments : str = "",
+    vqpu_backend : str | None = None,  
     date : datetime.datetime = datetime.datetime.now() 
     ) -> None:
     """Flow for running vqpu 
@@ -130,6 +139,7 @@ async def launch_vqpu_workflow(
         vqpu_id (int): vqpu id 
         walltime (float) : walltime to keep running the vqpu 
         arguments (str): string of arguments to pass extra options to launching of vqpu
+        vqpu_backend (str) : string of the environment variable setting the vqpu backend (such as MPS, state-vector, density-matrix)
 
     """
     # clean up before launch
@@ -138,7 +148,11 @@ async def launch_vqpu_workflow(
 
     # now launch
     logger.info(f'Launching vQPU-{vqpu_id}')
-    future = await launch_vqpu.submit(myqpuworkflow = myqpuworkflow, vqpu_id = vqpu_id, arguments = arguments)
+    future = await launch_vqpu.submit(
+        myqpuworkflow = myqpuworkflow, 
+        vqpu_id = vqpu_id, 
+        arguments = arguments, 
+        vqpu_backend = vqpu_backend)
     await future.result()
     
     # now run it 
@@ -807,4 +821,24 @@ def FlowForSillyTestClass(baseobj : SillyTestClass | None = None):
     obj1 = SillyTestClass(x=100)
     obj2 = SillyTestClass(x=0)
     future = TaskForSillyTestClass.submit(obj1 = obj1, obj2 = obj2)
+    future.result()
+
+@flow
+def RunSillyFlowswithUpdateDaskTaskRunner(
+    taskrunner : DaskTaskRunner,
+    baseobj : SillyTestClass
+):
+    # lets construct another DaskTaskRunner
+    otherrunner = DaskTaskRunner(
+        cluster_class=taskrunner.cluster_class,  # Reuse the same cluster class
+        cluster_kwargs={**taskrunner.cluster_kwargs, "n_workers": 4},  # Modify the number of workers
+        adapt_kwargs=taskrunner.adapt_kwargs  # Keep the same adapt_kwargs
+    )
+    if baseobj != None:
+        baseobj.x = baseobj.y
+    obj1 = SillyTestClass(x=-100)
+    obj2 = SillyTestClass(x=-200)
+    future = TaskForSillyTestClass.submit(obj1 = obj1, obj2 = baseobj)
+    newflow = FlowForSillyTestClass.with_options(task_runner = otherrunner)
+    newflow(baseobj = obj2)
     future.result()
