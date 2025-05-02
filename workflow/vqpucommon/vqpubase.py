@@ -44,6 +44,139 @@ from prefect.context import get_run_context, TaskRunContext
 from prefect.serializers import Serializer, JSONSerializer
 
 
+class QPUMetaData:
+    """
+    A class that contains the basic metadata that a (v)QPU should have.
+    """
+
+    connectivity_types = ["all", "linear", ""]
+    """Allowed types of connectivity description"""
+    noise_types = [
+        "bitflip",
+        "phaseflip",
+        "amplitude_dampening",
+        "depolarization",
+        "dephasing",
+        "crosstalk",
+        "readout",
+    ]
+
+    def __init__(
+        self,
+        type: str,
+        maxnqubits: int,
+        speed: float = 0.0,
+        connectivity: str = "all",
+        native_gates_limitations: str = "none",
+        noise: Dict[str, float] | None = None,
+    ):
+        if maxnqubits < 1:
+            raise ValueError("Max number of qubits must be 1 or more.")
+        self.type = type
+        """Type of qpu, such as vqpu, superconducting, etc"""
+        self.maxnqubits = maxnqubits
+        """max number of qubits"""
+        self.speed = speed
+        """Operational shot speed in seconds """
+        self.native_gates_limitations = native_gates_limitations
+        """Native gate limitations"""
+        self.connectivity = connectivity
+        """connectivity of qubits"""
+        self.noise = {n: 0 for n in self.noise_types}
+        if noise != None:
+            ntypes = list(noise.keys())
+            for nt in ntypes:
+                if nt in self.noise_types:
+                    self.noise[nt] = noise[nt]
+                else:
+                    message: str = (
+                        f"Uknown noise type {nt}. Please define noise in terms of {ntypes}"
+                    )
+                    raise ValueError(message)
+
+    def __str__(self) -> str:
+        message: str = f"# QPU info\n"
+        message += f"Type: {self.type}, "
+        message += f"Max_nqubits: {self.maxnqubits}, "
+        message += f"Speed_in_sec: {self.speed}, "
+        message += f"Gate_limitations: {self.native_gates_limitations}, "
+        message += f"Connectivity: {self.connectivity}, "
+        message += "\nNoises=["
+        for key, value in self.noise.items():
+            message += f"{key}: {value}, "
+        message += "]"
+        return message
+
+    def to_dict(self) -> Dict:
+        """Converts class to dictionary for serialisation"""
+        return {
+            "QPUMetaData": {
+                "type": self.type,
+                "maxnqubits": self.maxnqubits,
+                "speed": self.speed,
+                "gate_limitations": self.native_gates_limitations,
+                "connectivity": self.connectivity,
+                "noise": self.noise,
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict):
+        """Create an object from a dictionary"""
+        if "QPUMetaData" not in list(data.keys()):
+            raise ValueError("Not an QPUMetaData dictionary")
+        data = data["QPUMetaData"]
+        return cls(
+            type=data["type"],
+            maxnqubits=data["maxnqubits"],
+            speed=data["speed"],
+            native_gate_limitations=data["gate_limitations"],
+            connectivity=data["connectivity"],
+            noise=data["noise"],
+        )
+
+    def __eq__(self, other):
+        if isinstance(other, QPUMetaData):
+            return self.to_dict() == other.to_dict()
+        return False
+
+    def compare(
+        self,
+        otherqpu,
+        allowed_types: List[str] | None = None,
+    ) -> bool:
+        """
+        Compare qpus and return True if current qpu is satisfied by other qpu
+
+        Args:
+            otherqpu (QPUMetaData): the other qpu to compare to
+            allowed_types (List[str]): other allowed types that can satisfy
+
+        """
+        if self.maxnqubits > otherqpu.maxnqubits:
+            return False
+        if allowed_types == None:
+            allowed_types = [otherqpu.type]
+        else:
+            allowed_types.append(otherqpu.types)
+
+        if self.type not in allowed_types:
+            return False
+        if self.speed < otherqpu.speed:
+            return False
+        # if connectivity isn't all then need to check
+        if otherqpu.connectivity != "all" and self.connectivity == "all":
+            return False
+        elif otherqpu.connectivity != "all" and self.connectivity != "all":
+            # need some logic to decide what connectivity is acceptable.
+            pass
+
+        for k in self.noise.keys():
+            if otherqpu.noise[k] > self.noise[k] == 0:
+                return False
+        return True
+
+
 class HybridQuantumWorkflowBase:
     """
     A class that contains basic tasks for running hybrid vQPU workflows.
@@ -83,6 +216,7 @@ class HybridQuantumWorkflowBase:
         vqpu_run_dir: str | None = None,
         vqpu_exec: str | None = None,
         events: Dict[str, EventFile] | None = None,
+        active_qpus: Dict[int, QPUMetaData] | None = None,
     ):
         """
         Constructs all the necessary attributes for the person object.
@@ -129,7 +263,9 @@ class HybridQuantumWorkflowBase:
             "pennylane",
             "cudaq",
         ]
-        """List of allowed backends"""
+        """List of allowed quantum circuit backends"""
+        self.active_qpus: Dict[int, QPUMetaData] = {}
+        """Dictionary of active qpus """
 
         self.name = name
         self.cluster = cluster
@@ -197,6 +333,9 @@ class HybridQuantumWorkflowBase:
             )
             raise ValueError(message)
 
+        if active_qpus != None:
+            self.active_qpus = copy.deepcopy(active_qpus)
+
         if events == None:
             if "qb-vqpu" in self.backends:
                 for vqpu_id in self.vqpu_ids:
@@ -244,6 +383,7 @@ class HybridQuantumWorkflowBase:
                 "events": eventdict,
                 "eventloc": self.eventloc,
                 "backends": self.backends,
+                "active_qpus": self.active_qpus,
             }
         }
 
@@ -268,12 +408,48 @@ class HybridQuantumWorkflowBase:
             vqpu_ids=data["vqpu_ids"],
             events=eventdict,
             backends=data["backends"],
+            active_qpus=data["active_qpus"],
+        )
+
+    @classmethod
+    def from_dict(cls, data: Dict):
+        """Create an object from a dictionary"""
+        # print('hybridworlfow from_dict', data.keys())
+        if "HybridQuantumWorkflowBase" not in list(data.keys()):
+            raise ValueError("Not an HybridQuantumWorkflowBase dictionary")
+        data = data["HybridQuantumWorkflowBase"]
+        eventdict = dict()
+        for k, e in data["events"].items():
+            eventdict[k] = EventFile.from_dict(e)
+        return cls(
+            name=data["name"],
+            cluster=data["cluster"],
+            # maxvqpu=data['maxvpuq'],
+            vqpu_template_script=data["vqpu_script"],
+            vqpu_template_yaml=data["vqpu_template_yaml"],
+            vqpu_run_dir=data["vqpu_run_dir"],
+            vqpu_exec=data["vqpu_exec"],
+            vqpu_ids=data["vqpu_ids"],
+            events=eventdict,
+            backends=data["backends"],
+            active_qpus=data["active_qpus"],
         )
 
     def __eq__(self, other):
         if isinstance(other, HybridQuantumWorkflowBase):
             return self.to_dict() == other.to_dict()
         return False
+
+    async def getqpudata(self, qpu_id: int) -> QPUMetaData:
+        if qpu_id in list(self.active_qpus.keys()):
+            return self.active_qpus[qpu_id]
+        # need to retrieve it
+        else:
+            artifact = await Artifact.get(key=f"activeqpu{qpu_id}")
+            if artifact == None:
+                raise ValueError(
+                    "asking workflow to get active qpu data but no active qpu found!"
+                )
 
     def gettaskrunner(self, task_runner_name: str) -> DaskTaskRunner:
         """Returns the appropriate task runner.
@@ -363,6 +539,7 @@ class HybridQuantumWorkflowBase:
         vqpu_id: int,
         spinuptime: float,
         vqpu_backend: str | None = None,
+        vqpu_data: QPUMetaData | None = None,
     ) -> None:
         """Launchs the vqpu service and generates events to indicate it has been launched
 
@@ -371,10 +548,23 @@ class HybridQuantumWorkflowBase:
             vqpu_id (int) : The vqpu id
             spinuptime (float) : The time to wait before setting the event
         """
+        # check if qpu is alread in activated list of qpus
+
+        # now add the vQPU to the active list
+        if vqpu_data == None:
+            self.active_qpus[vqpu_id] = QPUMetaData(type="vQPU", maxnqubits=32)
+        else:
+            self.active_qpus[vqpu_id] = copy.deepcopy(vqpu_data)
+        await save_artifact(str(vqpu_id), key=f"activeqpu{vqpu_id}")
+        await save_artifact(
+            str(self.active_qpus[vqpu_id]), key=f"activeqpudata{vqpu_id}"
+        )
+
         await self.__create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
         vqpu_script = await self.__create_vqpu_script(
             vqpu_id=vqpu_id, vqpu_backend=vqpu_backend
         )
+
         cmds = ["bash", vqpu_script]
         process = run_a_process(cmds)
         await asyncio.sleep(spinuptime)
@@ -386,11 +576,24 @@ class HybridQuantumWorkflowBase:
         Args:
             vqpu_id (int) : The vqpu id
         """
-        self.__delete_vqpu_remote_yaml(vqpu_id)
+        await self.events[f"vqpu_{vqpu_id}_launch"].wait()
+        # could try checking that vqpu is active
+        # artifact = await Artifact.get(key=f"activeqpu{vqpu_id}")
+        # if artifact == None:
+        #     message: str = f"QPU {vqpu_id} not active. Cannot shutdown. Terminating"
+        #     raise RuntimeError(message)
+
+        # kill the process
         for proc in psutil.process_iter():
             # check whether the process name matches
             if proc.name() == self.vqpu_exec:
                 proc.kill()
+
+        # now clean-up
+        self.__delete_vqpu_remote_yaml(vqpu_id)
+        # delete the active qpu data if present
+        if vqpu_id in list(self.active_qpus.keys()):
+            del self.active_qpus[vqpu_id]
 
     def cleanupbeforestart(self, vqpu_id: int | None = None):
         if vqpu_id == None:
@@ -426,34 +629,55 @@ class HybridQuantumWorkflowBase:
         return "Walltime complete"
 
     def getcircuitandpost(self, c: Any) -> Tuple:
-        """process a possible circuit and any post processing to do
+        """process a possible circuit and any post processing to do. Expecting Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]
 
         Args:
-            c : possible combintation of circuit and post or just circuit
+            c : possible combintation of circuit, circuit and post, circuit and circuit requirents, or circuit,circuit requirements and post
+
+        Raises:
+            TypeErrors if the type is not correct
+
+        Returns:
+            Callable circuit
+            Callable post processing (or None)
+            QPUMetaData circuit requirements (or None)
         """
 
         if not (isinstance(c, Callable) or isinstance(c, Tuple)):
-            errmessage: str = (
-                "circuits argument was passed a List not containing either a callable function"
-            )
-            errmessage += " or a tuple of callable fuctions consisting of a circuit and some post processing"
-            errmessage += f"got type {type(c)}"
-            raise ValueError(errmessage)
-        # if the list contains a tuple then the circuit is
-        # followed by some post processing
-        post = None
+            errmessage: str = f"Expected Callable or Tuple but got type {type(c)}"
+            raise TypeError(errmessage)
+        # Format c
         circ = c
+        post = None
+        circ_qpu_reqs = None
         if isinstance(c, Tuple):
-            # unpack the tuple and store the postprocessing call, p
+            # unpack the tuple and store the possible postprocessing call
             circ, post = c
-            if not isinstance(circ, Callable) and not isinstance(post, Callable):
-                errmessage: str = (
-                    "circuits argument was passed a Tuple that did not consist of two callable functions"
-                )
-                errmessage += " a circuit and some post processing"
-                errmessage += f"got type {type(circ)} and {type(post)}"
-                raise ValueError(errmessage)
-        return circ, post
+            # check if circ is a Tuple and if so unpack to get circuit and circuit requirements
+            if isinstance(circ, Tuple):
+                circ, circ_qpu_reqs = circ
+            # if circ was not a tuple then expectation would be either Tuple[Callable,Callable] or Tuple[Callable, QPUMetaData]
+            elif isinstance(post, QPUMetaData):
+                circ_qpu_reqs = post
+                post = None
+
+        if not isinstance(circ, Callable):
+            errmessage: str = f"Circuit passed but got {type(circ)} instead of Callable"
+            raise TypeError(errmessage)
+
+        if not isinstance(post, Callable) and post != None:
+            errmessage: str = (
+                f"Postprocessing passed but got {type(post)} instead of Callable"
+            )
+            raise TypeError(errmessage)
+
+        if not isinstance(circ_qpu_reqs, QPUMetaData) and circ_qpu_reqs != None:
+            errmessage: str = (
+                f"Circuit requirements passed but got {type(circ_qpu_reqs)} instead of QPUMetaData"
+            )
+            raise TypeError(errmessage)
+
+        return circ, post, circ_qpu_reqs
 
     async def getremoteaftervqpulaunch(
         self,
@@ -468,6 +692,30 @@ class HybridQuantumWorkflowBase:
         artifact = await Artifact.get(key=f"remote{vqpu_id}")
         remote = dict(artifact)["data"].split("\n")[1]
         return remote
+
+    def checkcircuitreqs(
+        self,
+        circuitfunc: Callable,
+        qpu_id: int,
+        circ_qpu_reqs: QPUMetaData | None = None,
+    ) -> None:
+        """Check that circuit can be run with available qpu
+
+        Args:
+            circuitfunc (Callable): circuit to be run
+            qpu_id (int): if of (v)QPU that needs to be checked against circuit requirements.
+            circ_qpu_reqs (QPUMetaData): requirements. If None, no exception raised.
+
+        Raises:
+            RuntimeError if circuit cannot be run on qpu"""
+        # check that a circuit can be run with available vqpu
+        if circ_qpu_reqs != None:
+            qpu = asyncio.run(self.getqpudata(qpu_id))
+            if not circ_qpu_reqs.compare(qpu):
+                message: str = (
+                    f"Circuit {circuitfunc.__name__} has requirements not satisfied by vQPU. Cannot run. \n Requirements: {circ_qpu_reqs}\n Available: {qpu}\n"
+                )
+                raise RuntimeError(message)
 
     def checkbackends(
         self, backend: str = "qb-vqpu", checktype: str = "launch"
@@ -601,16 +849,3 @@ class SillyTestClass:
                 f"Cluster {self.cluster} configuration does not have runner {task-task_runner_name}."
             )
         return runners[task_runner_name]
-
-
-# Defining some useful decorators.
-def measure_time(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        end = time.time()
-        print(f"Execution time : {end - start:.6f} s")
-        return result
-
-    return wrapper

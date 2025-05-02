@@ -35,7 +35,7 @@ from vqpucommon.utils import (
     EventFile,
     getnumgpus,
 )
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
+from vqpucommon.vqpubase import QPUMetaData, HybridQuantumWorkflowBase, SillyTestClass
 
 # from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
 import asyncio
@@ -58,6 +58,7 @@ async def launch_vqpu(
     spinuptime: float = 30,
     arguments: str | None = None,
     vqpu_backend: str | None = None,
+    vqpu_data: QPUMetaData | None = None,
 ) -> None:
     """Base task that launches the virtual qpu.
     Should have minimal retries and a wait between retries
@@ -85,6 +86,7 @@ async def launch_vqpu(
         vqpu_id=vqpu_id,
         spinuptime=spinuptime,
         vqpu_backend=vqpu_backend,
+        vqpu_data=vqpu_data,
     )
     logger.info(f"Running vQPU-{vqpu_id} ... ")
 
@@ -265,6 +267,7 @@ async def run_circuit_vqpu(
     vqpu_id: int = 1,
     arguments: str = "",
     remote: str = "",
+    circ_qpu_reqs: QPUMetaData | None = None,
 ) -> Tuple[Dict[str, int], int]:
     """Run a circuit on a given remote vqpu (or QB QPU) backend
 
@@ -279,6 +282,10 @@ async def run_circuit_vqpu(
         Tuple[Dict[str, int], int]: Dictionary results from a circuit that consists of bitstrings and counts along with the id of this task running the circuit
     """
     myqpuworkflow.checkbackends(checktype="circuit")
+    myqpuworkflow.checkcircuitreqs(
+        circuitfunc=circuitfunc, qpu_id=vqpu_id, circ_qpu_reqs=circ_qpu_reqs
+    )
+
     results = circuitfunc(remote, arguments)
     task_run_id = get_task_run_id()
     return results, task_run_id
@@ -296,6 +303,7 @@ async def run_circuit_remote(
     circuitfunc: Callable,
     arguments: str = "",
     remote: str = "",
+    circ_qpu_reqs: QPUMetaData | None = None,
 ) -> Tuple[Dict[str, int], int]:
     """Run a circuit on a given remote backend. This requires the callable circuit to handle chatting to the appropriate backend and raising exceptions if necessary.
 
@@ -308,6 +316,12 @@ async def run_circuit_remote(
     Returns:
         Tuple[Dict[str, int], int]: Dictionary results from a circuit that consists of bitstrings and counts along with the id of this task running the circuit
     """
+
+    # need to add the qpu to remote circuit run API
+    # myqpuworkflow.checkcircuitreqs(
+    #     circuitfunc=circuitfunc,
+    #     qpu_id=qpu_id,
+    #     circ_qpu_reqs=circ_qpu_reqs)
     results = circuitfunc(remote, arguments)
     task_run_id = get_task_run_id()
     return results, task_run_id
@@ -357,6 +371,7 @@ async def run_circuit(
     backend_sel: str | None = None,
     vqpu_id: int | None = None,
     remote: str | None = None,
+    circ_qpu_reqs: QPUMetaData | None = None,
 ) -> Tuple[Dict[str, int], int]:
     """Wrapper for running all the run circuit tasks, regardless of whether they run
     on vqpus, simulation or remotes. Selection of task run depends on arguments passed.
@@ -379,6 +394,7 @@ async def run_circuit(
             arguments=arguments,
             vqpu_id=vqpu_id,
             remote=remote,
+            circ_qpu_reqs=circ_qpu_reqs,
         )
     elif backend_sel == None and vqpu_id == None and remote != None:
         future = await run_circuit_remote.submit(
@@ -386,6 +402,7 @@ async def run_circuit(
             circuitfunc=circuitfunc,
             arguments=arguments,
             remote=remote,
+            circ_qpu_reqs=circ_qpu_reqs,
         )
     elif backend_sel != None and vqpu_id == None and remote == None:
         future = await run_circuit_sim.submit(
@@ -448,17 +465,23 @@ async def run_postprocess(
 )
 async def run_circuitandpost_vqpu(
     myqpuworkflow: HybridQuantumWorkflowBase,
-    circuit: Callable | Tuple[Callable, Callable],
+    circuit: (
+        Callable
+        | Tuple[Callable, Callable]
+        | Tuple[Callable, QPUMetaData]
+        | Tuple[Tuple[Callable, QPUMetaData], Callable]
+    ),
     vqpu_id: int,
     arguments: str,
     remote: str,
+    circ_qpu_reqs: QPUMetaData | None = None,
     produce_histo: bool = True,
 ) -> Dict[str, Any]:
     """Run circuit (and possibly postprocessing) on a given remote backend
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase) : hybrid workflow class that manages circuit workflow
-        circuit (Callable | Tuple[Callable, Callabe]) : function(s) to run
+        circuit (Callable | Tuple[Callable, Callabe] | Tuple[Callable, Callable, QPUMetaData] | Tuple[Callable, QPUMetaData]]) : function(s) to run (and possible circuit requirements)
         vqpu_id (int): The vqpu id to use
         arguments (str): string of arguments to pass to circuit function
         remote (str) : remote vQPU to use
@@ -469,7 +492,7 @@ async def run_circuitandpost_vqpu(
     """
     logger = get_run_logger()
     results = {"circuit": None, "post": None}
-    circ, post = myqpuworkflow.getcircuitandpost(circuit)
+    circ, post, circ_qpu_reqs = myqpuworkflow.getcircuitandpost(circuit)
     logger.info(f"Running {circ.__name__}")
     future = await run_circuit_vqpu.submit(
         myqpuworkflow=myqpuworkflow,
@@ -477,6 +500,7 @@ async def run_circuitandpost_vqpu(
         arguments=arguments,
         vqpu_id=vqpu_id,
         remote=remote,
+        circ_qpu_reqs=circ_qpu_reqs,
     )
     circ_results, circ_id = await future.result()
     results["circuit"] = {"results": circ_results, "name": circ.__name__, "id": circ_id}
@@ -522,16 +546,22 @@ async def run_circuitandpost_vqpu(
 )
 async def run_circuits_once_vqpu_ready(
     myqpuworkflow: HybridQuantumWorkflowBase,
-    circuits: List[Callable | Tuple[Callable, Callable]],
+    circuits: List[
+        Callable
+        | Tuple[Callable, Callable]
+        | Tuple[Callable, QPUMetaData]
+        | Tuple[Tuple[Callable, QPUMetaData], Callable]
+    ],
     vqpu_id: int,
     arguments: str,
+    circ_qpu_reqs: List[QPUMetaData] | None = None,
     circuits_complete: bool = True,
 ):
     """Run set of circuits (and possibly post processing) once the appropriate vqpu is ready
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase) : hybrid workflow class that manages circuit workflow
-        circuits (Dict[str, List[Callable | Tuple[Callable, Callable]]]): circuits (and postprocessing) to run for a given vqpu
+        circuits (List[Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]]): circuits (and postprocessing and circuit requirements) to run for a given vqpu
         vqpu_id (int): vqpu id on which to run circuits
         arguments (str): string of arguments to pass extra options to running circuits and postprocessing
         circuits_complete (bool) : Whether to trigger the circuits complete shutdown of vqpu
@@ -567,7 +597,12 @@ async def run_circuits_once_vqpu_ready(
 )
 async def circuits_vqpu_workflow(
     myqpuworkflow: HybridQuantumWorkflowBase,
-    circuits: List[Callable | Tuple[Callable, Callable]],
+    circuits: List[
+        Callable
+        | Tuple[Callable, Callable]
+        | Tuple[Callable, QPUMetaData]
+        | Tuple[Tuple[Callable, QPUMetaData], Callable]
+    ],
     arguments: str = "",
     vqpu_id: int = 1,
     delay_before_start: float = 10.0,
@@ -578,7 +613,7 @@ async def circuits_vqpu_workflow(
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages circuit workflow
-        circuits (List[Callable | Tuple[Callable, Callable]]): circuits (and postprocessing) to run
+        circuits (List[Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]]): circuits (and postprocessing and possible circuit requirments) to run
         vqpu_id (int): vqpu id
         arguments (str): string of arguments to pass extra options to launching of vqpu
         delay_before_start (float): how much time to wait before running circuits
@@ -627,7 +662,15 @@ async def circuits_vqpu_workflow(
 )
 async def circuits_with_nqvpuqs_workflow(
     myqpuworkflow: HybridQuantumWorkflowBase,
-    circuits: Dict[str, List[Callable | Tuple[Callable, Callable]]],
+    circuits: Dict[
+        str,
+        List[
+            Callable
+            | Tuple[Callable, Callable]
+            | Tuple[Callable, QPUMetaData]
+            | Tuple[Tuple[Callable, QPUMetaData], Callable]
+        ],
+    ],
     arguments: str,
     vqpu_ids_subset: List[int] | None = None,
     delay_before_start: float = 10.0,
@@ -638,7 +681,7 @@ async def circuits_with_nqvpuqs_workflow(
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages circuit workflow
-        circuits (Dict[str, List[Callable | Tuple[Callable, Callable]]]): circuits (and postprocessing) to run for a given vqpu
+        circuits (Dict[str, List[Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]]]): circuits (and postprocessing) to run for a given vqpu
         arguments (str): string of arguments to pass extra options to running circuits and postprocessing
         delay_before_start (float) : seconds to wait before trying to run circuits
         circuits_complete (bool) : Whether to trigger the circuits complete shutdown of vqpu
@@ -687,7 +730,15 @@ async def circuits_with_nqvpuqs_workflow(
 
 def run_workflow_circuits_with_nqvpuqs(
     myqpuworkflow: HybridQuantumWorkflowBase,
-    circuits: Dict[str, List[Callable | Tuple[Callable, Callable]]],
+    circuits: Dict[
+        str,
+        List[
+            Callable
+            | Tuple[Callable, Callable]
+            | Tuple[Callable, QPUMetaData]
+            | Tuple[Tuple[Callable, QPUMetaData], Callable]
+        ],
+    ],
     arguments: str,
     delay_before_start: float = 10.0,
     circuits_complete: bool = True,
@@ -696,7 +747,7 @@ def run_workflow_circuits_with_nqvpuqs(
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages circuit workflow
-        circuits (Dict[str, List[Callable | Tuple[Callable, Callable]]]): circuits (and postprocessing) to run for a given vqpu
+        circuits (Dict[str, List[Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]]]): circuits (and postprocessing and circuit requirements) to run for a given vqpu
         arguments (str): string of arguments to pass extra options to running circuits and postprocessing
         delay_before_start (float) : seconds to wait before trying to run circuits
         circuits_complete (bool) : Whether to trigger the circuits complete shutdown of vqpu
