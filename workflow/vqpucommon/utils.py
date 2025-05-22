@@ -5,6 +5,7 @@
 """
 
 import datetime
+import functools
 import json
 import importlib
 import os
@@ -38,6 +39,8 @@ SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
 
 
 def check_python_installation(library: str):
+    """check if library present and otherwise catch ImporError
+    and report missing library"""
     try:
         importlib.import_module(library)
         return True
@@ -47,6 +50,7 @@ def check_python_installation(library: str):
 
 
 def _printtostr(thingtoprint: Any) -> str:
+    """Print something to string rather than stdout"""
     from io import StringIO
 
     f = StringIO()
@@ -107,9 +111,9 @@ def get_slurm_info() -> SlurmInfo:
     hostname = gethostname()
     job_id = get_environment_variable("SLURM_JOB_ID")
     task_id = get_environment_variable("SLURM_ARRAY_TASK_ID")
-    time = str(datetime.datetime.now())
+    now = str(datetime.datetime.now())
 
-    return SlurmInfo(hostname=hostname, job_id=job_id, task_id=task_id, time=time)
+    return SlurmInfo(hostname=hostname, job_id=job_id, task_id=task_id, time=now)
 
 
 def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
@@ -136,7 +140,7 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
 
 
 def log_slurm_job_environment(logger) -> SlurmInfo:
-    """Log components of the slurm environment. Currently only support slurm
+    """Log components of the slurm environment.
 
     Returns:
         SlurmInfo: Collection of slurm items from the job environment
@@ -157,7 +161,8 @@ def run_a_srun_process(
     add_output_to_log: bool = False,
     logger=None,
 ) -> subprocess.Popen:
-    """runs a srun process given by the shell command. If given a logger and asked to append, adds to the logger
+    """runs a srun process given by the shell command.
+    If given a logger and asked to append, adds to the logger.
 
     Returns:
         subprocess.Popen: new proccess spawned by the shell_cmd
@@ -186,7 +191,8 @@ def run_a_process(
     add_output_to_log: bool = False,
     logger=None,
 ):
-    """runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+    """Runs a process given by the shell command.
+    If given a logger and asked to append, adds to the logger.
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd
@@ -205,7 +211,8 @@ def run_a_process_bg(
     sleeplength: float = 5,
     logger=None,
 ) -> None:
-    """runs a process given by the shell command. If given a logger and asked to append, adds to the logger
+    """Runs a process given by the shell command.
+    If given a logger and asked to append, adds to the logger.
 
     Returns:
         subprocess: new proccess spawned by the shell_cmd
@@ -229,7 +236,7 @@ def run_a_process_bg(
 
 
 def getnumgpus() -> Tuple[int, str]:
-    """Poll node for number of gpus
+    """Poll node for number of gpus on host
 
     Returns:
         int number of gpus on a node and the type
@@ -262,7 +269,9 @@ def multinodenumberofgpus():
     pass
 
 
-async def async_create_markdown_artifcat(key, markdown, description):
+async def async_create_markdown_artifcat(key, markdown, description) -> None:
+    """create a markdown artifact in a asynchronous fashion.
+    Wrapper allows more complexity to be added."""
     await create_markdown_artifact(key=key, markdown=markdown, description=description)
 
 
@@ -349,7 +358,7 @@ def get_task_run_id() -> str:
 async def get_flow_runs(
     flow_run_filter: FlowRunFilter, sort: str = "-start_time", limit: int = 100
 ) -> List[FlowRun]:
-
+    """Get list of flow runs that satisfy some filter"""
     async with get_client() as client:
         flow_runs = await client.read_flow_runs(
             flow_run_filter=flow_run_filter,
@@ -418,13 +427,22 @@ class EventFile:
             message += f"- set at {etime} with {eset}\n"
         return message
 
-    def set(self) -> None:
+    def set(self, meta_data: str | Dict | List | None = None) -> None:
+        """Set the event by creating a file. If already set,
+        read the file and return an exception.
+        @todo Might want to add explicit lock to file when writing to it.
+
+        Raises:
+            RunTimeError saying event has already been set.
+        """
         if not os.path.isfile(self.fname):
             current_time = datetime.datetime.now()
             self.event_time = current_time.strftime("%Y-%m-%D::%H:%M:%S")
             self.event_set += 1
             with open(self.fname, "w") as f:
-                f.write(f"{self.event_set}, {self.event_time}")
+                f.write(f"{self.event_set}, {self.event_time}\n")
+                if meta_data != None:
+                    f.write(f"{meta_data}")
         else:
             # need to throw exception
             eset: int
@@ -438,18 +456,27 @@ class EventFile:
             )
             raise RuntimeError(message)
 
-    async def wait(self) -> None:
+    async def wait(self) -> None | str:
+        """Wait till file indicating event set to exist
+        and then return. Function should be called with await.
+        """
+        meta_data = None
         while not os.path.isfile(self.fname):
             await asyncio.sleep(self.sampling)
         with open(self.fname, "r") as f:
             data = f.readline().strip("\n").split(", ")
             eset = int(data[0])
             etime = data[1]
+            line = f.readline()
+            if not line:  # Empty string indicates end of file
+                meta_data = line.strip()
         if etime != self.event_time or eset != self.event_set:
             self.event_time = etime
             self.event_set = eset
+        return meta_data
 
     def clean(self) -> None:
+        """Clean the file if present, unsetting the event"""
         # remove the file as a lock
         if os.path.isfile(self.fname):
             os.remove(self.fname)
@@ -488,3 +515,43 @@ class EventFile:
             etime=data["etime"],
             eset=data["eset"],
         )
+
+
+# Decorators
+
+
+def validate_keys(allowed_keys):
+    """Ensure dictionary data passed to a function only contains specific keys"""
+
+    def decorator(func):
+        """decorator"""
+
+        def wrapper(*args, **kwargs):
+            """wrapper to the function"""
+            # Assume first argument is the dictionary to validate
+            if args and isinstance(args[0], dict):
+                data = args[0]
+                invalid_keys = set(data.keys()) - set(allowed_keys)
+                if invalid_keys:
+                    raise KeyError(
+                        f"Invalid keys: {invalid_keys}. Allowed keys: {allowed_keys}"
+                    )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def measure_time(func):
+    """measure the time taken by a function"""
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(f"Execution time : {end - start:.6f} s")
+        return result
+
+    return wrapper

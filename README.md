@@ -11,7 +11,7 @@ This setup is not fixed to Quantum Brilliance and could easily be expanded to in
 It consists of a primary directory `workflow/` which contains 
 - `vqpucommon/`: A directory containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow. 
 - `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.  
-- `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` oriented workflows. MPI will be forthcoming. 
+- `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming. 
 - `circuits/`: collection of example circuits.
 - `tests/`: python unit test for package 
 - `example_flows`: a useful set of example workflows. 
@@ -23,6 +23,9 @@ The main classes and basic tasks of the hybrid flow are found in [vqpubase](work
 
 #### EventFile
 A event stored in a file globally visible to all processes. File is created if set and dependent tasks can be set to `await eventfile.wait()` for the file to be created and have appropriate information before moving on. Events can also be cleared. 
+
+#### QPUMetaData
+Contains the metadata associated with a (v)QPU, such as maximum number of qubits, connectivity, etc. This can then be compared to the requirements of a circuit to see if the (v)QPU can be used to run the circuit.
 
 #### HybridQuantumWorkflowBase
 Contains parameters and events for running a hybrid workflow. 

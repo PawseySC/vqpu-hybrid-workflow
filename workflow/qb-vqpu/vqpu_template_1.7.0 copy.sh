@@ -3,17 +3,16 @@
 # this is a sample script for launching the virtual qpu of QB on ella
 # note that here the vqpu does not have any qubit specifcation.
 # Specification of qubits occurs when actually running a circuit
-PAWSEY_QRISTAL_PATH=/software/ella/2025.02/qb/qristal/1.7.0/
 VQPU_PORT=${VQPU_PORT:-8443}
 VQPU_SYSTEM=${VQPU_SYSTEM:-vqpu}
 # Note that the max circuit depth of order 1000 is sensisible for some hardware but simulation can be much higher
 VQPU_MAX_CIRCUIT_DEPTH=${VQPU_MAX_CIRCUIT_DEPTH:-1000}
 VQPU_SECRET=${VQPU_SECRET:-QuantumBrillianceVQPU}
-VQPU_SSL_CERT_DIR=${VQPU_SSL_CERT_DIR:-$PAWSEY_QRISTAL_PATH/qcstack/certs}
+VQPU_SSL_CERT_DIR=${VQPU_SSL_CERT_DIR:-$QRISTAL_ROOT_PATH/qcstack/certs}
 VQPU_SSL=${VQPU_SSL:-ON}
 
 # Specify the location of the virtual QPU license here.
-export VQPU_LICENSE_FILE=${VQPU_LICENSE_FILE:-/software/ella/2025.02/qb/qristal/license.json}
+export VQPU_LICENSE_FILE=${VQPU_LICENSE_FILE:-/some/path/to/license.json}
 
 # Specify the backends, this needs to be updated 
 export VQPU_BACKEND=MY_VQPU_BACKEND

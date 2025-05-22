@@ -12,7 +12,7 @@ class vQPUWorkflow(BaseModel):
     @brief arguments to workflow
     """
 
-    nqubits: int = "2"
+    nqubits: int = 2
     """Number of qubits"""
     quantum_kernels_file: str = ""
     """File containing quantum kernel(s) to run"""

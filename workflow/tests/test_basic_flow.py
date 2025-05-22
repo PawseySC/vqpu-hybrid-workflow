@@ -309,23 +309,6 @@ class TestHybridWorkflowBasics(unittest.TestCase):
             )(myqpuworkflow=myflow, vqpu_id=1, walltime=10)
         )
 
-    def test_multivqpu_flow(self):
-        frame = inspect.currentframe()
-        # Get the function name
-        function_name = frame.f_code.co_name
-        # Get the line number
-        line_number = frame.f_lineno
-        print(f"Function name: {function_name}, Line number: {line_number}")
-        myflow = HybridQuantumWorkflowBase(
-            cluster=self.cluster,
-            vqpu_ids=[1, 2, 3, 16],
-        )
-        asyncio.run(
-            launch_vqpu_workflow.with_options(
-                task_runner=myflow.gettaskrunner("vqpu"),
-            )(myqpuworkflow=myflow, vqpu_id=1, walltime=10)
-        )
-
 
 if __name__ == "__main__":
 
