@@ -1,10 +1,10 @@
 """
 @file vqpubase.py
-@brief Collection of tasks and flows related to vqpu and circuits
+@brief Collection of Classes that help orchestrate hybrid QPU,CPU,GPU workflows
 
 """
 
-import time, datetime, subprocess, os, select, psutil, copy
+import subprocess, os, psutil, copy
 import functools
 import json
 from pathlib import Path
@@ -35,6 +35,7 @@ from vqpucommon.utils import (
     SlurmInfo,
     EventFile,
 )
+import yaml
 import asyncio
 from prefect_dask import DaskTaskRunner
 from prefect import flow, task, get_client, pause_flow_run
@@ -47,11 +48,13 @@ from prefect.serializers import Serializer, JSONSerializer
 class QPUMetaData:
     """
     A class that contains the basic metadata that a (v)QPU should have.
+    We could base it on AWS Braket but want this to be generic so
+    we'll use ideas from AWS but keep it separate
     """
 
-    connectivity_types = ["all", "linear", ""]
+    connectivity_types: List[str] = ["all", "linear", ""]
     """Allowed types of connectivity description"""
-    noise_types = [
+    noise_types: List[str] = [
         "bitflip",
         "phaseflip",
         "amplitude_dampening",
@@ -60,30 +63,50 @@ class QPUMetaData:
         "crosstalk",
         "readout",
     ]
+    info_header: str = "# QPU info -"
 
     def __init__(
         self,
-        type: str,
-        maxnqubits: int,
-        speed: float = 0.0,
-        connectivity: str = "all",
-        native_gates_limitations: str = "none",
+        name: str,
+        qubit_type: str,
+        qubit_count: int,
+        shot_speed: float = 0.0,
+        cost: Tuple[float, str] | None = None,
+        connectivity: List[str] | None = None,
+        gates: List[str] | None = None,
         noise: Dict[str, float] | None = None,
+        calibration: Dict | None = None,
     ):
-        if maxnqubits < 1:
+        if qubit_count < 1:
             raise ValueError("Max number of qubits must be 1 or more.")
-        self.type = type
+        self.name = name
+        """Name of QPU"""
+        self.qubit_type = qubit_type
         """Type of qpu, such as vqpu, superconducting, etc"""
-        self.maxnqubits = maxnqubits
+        self.qubit_count = qubit_count
         """max number of qubits"""
-        self.speed = speed
+        self.shot_speed = shot_speed
         """Operational shot speed in seconds """
-        self.native_gates_limitations = native_gates_limitations
-        """Native gate limitations"""
-        self.connectivity = connectivity
+        self.cost = (0, "USD/minute")
+        """cost to run jobs on device"""
+        self.gates = ["all"]
+        """Gates allowed"""
+        self.connectivity = ["all"]
         """connectivity of qubits"""
-        self.noise = {n: 0 for n in self.noise_types}
-        if noise != None:
+        self.noise = {n: 0.0 for n in self.noise_types}
+        """noise model"""
+        self.calibration = {"Calibration data": None}
+        """calibration information """
+        if cost is not None:
+            self.cost = cost
+        if calibration is not None:
+            self.calibration = calibration
+        if gates is not None:
+            self.native_gates = gates
+        if connectivity is not None:
+            self.connectivity = connectivity
+
+        if noise is not None:
             ntypes = list(noise.keys())
             for nt in ntypes:
                 if nt in self.noise_types:
@@ -95,27 +118,30 @@ class QPUMetaData:
                     raise ValueError(message)
 
     def __str__(self) -> str:
-        message: str = f"# QPU info\n"
-        message += f"Type: {self.type}, "
-        message += f"Max_nqubits: {self.maxnqubits}, "
-        message += f"Speed_in_sec: {self.speed}, "
-        message += f"Gate_limitations: {self.native_gates_limitations}, "
-        message += f"Connectivity: {self.connectivity}, "
-        message += "\nNoises=["
-        for key, value in self.noise.items():
-            message += f"{key}: {value}, "
-        message += "]"
+        message: str = f"{self.info_header}\n"
+        message += f"Name: {self.name}; "
+        message += f"Qubit_type: {self.qubit_type}; "
+        message += f"Qubit_count: {self.qubit_count}; "
+        message += f"Shot_speed: {self.shot_speed}; "
+        message += f"Cost: {self.cost}; "
+        message += f"Gates: {self.gates}; "
+        message += f"Connectivity: {self.connectivity}; "
+        message += f"Noise: {self.noise}; "
+        message += f"Calibration: {self.calibration}; "
         return message
 
     def to_dict(self) -> Dict:
         """Converts class to dictionary for serialisation"""
         return {
             "QPUMetaData": {
-                "type": self.type,
-                "maxnqubits": self.maxnqubits,
-                "speed": self.speed,
-                "gate_limitations": self.native_gates_limitations,
+                "name": self.name,
+                "qubit_type": self.qubit_type,
+                "qubit_count": self.qubit_count,
+                "shot_speed": self.shot_speed,
+                "cost": self.cost,
+                "gates": self.gates,
                 "connectivity": self.connectivity,
+                "calibration": self.calibration,
                 "noise": self.noise,
             }
         }
@@ -127,12 +153,59 @@ class QPUMetaData:
             raise ValueError("Not an QPUMetaData dictionary")
         data = data["QPUMetaData"]
         return cls(
-            type=data["type"],
-            maxnqubits=data["maxnqubits"],
-            speed=data["speed"],
-            native_gate_limitations=data["gate_limitations"],
+            name=data["name"],
+            qubit_type=data["qubit_type"],
+            qubit_count=int(data["qubit_count"]),
+            shot_speed=float(data["shot_speed"]),
+            cost=data["cost"],
+            gates=data["gates"],
+            connectivity=data["connectivity"],
+            calibration=data["calibration"],
+            noise=data["noise"],
+        )
+
+    @classmethod
+    def from_string(cls, arg: str):
+        """Create an object from a dictionary"""
+        if cls.info_header not in arg:
+            raise ValueError("Not an QPUMetaData string")
+
+        lines = arg.split(cls.info_header + "\n")[1].strip().split(";")[:-1]
+        data = dict()
+        key: str = ""
+        value: str = ""
+        for l in lines:
+            if "Calibration" not in l and "Noise" not in l:
+                [key, value] = l.split(": ")
+            elif "Calibration:" in l:
+                key, value = "calibration", l.split("Calibration: ")[1]
+            elif "Noise:" in l:
+                key, value = "noise", l.split("Noise: ")[1]
+            else:
+                pass
+            data[key.lower().lstrip()] = value
+        # need to also parse the noise, calibration, connectivity data so that
+        # they are not strings
+        import ast
+
+        data["qubit_count"] = int(data["qubit_count"])
+        data["shot_speed"] = float(data["shot_speed"])
+        data["cost"] = data["cost"].replace("price=", "").split(" unit=")
+        data["cost"] = (float(data["cost"][0]), data["cost"][1])
+        data["gates"] = ast.literal_eval(data["gates"])
+        data["connectivity"] = ast.literal_eval(data["connectivity"])
+        data["calibration"] = ast.literal_eval(data["calibration"])
+        data["noise"] = ast.literal_eval(data["noise"])
+        return cls(
+            name=data["name"],
+            qubit_type=data["qubit_type"],
+            qubit_count=data["qubit_count"],
+            shot_speed=data["shot_speed"],
+            cost=data["cost"],
+            gates=data["gates"],
             connectivity=data["connectivity"],
             noise=data["noise"],
+            calibration=data["calibration"],
         )
 
     def __eq__(self, other):
@@ -153,19 +226,21 @@ class QPUMetaData:
             allowed_types (List[str]): other allowed types that can satisfy
 
         """
-        if self.maxnqubits > otherqpu.maxnqubits:
+        if not isinstance(otherqpu, QPUMetaData):
+            raise TypeError("otherqpu not of type QPUMetaData.")
+        if self.qubit_count > otherqpu.qubit_count:
             return False
-        if allowed_types == None:
-            allowed_types = [otherqpu.type]
+        if allowed_types is None:
+            allowed_types = [otherqpu.qubit_type]
         else:
-            allowed_types.append(otherqpu.types)
+            allowed_types.append(otherqpu.qubit_type)
 
-        if self.type not in allowed_types:
+        if self.qubit_type not in allowed_types:
             return False
-        if self.speed < otherqpu.speed:
+        if self.shot_speed < otherqpu.shot_speed:
             return False
         # if connectivity isn't all then need to check
-        if otherqpu.connectivity != "all" and self.connectivity == "all":
+        if ("all" in otherqpu.connectivity) and ("all" not in self.connectivity):
             return False
         elif otherqpu.connectivity != "all" and self.connectivity != "all":
             # need some logic to decide what connectivity is acceptable.
@@ -186,22 +261,26 @@ class HybridQuantumWorkflowBase:
     """List of required configurations for running workflow."""
     vqpu_allowed_backends: Dict[str, str] = {
         "qsim": "Description: A noise-aware, GPU-enabled state-vector simulator developed by Quantum Brilliance, built atop the Google Cirq qsim simulator",
-        "sparse-sim": "Description: Microsoft Quantum sparse state-vector simulator allows a high number of qubits to be simulated whenever the quantum circuit being executed preserves sparsity. It utilises a sparse representation of the state vector and methods to delay the application of some gates (e.g. Hadamard).",
-        "qpp": "Description: Quantum++ state vector simulator, configured to use XACC IR",
-        "cuda:qpp": "Description: Quantum++ state vector simulator using QIR",
-        "custatevec:fp32": "Description: Single (custatevec:fp32) CUDA Quantum state vector simulator, built on CuQuantum libraries.",
-        "custatevec:fp64": "Description: double-precision CUDA Quantum state vector",
-        "aer": "Description: IBM Qiskit Aer noise-aware state-vector (and MPS and density-matrix simulator",
+        # sparse sim doesn't handle noise, so no reason for vQPU
+        # "sparse-sim": "Description: Microsoft Quantum sparse state-vector simulator allows a high number of qubits to be simulated whenever the quantum circuit being executed preserves sparsity. It utilises a sparse representation of the state vector and methods to delay the application of some gates (e.g. Hadamard).",
+        # might want to remove qpp as it is not noise aware
+        # "qpp": "Description: Quantum++ state vector simulator, configured to use XACC IR",
+        # remove all cudaq as not supported (yet)
+        # "cudaq:qpp": "Description: Quantum++ state vector simulator using QIR",
+        # "custatevec:fp32": "Description: Single (custatevec:fp32) CUDA Quantum state vector simulator, built on CuQuantum libraries.",
+        # "custatevec:fp64": "Description: double-precision CUDA Quantum state vector",
+        # default
+        "aer": "Description: IBM Qiskit Aer noise-aware state-vector (and MPS and density-matrix simulator) [Default]",
         "qb-mps": "Description: Quantum Brilliance noise-aware MPS simulator, configured to use XACC IR (qb-mps). The MPS method represents the quantum wavefunction as a tensor contraction of individual qubit quantum state. Each qubit quantum state is a rank-3 tensor (rank-2 tensor for boundary qubits).",
-        "cudaq:qb_mps": "Description: MPS using QIR.",
+        # "cudaq:qb_mps": "Description: MPS using QIR.",
         "qb-mpdo": "Description: Quantum Brilliance noise-aware matrix-product density operator (MPDO) simulator, configured to use XACC IR (qb-mpdo). The MPDO method represents the density matrix as a tensor contraction of individual qubit density operator. Each qubit density operator is a rank-4 tensor (rank-3 tensor for boundary qubits).",
-        "cudaq:qb_mpdo": "Description: MPDO using QIR",
+        # "cudaq:qb_mpdo": "Description: MPDO using QIR",
         "qb-purification": "Descrption: Quantum Brilliance noise-aware state purification simulator, configured to use XACC IR (qb-purification). The purification method represents the purified quantum state as a tensor contraction of individual qubit purified state. Each qubit purified state is a rank-4 tensor (rank-3 tensor for boundary qubits).",
-        "cudaq:qb_purification": "Description: noise-aware state purification using QIR",
-        "cudaq:dm": "Description: The CUDA Quantum density matrix simulator, built on CuQuantum libraries",
+        # "cudaq:qb_purification": "Description: noise-aware state purification using QIR",
+        # "cudaq:dm": "Description: The CUDA Quantum density matrix simulator, built on CuQuantum libraries",
     }
 
-    vqpu_backend_default: str = "qpp"
+    vqpu_backend_default: str = "aer"
 
     def __init__(
         self,
@@ -286,7 +365,7 @@ class HybridQuantumWorkflowBase:
                 f"Missing cluster configurations. Minimum set required is {self.reqclusconfigs}. Missing {valerr}"
             )
 
-        if backends != None:
+        if backends is not None:
             self.backends = backends
         # Do I check backends?
         reqbackends = ["qiskit", "pennylane"]
@@ -301,22 +380,22 @@ class HybridQuantumWorkflowBase:
 
         self.vqpu_ids = vqpu_ids
         # set the default backend. Not clear if this structure is really necessary
-        if vqpu_backends != None:
+        if vqpu_backends is not None:
             self.vqpu_backends = vqpu_backends
             if len(self.vqpu_backends) < len(self.vqpu_ids):
                 self.vqpu_backends.append(None)
         else:
             self.vqpu_backends = None
 
-        if eventloc != None:
+        if eventloc is not None:
             self.eventloc = eventloc
-        if vqpu_run_dir != None:
+        if vqpu_run_dir is not None:
             self.vqpu_run_dir = vqpu_run_dir
-        if vqpu_exec != None:
+        if vqpu_exec is not None:
             self.vqpu_exec = vqpu_exec
-        if vqpu_template_script != None:
+        if vqpu_template_script is not None:
             self.vqpu_template_script = vqpu_template_script
-        if vqpu_template_yaml != None:
+        if vqpu_template_yaml is not None:
             self.vqpu_template_yaml = vqpu_template_yaml
         # this is very odd, don't know why default is being saved as tuple
         if isinstance(self.vqpu_template_yaml, tuple):
@@ -333,16 +412,16 @@ class HybridQuantumWorkflowBase:
             )
             raise ValueError(message)
 
-        if active_qpus != None:
+        if active_qpus is not None:
             self.active_qpus = copy.deepcopy(active_qpus)
 
-        if events == None:
+        if events is None:
             if "qb-vqpu" in self.backends:
                 for vqpu_id in self.vqpu_ids:
-                    self.events[f"vqpu_{vqpu_id}_launch"] = EventFile(
+                    self.events[f"qpu_{vqpu_id}_launch"] = EventFile(
                         name=f"vqpu_{vqpu_id}_launch", loc=self.eventloc
                     )
-                    self.events[f"vqpu_{vqpu_id}_circuits_finished"] = EventFile(
+                    self.events[f"qpu_{vqpu_id}_circuits_finished"] = EventFile(
                         name=f"vqpu_{vqpu_id}_circuits_finished", loc=self.eventloc
                     )
         else:
@@ -441,15 +520,23 @@ class HybridQuantumWorkflowBase:
         return False
 
     async def getqpudata(self, qpu_id: int) -> QPUMetaData:
+        """Get the QPU Meta Data for a given qpu_id
+        Args:
+            qpu_id (int) : The qpu_id to query
+        Returns:
+            QPUMetaData of the qpu in question
+        """
         if qpu_id in list(self.active_qpus.keys()):
             return self.active_qpus[qpu_id]
         # need to retrieve it
         else:
-            artifact = await Artifact.get(key=f"activeqpu{qpu_id}")
-            if artifact == None:
+            artifact = await Artifact.get(key=f"activeqpudata{qpu_id}")
+            if artifact is None:
                 raise ValueError(
                     "asking workflow to get active qpu data but no active qpu found!"
                 )
+            data = dict(artifact)["data"]
+            return QPUMetaData.from_string(data)
 
     def gettaskrunner(self, task_runner_name: str) -> DaskTaskRunner:
         """Returns the appropriate task runner.
@@ -520,7 +607,7 @@ class HybridQuantumWorkflowBase:
         # here there is an assumption of the path to the template
         lines = open(self.vqpu_template_script, "r").readlines()
         fout = open(vqpu_script, "w")
-        if vqpu_backend == None:
+        if vqpu_backend is None:
             vqpu_backend = self.vqpu_backend_default
         self.checkvqpubackends(vqpu_id=vqpu_id, vqpu_backend=vqpu_backend)
 
@@ -547,12 +634,15 @@ class HybridQuantumWorkflowBase:
             job_info (SlurmInfo) : gets the slurm job info related to spinning up the service
             vqpu_id (int) : The vqpu id
             spinuptime (float) : The time to wait before setting the event
+            vqpu_data (QPUMetaData) : Optional metadata to pass
         """
         # check if qpu is alread in activated list of qpus
 
         # now add the vQPU to the active list
-        if vqpu_data == None:
-            self.active_qpus[vqpu_id] = QPUMetaData(type="vQPU", maxnqubits=32)
+        if vqpu_data is None:
+            self.active_qpus[vqpu_id] = QPUMetaData(
+                name=f"Virtual QPU-{vqpu_id}", qubit_type="vQPU", qubit_count=32
+            )
         else:
             self.active_qpus[vqpu_id] = copy.deepcopy(vqpu_data)
         await save_artifact(str(vqpu_id), key=f"activeqpu{vqpu_id}")
@@ -568,7 +658,7 @@ class HybridQuantumWorkflowBase:
         cmds = ["bash", vqpu_script]
         process = run_a_process(cmds)
         await asyncio.sleep(spinuptime)
-        self.events[f"vqpu_{vqpu_id}_launch"].set()
+        self.events[f"qpu_{vqpu_id}_launch"].set(str(self.active_qpus[vqpu_id]))
 
     async def shutdown_vqpu(self, vqpu_id: int):
         """Shuts down the vqpu service
@@ -576,10 +666,10 @@ class HybridQuantumWorkflowBase:
         Args:
             vqpu_id (int) : The vqpu id
         """
-        await self.events[f"vqpu_{vqpu_id}_launch"].wait()
+        await self.events[f"qpu_{vqpu_id}_launch"].wait()
         # could try checking that vqpu is active
         # artifact = await Artifact.get(key=f"activeqpu{vqpu_id}")
-        # if artifact == None:
+        # if artifact is None:
         #     message: str = f"QPU {vqpu_id} not active. Cannot shutdown. Terminating"
         #     raise RuntimeError(message)
 
@@ -595,13 +685,98 @@ class HybridQuantumWorkflowBase:
         if vqpu_id in list(self.active_qpus.keys()):
             del self.active_qpus[vqpu_id]
 
+    async def launch_qpu(
+        self,
+        qpu_id: int,
+        remote_query: Tuple[str | Callable, str] | None = None,
+        qpu_data: QPUMetaData | None = None,
+        remote_data_query: Tuple[str | Callable, str] | None = None,
+    ) -> None:
+        """Launchs qpu service (that is register the service) and generates events to indicate that qpu is available.
+
+        Args:
+            qpu_id (int) : The qpu id
+            remote_query (Tuple): The command(s)/function call to run to see if remote is available. First entry is command to run. If it is a string running as a subprocess, result should be Yes/No to standard out. If callable function, it should return a bool. Second tuple argument is arguments to pass.
+            qpu_data (QPUMetaData): The qpu's metadata (provided explicitly)
+            remote_query (Tuple): The command(s)/function call to run to get metadata and arguments to pass. First entry is command to run. If it is a string running as a subprocess, stdout is captured to a yaml file. If callable function, it should return produce a yaml file. Second tuple argument is arguments to pass.
+
+        Raises:
+            ValueError if qpu_data or remote_query not passed as there must be a way of gathering meta_data about the qpu
+        """
+        # now add the vQPU to the active list
+        if qpu_data is None and remote_data_query is None:
+            raise ValueError(
+                "QPU missing meta data either provided explicitly or remote access to metadata"
+            )
+
+        # check if qpu is alread in activated list of qpus
+        avail: bool = True
+        if remote_query is not None:
+            if isinstance(remote_query[0], str):
+                cmds = [remote_query[0]]
+                cmds += [remote_query[1].split(" ")]
+                process = subprocess.Popen(cmds, text=True)
+                if process.stdout == "No":
+                    avail = False
+            else:
+                avail = remote_query[0](args=remote_query[1], filename=fname)
+        if not avail:
+            message: str = ""
+            if qpu_data is not None:
+                message += f"Requested {qpu_data} under qpu-{qpu_id}."
+            message += f"Not available."
+            raise RuntimeError(message)
+
+        if qpu_data is not None:
+            self.active_qpus[qpu_id] = copy.deepcopy(qpu_data)
+        else:
+            # need to determine how to setup remote access for the QPU. Ideally there is a simple command to run
+            # the command(s) should be split by , and pipe results to a file
+            fname: str = f"meta_data_for_{qpu_id}.yaml"
+            if isinstance(remote_data_query[0], str):
+                cmds = [remote_data_query[0]]
+                cmds += [remote_data_query[1].split(",")]
+                metafile = open(fname, "w")
+                process = subprocess.Popen(cmds, stdout=metafile, text=True)
+            else:
+                remote_data_query[0](args=remote_data_query[1], filename=fname)
+
+            # convert metadata file produced
+            metadata = yaml.load(fname, Loader=yaml.Loader)
+            self.active_qpus[qpu_id] = QPUMetaData(
+                name=metadata["name"],
+                qubit_type=metadata["type"],
+                qubit_count=metadata["qubit_count"],
+            )
+        await save_artifact(str(qpu_id), key=f"activeqpu{qpu_id}")
+        await save_artifact(str(self.active_qpus[qpu_id]), key=f"activeqpudata{qpu_id}")
+        self.events[f"qpu_{qpu_id}_launch"].set(meta_data=str(self.active_qpus[qpu_id]))
+
+    async def shutdown_qpu(self, qpu_id: int):
+        """Shuts down the qpu service (and indicate qpu is unavailable to workflow)
+
+        Args:
+            qpu_id (int) : The qpu id
+        """
+        # @todo need to update events so that the qpu event can be created in workflow constructor
+        await self.events[f"qpu_{qpu_id}_launch"].wait()
+        # could try checking that vqpu is active
+        # artifact = await Artifact.get(key=f"activeqpu{vqpu_id}")
+        # if artifact is None:
+        #     message: str = f"QPU {vqpu_id} not active. Cannot shutdown. Terminating"
+        #     raise RuntimeError(message)
+
+        # delete the active qpu data if present
+        if qpu_id in list(self.active_qpus.keys()):
+            del self.active_qpus[qpu_id]
+
     def cleanupbeforestart(self, vqpu_id: int | None = None):
-        if vqpu_id == None:
+        if vqpu_id is None:
             for vqpu_id in self.vqpu_ids:
-                self.events[f"vqpu_{vqpu_id}_launch"].clean()
+                self.events[f"qpu_{vqpu_id}_launch"].clean()
                 self.__delete_vqpu_remote_yaml(vqpu_id)
         else:
-            self.events[f"vqpu_{vqpu_id}_launch"].clean()
+            self.events[f"qpu_{vqpu_id}_launch"].clean()
             self.__delete_vqpu_remote_yaml(vqpu_id)
 
     async def task_circuitcomplete(self, vqpu_id: int) -> str:
@@ -613,7 +788,7 @@ class HybridQuantumWorkflowBase:
         Returns:
             returns a message of what has completed
         """
-        await self.events[f"vqpu_{vqpu_id}_circuits_finished"].wait()
+        await self.events[f"qpu_{vqpu_id}_circuits_finished"].wait()
         return "Circuits completed!"
 
     async def task_walltime(self, walltime: float) -> str:
@@ -627,6 +802,26 @@ class HybridQuantumWorkflowBase:
         """
         await asyncio.sleep(walltime)
         return "Walltime complete"
+
+    async def task_check_available(
+        self, qpu_id: int, check: Callable, arguments: Any, sampling: float = 10.0
+    ) -> str:
+        """Async task that indicates qpu is no longer available
+
+        Args:
+            qpu_id (int): The qpu id
+            check (Callable): the function to call to see if device is available
+            arguments (Any): arguments to pass
+            sampling (float): How often to check if device available
+
+        Returns:
+            returns a message of what has completed
+        """
+
+        while await check(arguments):
+            await asyncio.sleep(sampling)
+        # await self.events[f"qpu_{qpu_id}_circuits_finished"].wait()
+        return "Offline"
 
     def getcircuitandpost(self, c: Any) -> Tuple:
         """process a possible circuit and any post processing to do. Expecting Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]
@@ -665,13 +860,13 @@ class HybridQuantumWorkflowBase:
             errmessage: str = f"Circuit passed but got {type(circ)} instead of Callable"
             raise TypeError(errmessage)
 
-        if not isinstance(post, Callable) and post != None:
+        if not isinstance(post, Callable) and post is not None:
             errmessage: str = (
                 f"Postprocessing passed but got {type(post)} instead of Callable"
             )
             raise TypeError(errmessage)
 
-        if not isinstance(circ_qpu_reqs, QPUMetaData) and circ_qpu_reqs != None:
+        if not isinstance(circ_qpu_reqs, QPUMetaData) and circ_qpu_reqs is not None:
             errmessage: str = (
                 f"Circuit requirements passed but got {type(circ_qpu_reqs)} instead of QPUMetaData"
             )
@@ -688,7 +883,7 @@ class HybridQuantumWorkflowBase:
         Args:
             vqpu_id (int): vqpu_id to wait for and get remote of
         """
-        await self.events[f"vqpu_{vqpu_id}_launch"].wait()
+        await self.events[f"qpu_{vqpu_id}_launch"].wait()
         artifact = await Artifact.get(key=f"remote{vqpu_id}")
         remote = dict(artifact)["data"].split("\n")[1]
         return remote
@@ -709,7 +904,7 @@ class HybridQuantumWorkflowBase:
         Raises:
             RuntimeError if circuit cannot be run on qpu"""
         # check that a circuit can be run with available vqpu
-        if circ_qpu_reqs != None:
+        if circ_qpu_reqs is not None:
             qpu = asyncio.run(self.getqpudata(qpu_id))
             if not circ_qpu_reqs.compare(qpu):
                 message: str = (
@@ -762,7 +957,7 @@ class HybridQuantumWorkflowBase:
             vqpu_id (int): id to check
             vqpu_backend (str): backend to check
         """
-        if vqpu_backend != None:
+        if vqpu_backend is not None:
             allowed = list(self.vqpu_allowed_backends.keys())
             if vqpu_backend not in allowed:
                 message: str = (
@@ -822,7 +1017,7 @@ class SillyTestClass:
 
     def __init__(self, cluster: str | None = None, x: float = 2):
         self.x: float = x
-        if cluster != None:
+        if cluster is not None:
             self.cluster = cluster
             taskrunners = get_dask_runners(cluster=self.cluster)
             self.taskrunners = copy.deepcopy(taskrunners["jobscript"])

@@ -427,7 +427,7 @@ class EventFile:
             message += f"- set at {etime} with {eset}\n"
         return message
 
-    def set(self) -> None:
+    def set(self, meta_data: str | Dict | List | None = None) -> None:
         """Set the event by creating a file. If already set,
         read the file and return an exception.
         @todo Might want to add explicit lock to file when writing to it.
@@ -440,7 +440,9 @@ class EventFile:
             self.event_time = current_time.strftime("%Y-%m-%D::%H:%M:%S")
             self.event_set += 1
             with open(self.fname, "w") as f:
-                f.write(f"{self.event_set}, {self.event_time}")
+                f.write(f"{self.event_set}, {self.event_time}\n")
+                if meta_data != None:
+                    f.write(f"{meta_data}")
         else:
             # need to throw exception
             eset: int
@@ -454,19 +456,24 @@ class EventFile:
             )
             raise RuntimeError(message)
 
-    async def wait(self) -> None:
+    async def wait(self) -> None | str:
         """Wait till file indicating event set to exist
         and then return. Function should be called with await.
         """
+        meta_data = None
         while not os.path.isfile(self.fname):
             await asyncio.sleep(self.sampling)
         with open(self.fname, "r") as f:
             data = f.readline().strip("\n").split(", ")
             eset = int(data[0])
             etime = data[1]
+            line = f.readline()
+            if not line:  # Empty string indicates end of file
+                meta_data = line.strip()
         if etime != self.event_time or eset != self.event_set:
             self.event_time = etime
             self.event_set = eset
+        return meta_data
 
     def clean(self) -> None:
         """Clean the file if present, unsetting the event"""

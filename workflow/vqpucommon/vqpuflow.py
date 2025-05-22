@@ -582,7 +582,7 @@ async def run_circuits_once_vqpu_ready(
         results.append(result)
     # if circuits completed should trigger a shutdown of the vqpu, then set the circuits complete event
     if circuits_complete:
-        myqpuworkflow.events[f"vqpu_{vqpu_id}_circuits_finished"].set()
+        myqpuworkflow.events[f"qpu_{vqpu_id}_circuits_finished"].set()
     return results
 
 
@@ -647,7 +647,7 @@ async def circuits_vqpu_workflow(
         results.append(result)
     logger.info("Finished all running all circuits")
     if circuits_complete:
-        myqpuworkflow.events[f"vqpu_{vqpu_id}_circuits_finished"].set()
+        myqpuworkflow.events[f"qpu_{vqpu_id}_circuits_finished"].set()
     return results
 
 
