@@ -388,6 +388,69 @@ generic-aws:
       interval: "1s" # Milliseconds between checks
       wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
 
+generic-quera:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: generic-quera
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    # env-extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/25.3"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export OMP_NUM_THREADS=1"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "source /software/projects/pawsey0001/pelahi/quera_profile_env.sh"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "python --version"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 1
+    job_mem: "8GB"
+    job_extra: null
+    # add anything extra #SBATCH additions
+    job_extra_directives: 
+      - "-w ella-n00[1-2]"
+      - "--ntasks=1"
+      - '-e dask_logs/dask_generic_quera_worker_%J.err'
+      - '-o dask_logs/dask_generic_quera_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 70
+      minimum_workers: 1
+      maximum_workers: 144
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
 distributed:
   worker:
     memory:

@@ -103,7 +103,7 @@ def quera_parse_args(arguments: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process bloqade args")
     # Add device
     parser.add_argument(
-        "--quera-device",
+        "--queradevice",
         type=str,
         required=True,
         help="Device (Aquila [Analog], Gemini [Digital])",
