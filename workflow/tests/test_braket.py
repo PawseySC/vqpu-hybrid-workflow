@@ -14,7 +14,7 @@ from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
 from vqpucommon.vqpubraket import (
     aws_check_credentials,
     aws_braket_parse_args,
-    aws_braket_check_qpu, 
+    aws_braket_check_qpu,
     aws_braket_get_metadata,
     launch_aws_braket_qpu_workflow,
 )
@@ -26,7 +26,8 @@ from vqpucommon.vqpuflow import (
 )
 from vqpucommon.utils import EventFile
 from vqpucommon.clusters import get_dask_runners
-#from circuits.braket_circuits import noisy_circuit
+
+# from circuits.braket_circuits import noisy_circuit
 import asyncio
 from prefect import task, flow
 import unittest
@@ -40,7 +41,7 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
     #     print(aws_check_credentials())
 
     # def test_aws_braket_device_calls(self):
-    #     devices = ["Aquila", "Forte_1", "Aria_1", "Aria_2", "Ankaa-3"]
+    #     devices = ["Aquila", "Forte__1", "Aria__1", "Aria__2", "Ankaa-3"]
     #     for d in devices:
     #         arguments : str = f"--awsdevice={d}"
     #         print(f"Check if {d} available")
@@ -55,7 +56,7 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
         function_name = frame.f_code.co_name
         # Get the line number
         line_number = frame.f_lineno
-        arguments : str = "--awsdevice=Ankaa-3"
+        arguments: str = "--awsdevice=Ankaa-3"
         print(f"Function name: {function_name}, Line number: {line_number}")
         # serializer = HybridQuantumWorkflowSerializer()
         myflow = HybridQuantumWorkflowBase(

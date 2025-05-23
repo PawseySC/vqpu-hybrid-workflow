@@ -32,6 +32,7 @@ from prefect.client.schemas.objects import FlowRun
 from prefect.client.schemas.filters import FlowRunFilter
 from prefect.context import TaskRunContext, get_run_context
 import asyncio
+import argparse
 import base64
 from uuid import UUID
 
@@ -137,6 +138,26 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
         raise ValueError(f"{mode=} not supported. Supported {modes=} ")
 
     return job_info
+
+
+def get_argparse_args(
+    arguments: str, parser: argparse.ArgumentParser
+) -> argparse.Namespace:
+    """Parse a string based on an argparser and also strip out '_' from an argument
+    Args:
+        arguments (str): string of arguments
+        parser (argparse.ArgumentParser): parser that processes list of strings
+    Return:
+        The argparser namespace
+    """
+    import shlex
+
+    # split the string
+    args_list = shlex.split(arguments)
+    # if string contains a __ replace it with a space
+    args_list = [a.replace("__", " ") for a in args_list]
+    # Parse the arguments from our string
+    return parser.parse_args(args_list)
 
 
 def log_slurm_job_environment(logger) -> SlurmInfo:
