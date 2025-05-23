@@ -16,7 +16,7 @@ from vqpucommon.vqpuquera import (
     quera_parse_args,
     quera_check_qpu,
     quera_get_metadata,
-    launch_aws_braket_qpu_workflow,
+    launch_quera_qpu_workflow,
 )
 
 from vqpucommon.utils import EventFile
@@ -36,13 +36,13 @@ class TestHybridQueraWorkflowBasics(unittest.TestCase):
         print(quera_check_credentials())
 
     def test_aws_braket_device_calls(self):
-        devices = ["Aquila", "Forte__1", "Aria__1", "Aria__2", "Ankaa-3"]
+        devices = ["Aquila", "Gemini"]
         for d in devices:
-            arguments : str = f"--awsdevice={d}"
+            arguments : str = f"--queradevice={d}"
             print(f"Check if {d} available")
-            result = asyncio.run(aws_braket_check_qpu(arguments=arguments))
+            result = asyncio.run(quera_check_qpu(arguments=arguments))
             print(result)
-            result = asyncio.run(aws_braket_get_metadata(arguments=arguments))
+            result = asyncio.run(quera_get_metadata(arguments=arguments))
             print(result)
 
     def test_qpu_flow(self):
@@ -68,5 +68,5 @@ class TestHybridQueraWorkflowBasics(unittest.TestCase):
 if __name__ == "__main__":
 
     # if necessary, alter the cluster yaml configuration name
-    TestHybridAWSBraketWorkflowBasics.cluster = "ella-qb"
+    TestHybridQueraWorkflowBasics.cluster = "ella-qb"
     unittest.main()

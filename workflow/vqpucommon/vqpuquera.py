@@ -60,7 +60,7 @@ import bloqade.analog as bloqade_analog
 quera_devices: List[str] = ["Aquila", "Gemini"]
 
 
-def quera_credentials(report_keys: bool = False) -> Dict[str, str]:
+def quera_check_credentials(report_keys: bool = False) -> Dict[str, str]:
     """Print the QuEra Credentials
     Args:
         report_keys (bool) : report access and secret keys. NOT recommended unless debugging. Do not activate when running production logging
