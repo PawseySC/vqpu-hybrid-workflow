@@ -1,12 +1,11 @@
 """
-@file vqpubraket.py
-@brief Collection of AWS Braket oriented tasks, flows and interfaces
+@file vqpuquera.py
+@brief Collection of QuEra Bloqade oriented tasks, flows and interfaces
 
 """
 
 import argparse
 import time, datetime, subprocess, os, select, psutil, copy
-import functools
 import json
 from pathlib import Path
 import importlib
@@ -50,141 +49,109 @@ from prefect.artifacts import Artifact
 from prefect.context import get_run_context, TaskRunContext
 from prefect.serializers import Serializer, JSONSerializer
 
-# AWS imports: Import Braket SDK modules
-libcheck = check_python_installation("braket")
+# AWS imports: Import QuEra bloqade modules
+libcheck = check_python_installation("bloqade")
 if not libcheck:
     raise ImportError("Missing braket library, cannot interact with AWS Braket QPUs")
-from braket.aws import AwsDevice, AwsQuantumTask, AwsSession
-from braket.circuits import Circuit, Gate, observables
-from braket.device_schema import DeviceActionType
-from braket.devices import Devices, LocalSimulator
-from braket.parametric import FreeParameter
+# import bloqade digital and analogue
+import bloqade as bq
+import bloqade.analog as bloqade_analog
+
+quera_devices: List[str] = ["Aquila", "Gemini"]
 
 
-def aws_check_credentials(report_keys: bool = False) -> Dict[str, str]:
-    """Print the AWS Credentials
+def quera_check_credentials(report_keys: bool = False) -> Dict[str, str]:
+    """Print the QuEra Credentials
     Args:
         report_keys (bool) : report access and secret keys. NOT recommended unless debugging. Do not activate when running production logging
     Returns:
-        Tuple of relevant information : message, AWS_PROFILE and AWS_DEFAULT_REGION
+        Tuple of relevant information : message, and relevant access information like access_key
     Raises:
-        RuntimeErorr if AWS_PROFILE not defined
+        RuntimeErorr if ZAPIER_WEBHOOK_KEY not defined
     """
     message: str = ""
-    aws_profile = os.getenv("AWS_PROFILE")
+    aws_profile = os.getenv("ZAPIER_WEBHOOK_KEY")
     if aws_profile is None:
         raise RuntimeError(
-            "AWS Profile not defined. Will be unable to access AWS. Please export AWS_PROFILE=<your_profile>"
+            "QuEra ZAPIER_WEBHOOK_KEY not defined. Will be unable to access QuEra. Please export ZAPIER_WEBHOOK_KEY env var"
         )
-    access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    region = os.getenv("AWS_DEFAULT_REGION")
-    message += "AWS Credentials ---\n"
-    message += f"ENV AWS_PROFILE: {aws_profile}\n"
-    message += f"ENV AWS_ACCESS_KEY_ID: {access_key}\n"
-    message += f"ENV AWS_DEFAULT_REGION: {region}\n"
-    session = AwsSession()
-    boto_sess = session.boto_session
-    creds = boto_sess.get_credentials().get_frozen_credentials()
-    sts = session.sts_client
-    identity = sts.get_caller_identity()
-    message += f"Braket sees region: {session.region}\n"
+    access_key = os.getenv("ZAPIER_WEBHOOK_KEY")
+    zapierurl = os.getenv("ZAPIER_WEBHOOK_URL")
+    vercelurl = os.getenv("VERCEL_API_URL")
+    message += "QuEra Credentials ---\n"
+    message += f"ENV ZAPIER_WEBHOOK_URL: {zapierurl}\n"
+    message += f"ENV VERCEL_API_URL: {vercelurl}\n"
     if report_keys:
-        message += f"Braket sees access key: {creds.access_key}\n"
-        message += f"Braket sees secret key: {creds.secret_key}\n"
-    message += f"Braket sees session token: {creds.token}\n"
-    message += f"STS caller identity: {identity}\n"
-    result = {"message": message, "profile": aws_profile, "region": region}
+        message += f"ENV ZAPIER_WEBHOOK_KEY access key: {access_key}\n"
+    result = {
+        "message": message,
+        "key": access_key,
+        "zapier_webhook_url": zapierurl,
+        "vercel_api_url": vercelurl,
+    }
     return result
 
 
-def aws_braket_parse_args(arguments: str) -> argparse.Namespace:
-    """Parse arguments related to aws braket qpus
+def quera_parse_args(arguments: str) -> argparse.Namespace:
+    """Parse arguments related to quera bloqade access
     Args:
         args (str) : string of arguments
     Retursn:
         Returns the parsed args
     """
     # Create the parser
-    parser = argparse.ArgumentParser(description="Process AWS args")
+    parser = argparse.ArgumentParser(description="Process bloqade args")
     # Add device
     parser.add_argument(
-        "--awsdevice",
+        "--queradevice",
         type=str,
-        help="AWS Device. For names with a space, replace with __ ",
         required=True,
+        help="Device (Aquila [Analog], Gemini [Digital])",
     )
-    # Add something else
-    # parser.add_argument('--device', type=str, help='AWS Device')
+    # add environment file to be processed.
+    parser.add_argument(
+        "--quera-environment-file",
+        type=str,
+        required=True,
+        help="Device (Aquila [Analog], Gemini [Digital])",
+    )
+
     return get_argparse_args(arguments=arguments, parser=parser)
 
 
-async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[bool, str]:
-    """Wrapper to check if aws qpu is available.
+async def quera_check_qpu(arguments: str | argparse.Namespace) -> Tuple[bool, str]:
+    """Wrapper to check if quera bloqade qpu is available.
     Args:
-        args (str) : arguments to parse
+        args (str | argparse.Namespace) : arguments
     Returns:
         bool which is true if available.
     """
     # split the args string
     if isinstance(arguments, str):
-        args = aws_braket_parse_args(arguments)
+        args = quera_parse_args(arguments)
     else:
         args = arguments
-    message: str = ""
-    devices = AwsDevice.get_devices(names=args.awsdevice)
-    avail: bool = True
-    if len(devices) == 0:
-        availdevices = AwsDevice.get_devices(types=["QPU"])
-        message = f"Device {args.awsdevice} not found in list of AWS hosted devices."
-        message += f"Available devices :\n {availdevices}"
-        raise ValueError(message)
-    elif len(devices) > 1:
-        message = f"More than one device found with name similar to {args.awsdevice}. "
-        message += "Please adjust device name for search."
-        raise ValueError(message)
-    devices = AwsDevice.get_devices(names=[args.awsdevice], statuses=["ONLINE"])
-    if len(devices) == 0:
-        availdevices = AwsDevice.get_devices(statuses=["ONLINE"])
-        message = f"Device {args.awsdevice} is offline. "
-        message += "Current devices online are: \n"
-        message += f"{availdevices}"
-        avail = False
-    else:
-        message = f"Device {args.awsdevice} online."
-    return (avail, message)
+    avail = True
+    # need to look at how to poll whether device is available
+    return avail
 
 
-async def aws_braket_get_metadata(arguments: str | argparse.Namespace) -> QPUMetaData:
+async def quera_get_metadata(arguments: str | argparse.Namespace) -> QPUMetaData:
     """Return the metadata about the QPU
     Args:
         arguments (str|argparse.Namespace): arguments that contain the name of the device
     """
     if isinstance(arguments, str):
-        args = aws_braket_parse_args(arguments)
+        args = quera_parse_args(arguments)
     else:
         args = arguments
-    device = AwsDevice.get_devices(names=args.awsdevice)[0]
-    qubit_count = device.properties.paradigm.qubitCount
-    # there are issues with connectivity graph for certain devices and also issue with getting supported gates
-    connectivity_graph = None
-    support_gates = None
-    # connectivity_graph = device.properties.paradigm.connectivity.dict()
-    # support_gates = device.properties.action["braket.ir.jaqcd.program"].supportedOperations
-    # support_result_types = device.properties.action["braket.ir.jaqcd.program"].supportedResultTypes
-    shots_range = device.properties.service.shotsRange
-    device_cost = device.properties.service.deviceCost
-    # also missing consistent calibration
-    calibration = None
-    # calibration = device.properties.standardized.dict()
+    # need to populate this data correctly. For now, just have place holders
     meta_data = QPUMetaData(
-        name=device.name,
-        qubit_type="AWS",
-        qubit_count=qubit_count,
-        cost=device_cost,
+        name=args.queraname,
+        qubit_type="QuEra",
+        qubit_count=256,
+        cost=(0.0, "pershot"),
         shot_speed=0,
-        connectivity=connectivity_graph,
-        gates=support_gates,
-        calibration=calibration,
     )
 
     # need to figure out how to parse the meta data
@@ -198,13 +165,12 @@ async def aws_braket_get_metadata(arguments: str | argparse.Namespace) -> QPUMet
     task_run_name="Task-Launch-AWS-QPU-{qpu_id}",
     # result_serializer=HybridQuantumWorkflowSerializer(),
 )
-async def launch_aws_braket_qpu(
+async def launch_quera_qpu(
     myqpuworkflow: HybridQuantumWorkflowBase,
     qpu_id: int,
     arguments: str,
-    profile_info: Tuple[str, str] | None = None,
 ) -> None:
-    """Base task that checks for a AWS Braket qpu.
+    """Base task that checks for a Quera Bloqade qpu.
     Should have minimal retries and a wait between retries
     once qpu is launched set event so subsequent circuit tasks can run
 
@@ -212,39 +178,34 @@ async def launch_aws_braket_qpu(
         myqpuworkflow (HybridQuantumWorkflowBase) : hybrid workflow class that manages events, yamls, etc when launching vqpu
         qpu_id (int): The qpu id
         arguments (str): Arguments that could be used
-        profile_info (Tuple[str,str]): if passed, set the AWS_PROFILE environment variable and AWS_DEFAULT_REGION
     """
 
     # get flow run information and slurm job information
     logger = get_run_logger()
-    logger.info(f"Getting AWS QPU-{qpu_id}")
-    if profile_info is not None:
-        os.environ["AWS_PROFILE"] = profile_info[0]
-        os.environ["AWS_DEFAULT_REGION"] = profile_info[1]
-    args = aws_braket_parse_args(arguments=arguments)
-    avail, message = await aws_braket_check_qpu(arguments=args)
+    logger.info(f"Getting QuEra QPU-{qpu_id}")
+    args = quera_parse_args(arguments=arguments)
+    avail, message = await quera_check_qpu(arguments=args)
     if not avail:
         raise RuntimeError(message)
     logger.info(message)
-    qpu_data = await aws_braket_get_metadata(arguments=args)
+    qpu_data = await quera_get_metadata(arguments=args)
     await myqpuworkflow.launch_qpu(
         qpu_id=qpu_id,
         qpu_data=qpu_data,
     )
-    logger.info(f"Running AWS QPU-{qpu_id} {args.awsdevice} ... ")
+    logger.info(f"Running QuEra QPU-{qpu_id} {args.queradevice} ... ")
 
 
 @task(
     retries=0,
-    task_run_name="Task-Run-AWS-QPU-{qpu_id}",
+    task_run_name="Task-Run-Quera-QPU-{qpu_id}",
 )
-async def run_aws_braket_qpu(
+async def run_quera_qpu(
     myqpuworkflow: HybridQuantumWorkflowBase,
     qpu_id: int,
     arguments: str,
     walltime: float = 86400,  # one day
     sampling: float = 100.0,
-    profile_info: Tuple[str, str] | None = None,
 ) -> None:
     """Runs a task that waits to keep flow active
     so long as there are circuits to be run or have not exceeded the walltime
@@ -263,16 +224,13 @@ async def run_aws_braket_qpu(
         f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... "
     )
     # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
-    if profile_info is not None:
-        os.environ["AWS_PROFILE"] = profile_info[0]
-        os.environ["AWS_DEFAULT_REGION"] = profile_info[1]
     tasks = [
         asyncio.create_task(myqpuworkflow.task_circuitcomplete(vqpu_id=qpu_id)),
         asyncio.create_task(myqpuworkflow.task_walltime(walltime=walltime)),
         asyncio.create_task(
             myqpuworkflow.task_check_available(
                 qpu_id=qpu_id,
-                check=aws_braket_check_qpu,
+                check=quera_check_qpu,
                 arguments=arguments,
                 sampling=sampling,
             )
@@ -299,20 +257,20 @@ async def run_aws_braket_qpu(
     task_run_name="Task-Shutdown-QPU-{qpu_id}",
     # result_serializer=HybridQuantumWorkflowSerializer(),
 )
-async def shutdown_aws_braket_qpu(
+async def shutdown_quera_qpu(
     myqpuworkflow: HybridQuantumWorkflowBase,
     qpu_id: int,
 ) -> None:
-    """Shuts down AWS Braket QPU access
+    """Shuts down qpu
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase) : hybrid workflow class that manages shutdown of vqpu
         qpu_id (int): The qpu id
     """
     logger = get_run_logger()
-    logger.info(f"Shutdown AWS QPU-{qpu_id} flow access")
+    logger.info(f"Shutdown Quera QPU-{qpu_id} flow access")
     await myqpuworkflow.shutdown_qpu(qpu_id=qpu_id)
-    logger.info("AWS QPU access shutdown")
+    logger.info("QuEra QPU access shutdown")
 
 
 @flow(
@@ -332,7 +290,7 @@ async def launch_aws_braket_qpu_workflow(
     walltime: float = 86400,
     date: datetime.datetime = datetime.datetime.now(),
 ) -> None:
-    """Flow for running AWS Braket QPU
+    """Flow for running vqpu
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase) : hybrid workflow class that manages vqpu workflow
@@ -340,17 +298,17 @@ async def launch_aws_braket_qpu_workflow(
         arguments (str): string of arguments to pass extra options to launching of vqpu
         sampling (float) : how often to check QPU is still available
         walltime (float) : walltime to keep running the qpu access
+
     """
     # clean up before launch
     myqpuworkflow.cleanupbeforestart(vqpu_id=qpu_id)
     logger = get_run_logger()
-    logger.info(f"Launching AWS QPU-{qpu_id}")
-    creds = aws_check_credentials()
+    logger.info(f"Launching QuEra QPU-{qpu_id}")
+    creds = quera_check_credentials()
     logger.info(creds["message"])
-    profile_info = (creds["profile"], creds["region"])
 
     # now launch
-    future = await launch_aws_braket_qpu.submit(
+    future = await launch_quera_qpu.submit(
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
@@ -363,7 +321,7 @@ async def launch_aws_braket_qpu_workflow(
     logger.info(
         f"AWS QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
-    future = await run_aws_braket_qpu.submit(
+    future = await run_quera_qpu.submit(
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
@@ -373,7 +331,5 @@ async def launch_aws_braket_qpu_workflow(
     await future.result()
 
     # once the run has finished, shut it down
-    future = await shutdown_aws_braket_qpu.submit(
-        myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
-    )
+    future = await shutdown_quera_qpu.submit(myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
     await future.result()
