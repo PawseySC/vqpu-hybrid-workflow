@@ -1,0 +1,10 @@
+loopback:
+  url: https://HOSTNAME:8443
+  poll_secs: 2
+  poll_retries: 100
+  recursive: true
+  resample: false
+  resample_above_percentage: 100
+  exclusive_access: false
+  exclusive_access_token: # some token
+  use_default_contrast_settings: true

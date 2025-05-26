@@ -28,6 +28,9 @@ prefect = "^2.10.0"
 prefect-dask = "^0.2.4"
 dask-jobqueue = "*"
 scikit-image = "*"
+bloqade = "*"
+awscli = "*"
+amazon-braket-sdk = "*"
 
 # set poetry dependencies 
 [tool.poetry.group.dev.dependencies]
