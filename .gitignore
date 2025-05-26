@@ -2,4 +2,5 @@ __pycache__/
 workflow/events/*txt
 workflow/dask_logs
 workflow/vqpus/*yaml
-
+workflow/tests/profile_util/build-cuda
+workflow/tests/profile_util/build-hip

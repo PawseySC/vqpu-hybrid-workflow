@@ -304,10 +304,10 @@ def wrapper_to_async_flow(
     """
     if yaml_template == None:
         yaml_template = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_template_1.7.0.yaml",
+            f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_ella_template.yaml",
         )
     if script_template == None:
-        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_1.7.0.sh"
+        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_ella.sh"
     if cluster == None:
         cluster = "ella-qb-1.7.0"
     myflow = HybridQuantumWorkflowBase(

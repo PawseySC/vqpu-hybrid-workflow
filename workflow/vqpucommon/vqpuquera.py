@@ -276,13 +276,13 @@ async def shutdown_quera_qpu(
 @flow(
     name="Launch vQPU Flow",
     flow_run_name="launch_aws_qpu_{qpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
-    description="Launching AWS QPU access with the appropriate task runner",
+    description="Launching QuEra QPU access with the appropriate task runner",
     retries=3,
     retry_delay_seconds=10,
     log_prints=True,
     # result_serializer=HybridQuantumWorkflowSerializer(),
 )
-async def launch_aws_braket_qpu_workflow(
+async def launch_quera_qpu_workflow(
     myqpuworkflow: HybridQuantumWorkflowBase,
     qpu_id: int,
     arguments: str,

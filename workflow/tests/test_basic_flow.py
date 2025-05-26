@@ -20,7 +20,7 @@ from vqpucommon.vqpuflow import (
     FlowForSillyTestClass,
     circuits_vqpu_workflow,
 )
-from vqpucommon.utils import EventFile
+from vqpucommon.utils import EventFile, getnumgpus
 from vqpucommon.clusters import get_dask_runners
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
@@ -99,9 +99,18 @@ async def multivqpuworkflow(
 
 
 class TestHybridWorkflowBasics(unittest.TestCase):
-    cluster: str = "ella-qb"
+    cluster: str = "ella-qb-1.7.0"
+    vqpu_template_script: str = os.path.dirname(os.path.abspath(__file__))+"/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
+    vqpu_template_yaml: str = os.path.dirname(os.path.abspath(__file__))+"/../qb-vqpu/remote_vqpu_ella_template.yaml"
+    gpuruns : int = 4
+    gpucudaexec: str = os.path.dirname(os.path.abspath(__file__))+"/profile_util/build-cuda/src/tests/test_profile_util"
+    gpuhipexec: str = os.path.dirname(os.path.abspath(__file__))+"/profile_util/build-hip/src/tests/test_profile_util"
+    gpuexec : str = ""
+
 
     def test_jsonserialization(self):
+        """Test Serialization.
+        """
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -112,6 +121,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow = HybridQuantumWorkflowBase(
             cluster=self.cluster,
             vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
         )
         # Serialize the object to a JSON string
         json_string = json.dumps(myflow.to_dict())
@@ -172,6 +183,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
     #     self.assertIsInstance(obj, HybridQuantumWorkflowBase)
 
     def test_flowwithlocalclass(self):
+        """Test basic prefect flow to see that it is all working."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -182,6 +194,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         SillyFlow()
 
     def test_flowwithclass(self):
+        """Test flow with class being serialized."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -194,6 +207,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         FlowForSillyTestClass()
 
     def test_flowwithlocalrunner(self):
+        """Test flow with HybridQuantumWorlfowBase class and local task runners."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -203,6 +217,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow = HybridQuantumWorkflowBase(
             cluster=self.cluster,
             vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
         )
         print(
             "Check if simple flow without vQPU related classes with local task runner works"
@@ -212,6 +228,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         )
 
     def test_flowwithclassanddaskrunner(self):
+        """Test flow with a class and dask task runners."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -230,6 +247,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow(baseobj=obj)
 
     def test_flowwithdasktaskrunner(self):
+        """Test flow with dask task runners."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -239,6 +257,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow = HybridQuantumWorkflowBase(
             cluster=self.cluster,
             vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
         cpuflow = cpu_workflow.with_options(task_runner=myflow.gettaskrunner("cpu"))
@@ -248,6 +268,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         asyncio.run(cpuflow(execs=["ls"], arguments=["/opt/"]))
 
     def test_flow(self):
+        """Test flow with HybridQuantumWorlfowBase class and dask task runners."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -257,6 +278,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow = HybridQuantumWorkflowBase(
             cluster=self.cluster,
             vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
         cpuflow = cpu_workflow.with_options(task_runner=myflow.gettaskrunner("cpu"))
@@ -268,6 +291,13 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         )
 
     def test_gpu_flow(self):
+        """Test flow with HybridQuantumWorlfowBase class and daks task runners, gpu focus. 
+        This test is currently requires that profile_util's gpu code is built.
+        To enable this please enter the profile_util dire and run ./build_cuda.sh. This assumes 
+        cmake, and nvc++. if on AMD, ensure ./build_hip.sh is run.
+        There is currently some issues with too many open files might have to do with the polling and the 
+        nodes being used to run this test. 
+        """
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -277,21 +307,32 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow = HybridQuantumWorkflowBase(
             cluster=self.cluster,
             vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
         )
-        # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
-        cpuflow = gpu_workflow.with_options(task_runner=myflow.gettaskrunner("gpu"))
+
+        gpuflow = gpu_workflow.with_options(task_runner=myflow.gettaskrunner("gpu"))
+        ngpus, gputype = getnumgpus()
+        if gputype == "NVIDIA":
+            self.gpuexec = self.gpucudaexec
+        elif gputype == "AMD":
+            self.gpuexec = self.gpuhipexec
+
+        execs = [self.gpuexec for i in range(self.gpuruns)]
+        arugments = ["" for i in range(self.gpuruns)]
         print(
-            "Check if simple flow without vQPU related classes with dask task runner works"
+            "Check if simple GPU flow without vQPU related classes with dask task runner works"
         )
         asyncio.run(
-            cpuflow(
+            gpuflow(
                 myqpuworkflow=myflow,
-                execs=["nvidia-smi", "nvidia-smi", "nvidia-smi"],
-                arguments=["", "", ""],
+                execs=execs,
+                arguments=arugments,
             )
         )
 
     def test_vqpu_flow(self):
+        """Test flow with HybridQuantumWorlfowBase class and dask task runners launching vQPU."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -302,6 +343,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         myflow = HybridQuantumWorkflowBase(
             cluster=self.cluster,
             vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
         )
         asyncio.run(
             launch_vqpu_workflow.with_options(
@@ -313,5 +356,5 @@ class TestHybridWorkflowBasics(unittest.TestCase):
 if __name__ == "__main__":
 
     # if necessary, alter the cluster yaml configuration name
-    TestHybridWorkflowBasics.cluster = "ella-qb"
+    TestHybridWorkflowBasics.cluster = "ella-qb-1.7.0"
     unittest.main()
