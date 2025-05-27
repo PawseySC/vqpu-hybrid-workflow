@@ -17,7 +17,7 @@ export VQPU_LICENSE_FILE=${VQPU_LICENSE_FILE:-/some/path/to/license.json}
 # Specify the backends, this needs to be updated 
 export VQPU_BACKEND=MY_VQPU_BACKEND
 # can also set type for the aer backend (statevector, density_matrix, matrix_product_state)
-export VQPU_SIM_TYPE=MY_VQPU_AER_SIM_TYPE
+# export VQPU_SIM_TYPE=MY_VQPU_AER_SIM_TYPE
 
 # This variable needs to be set to a folder where the user has write permission.
 #export QcStackPath=$PAWSEY_QRISTAL_PATH/qcstack
@@ -32,5 +32,3 @@ qcstack \
 --max-circuit-depth ${VQPU_MAX_CIRCUIT_DEPTH} \
 --reservation-shared-secret ${VQPU_SECRET} \
 --calibration False &
-#--log-to-timeseries-files \
-#--benchmarking False &
