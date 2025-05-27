@@ -120,6 +120,7 @@ async def cpu_with_random_qpu_workflow(
                     )
                 )
             else:
+                await myqpuworkflow.events[f"vqpu_{vqpu_id}_launch"].wait()
                 myqpuworkflow.events[f"vqpu_{vqpu_id}_circuits_finished"].set()
 
     logger.info("Finished CPU with QPU flow")
@@ -303,11 +304,9 @@ def wrapper_to_async_flow(
     @brief run the workflow with the appropriate task runner
     """
     if yaml_template == None:
-        yaml_template = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_ella_template.yaml",
-        )
+        yaml_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_ella_template.yaml"
     if script_template == None:
-        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_ella.sh"
+        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
     if cluster == None:
         cluster = "ella-qb-1.7.0"
     myflow = HybridQuantumWorkflowBase(
