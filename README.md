@@ -51,7 +51,7 @@ There are other tasks, such as those associated with sending circuits to vqpus. 
 * `@flow launch_aws_braket_qpu_workflow`: Calls all these above tasks with appropriate logging. 
 
 ### QuEra Bloqade
-There is also a preliminary interface to QuEra QPU's via (bloqade)[https://bloqade.quera.com/latest/]. The integration for this service is in [vqpuquera](workflow/vqpucommon/vqpuquera.py). This contains the key QPU access tasks and flows simlar to aws. 
+There is also a preliminary interface to QuEra QPU's via [bloqade](https://bloqade.quera.com/latest/). The integration for this service is in [vqpuquera](workflow/vqpucommon/vqpuquera.py). This contains the key QPU access tasks and flows simlar to aws. 
 * `@task launch_quera_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. Checks to see if credentials are able to access the device. 
 * `@task run_quera_qpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime and device still available. 
 * `@task shutdown_quera_qpu`: Shuts down qpu access, gracefully terminating the relevant process.
