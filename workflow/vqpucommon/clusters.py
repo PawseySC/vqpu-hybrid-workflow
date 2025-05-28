@@ -9,7 +9,8 @@ operations.
 import os
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Union, Tuple
+import copy
 
 import yaml
 from prefect_dask import DaskTaskRunner
@@ -73,24 +74,24 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
 
 def get_dask_runners(
     cluster: str = "ella",
-    extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
+    extra_cluster_kwargs: Dict[str, Any] | None = None,
 ) -> Dict[str, DaskTaskRunner | Dict[str, str]]:
     """
     @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
     to manage a set of dask-workers.
 
-    Keyword Args:
-        cluster (Union[str,Path]): The cluster name that will be used to search for a cluster specification file.
+    Args:
+        cluster (str): The cluster name that will be used to search for a cluster specification file.
                        This could be the name of a known cluster, or the name of a yaml file installed
                        among the `cluster_configs` directory of the aces module.
+        extra_cluster_kwargs (Dict): Optional arguments to be passed to update the dask task runners of a cluster
 
     Returns:
-        DaskTaskRunner: A dask task runner capable of being used as a task_runner for a prefect flow
+        Dict[str, DaskTaskRunner | Dict[str, str]: dictionary of dask task runners with specific names, the associated job scripts and the specs need to create a new dask task runner
     """
 
     specs = get_cluster_spec(cluster)
-    cluster = dict()
-    task_runners = {"jobscript": dict()}
+    task_runners = {"jobscript": dict(), "specs": dict()}
     for specname in specs.keys():
         # still need to figure out how to encorporated distributed options
         if specname == "distributed":
@@ -98,34 +99,9 @@ def get_dask_runners(
         cluster_config = specs[specname]
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
-
         task_runners[specname] = DaskTaskRunner(**cluster_config)
         task_runners["jobscript"][specname] = SLURMCluster(
             **cluster_config["cluster_kwargs"]
         ).job_script()
-
+        task_runners["specs"][specname] = copy.deepcopy(cluster_config)
     return task_runners
-
-
-def get_test_dask_runners(
-    cluster: str = "test",
-    extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
-) -> Tuple[DaskTaskRunner, str]:
-    """
-    @brief Creates and returns a DaskTaskRunner configured to established a SLURMCluster instance
-    to manage a set of dask-workers.
-
-    Keyword Args:
-        cluster (Union[str,Path]): The cluster name that will be used to search for a cluster specification file.
-                       This could be the name of a known cluster, or the name of a yaml file installed
-                       among the `cluster_configs` directory of the aces module.
-
-    Returns:
-        DaskTaskRunner: A dask task runner capable of being used as a task_runner for a prefect flow
-    """
-
-    specs = get_cluster_spec(cluster)
-    task_runner = DaskTaskRunner(**specs)
-    jobscript = SLURMCluster(**cluster_config["cluster_kwargs"]).job_script()
-
-    return task_runner, jobscript

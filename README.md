@@ -59,7 +59,7 @@ There is also a preliminary interface to QuEra QPU's via [bloqade](https://bloqa
 
 ### Example Workflow
 We discuss `example_flows/multi_vqpu_cpugpu_workflow.py` here. This flow uses some basic build-block tasks and flows defined in `vqpucommon/vqpuflows.py` and the prefect view is of this flow is shown below.
-![multivqpuflow](figs/example_multivqpuflow.png)
+![multivqpuflow](docs/figs/example_multivqpuflow.png)
 
 This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and how to run these flows in an asynchronous fashion. 
 
