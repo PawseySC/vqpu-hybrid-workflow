@@ -1,6 +1,12 @@
 __pycache__/
 workflow/events/*txt
+workflow/plots/*
 workflow/dask_logs
 workflow/vqpus/*yaml
 workflow/tests/profile_util/build-cuda
 workflow/tests/profile_util/build-hip
+example/flows/events/*txt
+example/flows/plots/*
+docs/_build
+docs/_static
+docs/_templates

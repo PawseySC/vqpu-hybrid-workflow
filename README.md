@@ -2,7 +2,7 @@
 A Prefect orchestrated framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
 
 ## Description
-This framework uses Prefect to orchesetrate asynchronous tasks and flows, an EventFile class that produces globally visible events to the orchestration process and all other processes, Dask for integration with Slurm to run hybrid workflows. 
+This framework uses [Prefect](https://www.prefect.io) to orchesetrate asynchronous tasks and flows, an EventFile class that produces globally visible events to the orchestration process and all other processes, Dask for integration with Slurm to run hybrid workflows. 
 
 The current setup is designed to integrate with the virtual QPU from Quantum Brilliance, a emulator for quantum circuit simulation that runs as a service, accepting circuits sent to a specific port with a specific API and format. Currently it has been tested with circuits produced by the Qristal SDK produced by Quantum Brilliance. 
 
@@ -20,7 +20,7 @@ It consists of a primary directory `workflow/` which contains
 
 There are other directories, such as `events` that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem. 
 
-### vqpucommon
+### Main classes and functions
 The main classes and basic tasks of the hybrid flow are found in [vqpubase](workflow/vqpucommon/vqpubase.py) and [vqpuflow](workflow/vqpucommon/vqpuflow.py) respectively. The key components of the QBitBridge fraemwork is the introduction of the `EventFile` class (see [utils](workflow/vqpucommon/utils.py)), the `QPUMetaData` and `HybridQuantumWorkflowBase` classes (see [vqpubase](workflow/vqpucommon/vqpubase.py)). 
 
 #### EventFile
@@ -58,13 +58,21 @@ There is also a preliminary interface to QuEra QPU's via [bloqade](https://bloqa
 * `@flow launch_quera_qpu_workflow`: Calls all these above tasks with appropriate logging. 
 
 ### Example Workflow
-We discuss `example_flows/multi_vqpu_cpugpu_workflow.py` here. This flow uses some basic build-block tasks and flows defined in `vqpucommon/vqpuflows.py` and the prefect view is of this flow is shown below.
+
+There are a few examples that can be found in [the examles directory](examples/flows/). We discuss [a multi-vqpu](example/flows/multi_vqpu_cpugpu_workflow.py) here. This flow uses some basic build-block tasks and flows defined in [the base vpu flows](workflow/vqpucommon/vqpuflows.py) and the prefect view is of this flow is shown below.
 ![multivqpuflow](docs/figs/example_multivqpuflow.png)
 
 This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and how to run these flows in an asynchronous fashion. 
 
-We strongly suggest you alter the CPU and GPU commands before trialling this workflow. 
+We strongly suggest you alter the CPU and GPU commands before trialling this workflow if you would like to test it. The code as it stands also uses a cluster specific yaml file where the python path variable has been updated to include the absolute path of the [workflow](workflow/) directory. 
 
+This example showcases a few key things:
+
+* Use of the `HybridQuantumWorkflowBase` class to manage a flow
+* Use of basic flows like `gpu_workflow` being launched with a `DaskTaskRunner` that differs form the parent flow runner. 
+* Use of asynchronous flows launched using `asyncio.TaskGroup`
+* Multiple vQPUs being launched and awaiting circuits
+* Circuits being sent to several different vQPUs from a single flow
 
 ### Tests
 There are several unit tests available as well. One checks basic vQPU flows and others check a variety of different QPU interfaces. These are all located in [tests](workflow/tests/). To run them, just use
@@ -92,7 +100,7 @@ pip install ".[dev]"
 The workflows will be best run with a prefect server running using `uvicorn` and a postgres database. The bundle includes two scripts designed to launch these services. By default, there is an assumption that both of these services run on the same host but that does not need to be the case. 
 
 ### Running Postgres 
-This can be started with [start_postgres.sh](workflow/scripts/start_postgres.sh). This will launch the postgres database using the (Singularity)[https://docs.sylabs.io/guides/latest/user-guide/] container engine. This script makes use of several key POSTGRES environment variables (like `POSTGRES_ADDR`). This will pull the latest postgres container image from docker hub to locally store it. This script could be altered to use other container engines as well. 
+This can be started with [start_postgres.sh](workflow/scripts/start_postgres.sh). This will launch the postgres database using the [Singularity](https://docs.sylabs.io/guides/latest/user-guide/) container engine. This script makes use of several key POSTGRES environment variables (like `POSTGRES_ADDR`). This will pull the latest postgres container image from docker hub to locally store it. This script could be altered to use other container engines as well. 
 
 ### Running Prefect Server
 This can be started with [start_prefect.sh](workflow/scripts/start_prefect.sh). This will launch prefect using

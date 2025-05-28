@@ -423,10 +423,10 @@ class HybridQuantumWorkflowBase:
             if "qb-vqpu" in self.backends:
                 for vqpu_id in self.vqpu_ids:
                     self.events[f"qpu_{vqpu_id}_launch"] = EventFile(
-                        name=f"vqpu_{vqpu_id}_launch", loc=self.eventloc
+                        name=f"qpu_{vqpu_id}_launch", loc=self.eventloc
                     )
                     self.events[f"qpu_{vqpu_id}_circuits_finished"] = EventFile(
-                        name=f"vqpu_{vqpu_id}_circuits_finished", loc=self.eventloc
+                        name=f"qpu_{vqpu_id}_circuits_finished", loc=self.eventloc
                     )
         else:
             # do a deep copy
