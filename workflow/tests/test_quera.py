@@ -38,7 +38,7 @@ class TestHybridQueraWorkflowBasics(unittest.TestCase):
     def test_aws_braket_device_calls(self):
         devices = ["Aquila", "Gemini"]
         for d in devices:
-            arguments : str = f"--queradevice={d}"
+            arguments: str = f"--queradevice={d}"
             print(f"Check if {d} available")
             result = asyncio.run(quera_check_qpu(arguments=arguments))
             print(result)

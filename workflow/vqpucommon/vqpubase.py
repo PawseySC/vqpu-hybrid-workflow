@@ -331,8 +331,7 @@ class HybridQuantumWorkflowBase:
         """location of where to store event files"""
         # before taskrunners also stored the DaskTaskRunner but this leads to issues
         # with serialization. Now just store the slurm job script
-        # self.taskrunners : Dict[str, DaskTaskRunner | Dict[str,str]]
-        self.taskrunners: Dict[str, str]
+        self.taskrunners: Dict[str, Dict[str, Any]]
         """The slurm configuration stored in the DaskTaskRunner used by Prefect"""
         self.backends: List[str] = [
             "qb-vqpu",
@@ -351,11 +350,16 @@ class HybridQuantumWorkflowBase:
         # note before had the taskrunners store the actual DaskTaskRunner instances but this generated problems with serialization.
         # So instead will store the configuration but not the actual task runner.
         # Now there is a function that will get the appropriate task runner
-        self.taskrunners = copy.deepcopy(
-            get_dask_runners(cluster=self.cluster)["jobscript"]
-        )
+        # since the get_dask_runners function returns a Dict DaskTaskRunners, the relevant slurm job script
+        # and also the specs that can be used to create a dask runner, parse its output
+        runners = get_dask_runners(cluster=self.cluster)
+        self.taskrunners = {
+            "jobscript": copy.deepcopy(runners["jobscript"]),
+            "specs": copy.deepcopy(runners["specs"]),
+        }
+
         # check that taskrunners has minimum set of defined cluster configurations
-        clusconfigs = list(self.taskrunners.keys())
+        clusconfigs = list(self.taskrunners["jobscript"].keys())
         valerr = []
         for elem in self.reqclusconfigs:
             if elem not in clusconfigs:
@@ -431,7 +435,7 @@ class HybridQuantumWorkflowBase:
     def __str__(self):
         message: str = f"Hybrid Quantum Workflow {self.name} running on\n"
         message += f"Cluster : {self.cluster}\n"
-        for key, value in self.taskrunners.items():
+        for key, value in self.taskrunners["jobscript"].items():
             message += f"Slurm configuration {key}: {value}\n"
         message += f"Allowed QPU backends : {self.backends}\n"
         return message
@@ -538,19 +542,26 @@ class HybridQuantumWorkflowBase:
             data = dict(artifact)["data"]
             return QPUMetaData.from_string(data)
 
-    def gettaskrunner(self, task_runner_name: str) -> DaskTaskRunner:
-        """Returns the appropriate task runner.
+    def gettaskrunner(
+        self,
+        task_runner_name: str,
+        extra_cluster_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> DaskTaskRunner:
+        """Returns the appropriate task runner. This is created based on the specs.
         Args:
             task_runner_name (str): name of dasktaskrunner configuration
         Returns:
             A DaskTaskRunner
         """
-        runners = get_dask_runners(cluster=self.cluster)
-        if task_runner_name not in list(self.taskrunners.keys()):
+        if task_runner_name not in list(self.taskrunners["jobscript"].keys()):
             raise ValueError(
                 f"Cluster {self.cluster} configuration does not have runner {task_runner_name}."
             )
-        return runners[task_runner_name]
+        cluster_config = copy.deepcopy(self.taskrunners["specs"][task_runner_name])
+        if extra_cluster_kwargs is not None:
+            cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
+        return DaskTaskRunner(**cluster_config)
+        # return runners[task_runner_name]
 
     async def __create_vqpu_remote_yaml(
         self, job_info: Union[SlurmInfo], vqpu_id: int

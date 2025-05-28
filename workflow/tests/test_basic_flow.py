@@ -100,17 +100,27 @@ async def multivqpuworkflow(
 
 class TestHybridWorkflowBasics(unittest.TestCase):
     cluster: str = "ella-qb-1.7.0"
-    vqpu_template_script: str = os.path.dirname(os.path.abspath(__file__))+"/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
-    vqpu_template_yaml: str = os.path.dirname(os.path.abspath(__file__))+"/../qb-vqpu/remote_vqpu_ella_template.yaml"
-    gpuruns : int = 4
-    gpucudaexec: str = os.path.dirname(os.path.abspath(__file__))+"/profile_util/build-cuda/src/tests/test_profile_util"
-    gpuhipexec: str = os.path.dirname(os.path.abspath(__file__))+"/profile_util/build-hip/src/tests/test_profile_util"
-    gpuexec : str = ""
-
+    vqpu_template_script: str = (
+        os.path.dirname(os.path.abspath(__file__))
+        + "/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
+    )
+    vqpu_template_yaml: str = (
+        os.path.dirname(os.path.abspath(__file__))
+        + "/../qb-vqpu/remote_vqpu_ella_template.yaml"
+    )
+    gpuruns: int = 4
+    gpucudaexec: str = (
+        os.path.dirname(os.path.abspath(__file__))
+        + "/profile_util/build-cuda/src/tests/test_profile_util"
+    )
+    gpuhipexec: str = (
+        os.path.dirname(os.path.abspath(__file__))
+        + "/profile_util/build-hip/src/tests/test_profile_util"
+    )
+    gpuexec: str = ""
 
     def test_jsonserialization(self):
-        """Test Serialization.
-        """
+        """Test Serialization."""
         frame = inspect.currentframe()
         # Get the function name
         function_name = frame.f_code.co_name
@@ -291,12 +301,12 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         )
 
     def test_gpu_flow(self):
-        """Test flow with HybridQuantumWorlfowBase class and daks task runners, gpu focus. 
+        """Test flow with HybridQuantumWorlfowBase class and daks task runners, gpu focus.
         This test is currently requires that profile_util's gpu code is built.
-        To enable this please enter the profile_util dire and run ./build_cuda.sh. This assumes 
+        To enable this please enter the profile_util dire and run ./build_cuda.sh. This assumes
         cmake, and nvc++. if on AMD, ensure ./build_hip.sh is run.
-        There is currently some issues with too many open files might have to do with the polling and the 
-        nodes being used to run this test. 
+        There is currently some issues with too many open files might have to do with the polling and the
+        nodes being used to run this test.
         """
         frame = inspect.currentframe()
         # Get the function name

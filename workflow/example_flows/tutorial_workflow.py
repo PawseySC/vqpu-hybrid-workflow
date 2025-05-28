@@ -9,29 +9,32 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
-# import key classes from  
+
+# import key classes from
 from vqpucommon.vqpubase import (
-    QPUMetaData, 
-    HybridQuantumWorkflowBase, 
-)
-# import useful utilities 
-from vqpucommon.utils import (
-    EventFile, 
-    save_artifact,
-    getnumgpus, 
+    QPUMetaData,
+    HybridQuantumWorkflowBase,
 )
 
-# import basic flows and tasks  from the vqpuflow as desired 
+# import useful utilities
+from vqpucommon.utils import (
+    EventFile,
+    save_artifact,
+    getnumgpus,
+)
+
+# import basic flows and tasks  from the vqpuflow as desired
 from vqpucommon.vqpuflow import (
-    # tasks 
+    # tasks
     run_cpu,
     run_gpu,
-    # and here are some flows 
+    # and here are some flows
     launch_vqpu_workflow,
     cpu_workflow,
     gpu_workflow,
     postprocessing_histo_plot,
 )
+
 #
 import asyncio
 from prefect import task, flow
@@ -40,26 +43,25 @@ from prefect.logging import get_run_logger
 import numpy as np
 
 
-# let's create some tasks 
-@task(
-    name="Example task",
-    task_run_name="example_task-{date:%Y-%m-%d:%H:%M:%S}"
-)
+# let's create some tasks
+@task(name="Example task", task_run_name="example_task-{date:%Y-%m-%d:%H:%M:%S}")
 def simple_task(
     date: datetime.datetime = datetime.datetime.now(),
 ):
     """Task"""
     pass
 
+
 @task(
     name="Example async task",
-    task_run_name="example_async_task-{date:%Y-%m-%d:%H:%M:%S}"
+    task_run_name="example_async_task-{date:%Y-%m-%d:%H:%M:%S}",
 )
 async def simple_async_task(
     date: datetime.datetime = datetime.datetime.now(),
 ):
     """Async task"""
     pass
+
 
 # Now let's create some flows
 @flow(
@@ -70,13 +72,12 @@ def workflow(
     myqpuworkflow: HybridQuantumWorkflowBase,
     date: datetime.datetime = datetime.datetime.now(),
 ) -> None:
-    """Example flow
-    """
+    """Example flow"""
     logger = get_run_logger()
     logger.info("Example flow")
-    # let's submit a task to the flow 
+    # let's submit a task to the flow
     future = simple_task.submit()
-    # and then get results 
+    # and then get results
     future.result()
     logger.info("Finished flow")
 
@@ -89,15 +90,14 @@ async def async_workflow(
     myqpuworkflow: HybridQuantumWorkflowBase,
     date: datetime.datetime = datetime.datetime.now(),
 ) -> None:
-    """Example async flow that can call asynchronous functions 
-    """
+    """Example async flow that can call asynchronous functions"""
     logger = get_run_logger()
     logger.info("Example async flow")
-    # let's submit a task to the flow 
+    # let's submit a task to the flow
     future = simple_task.submit()
-    # and then get results 
+    # and then get results
     future.result()
-    # we can also submit several tasks at once 
+    # we can also submit several tasks at once
     futures = []
     for i in range(10):
         futures.append(simple_task.submit())
@@ -109,7 +109,7 @@ async def async_workflow(
             tg.create_task(simple_async_task.submit())
         # once the async taskgroup is finished all tasks have been submited
         done, pending = await asyncio.wait(tasks)
-    # once they are all done, let's get the results 
+    # once they are all done, let's get the results
     for d in done:
         d.result()
 
@@ -129,7 +129,9 @@ def wrapper_to_async_flow(
     """
 
     if yaml_template == None:
-        yaml_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_ella_template.yaml",
+        yaml_template = (
+            f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_ella_template.yaml",
+        )
     if script_template == None:
         script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
     if cluster == None:
@@ -143,12 +145,14 @@ def wrapper_to_async_flow(
     # for none asynchronous workflow you can launch it but this will run on the local default task runner
     workflow(myqpuworkflow=myflowmanager)
     # or you can create a new flow that will a specific task runner
-    newflow = workflow.with_options(task_runner = myflowmanager.gettaskrunner('cpu'))
+    newflow = workflow.with_options(task_runner=myflowmanager.gettaskrunner("cpu"))
     newflow(myqpuworkflow=myflowmanager)
 
-    #for an asynchronous flow, call with asyncio.run in a non async function
+    # for an asynchronous flow, call with asyncio.run in a non async function
     asyncio.run(
-        async_workflow.with_options(task_runner = myflowmanager.gettaskrunner('generic'))(myqpuworkflow=myflowmanager)
+        async_workflow.with_options(task_runner=myflowmanager.gettaskrunner("generic"))(
+            myqpuworkflow=myflowmanager
+        )
     )
 
 
