@@ -12,10 +12,6 @@ import sys
 
 packagepath = os.path.abspath('../') 
 sys.path.insert(0, packagepath)
-# pypath = os.getenv("PYTHONPATH")
-# os.environ["PYTHONPATH"] = f"${pypath}:{packagepath}"
-# sys.path.insert(0, os.path.abspath('../workflow/'))
-# sys.path.insert(0, os.path.abspath('../workflow/vqpucommon'))
 
 project = 'QBitBridge'
 copyright = '2025, Pascal Jahan Elahi'
@@ -40,16 +36,7 @@ autodoc_mock_imports = [
     "prefect_dask", 
     "dask_jobqueue", 
     "braket", 
-    "bloqade", 
-    # "vqpucommon.options",
-    # "vqpucommon.utils",
-    # "vqpucommon.vqpubase",
-    # "vqpucommon", 
-    # "vqpubase", 
-    # "vqpuflow", 
-    # "vqpubraket", 
-    # "vqpuquera",
-    # "EventFile",
+    "bloqade",
     ]
 
 templates_path = ['_templates']

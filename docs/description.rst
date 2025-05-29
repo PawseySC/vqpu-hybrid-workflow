@@ -18,22 +18,27 @@ The QPU integration is based on Quantum Brilliance, AWS Braket (WIP) and QuEra (
 
 This setup is not fixed to Quantum Brilliance and could easily be expanded to include other vQPUs and QPUs as well.
 
-It consists of a primary directory `workflow/` which contains 
+It consists of:
 
-* `vqpucommon/`: A python module containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow. 
-* `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.  
-* `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` 
-   configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` 
-   oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming. 
-* `circuits/`: collection of example circuits.
-* `tests/`: python unit test for package 
+* `qbitbrige/`: A python module containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow. 
+* `workflow/`: primary directory that contains all other items needed to run the workflow:
 
-There are other directories, such as `events` that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem. 
+  * `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.  
+  * `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` 
+    configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` 
+    oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming. 
+  * `circuits/`: collection of example circuits.
+  * `tests/`: python unit test for package 
+  * There are other directories, such as `events` that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem. 
+
+
+* `examples/`: example flows. 
+
 
 Main classes and functions
 ==========================
 
-The main classes and basic tasks of the hybrid flow are found in :file:`workflow/vqpucommon/utils.py` and :file:`workflow/vqpucommon/vqpubase.py` 
+The main classes and basic tasks of the hybrid flow are found in :file:`qbitbridge/utils.py` and :file:`qbitbridge/vqpubase.py` 
 respectively. The key components of the QBitBridge framework is the introduction of the `EventFile`, `QPUMetaData` and `HybridQuantumWorkflowBase` classes. 
 
 * `EventFile` class: interface to storing events via a file globally visible to all processes. 
@@ -46,7 +51,7 @@ respectively. The key components of the QBitBridge framework is the introduction
 Basic Tasks and Flows
 =====================
 
-The basic building block tasks and flows are in :file:`workflow/vqpucommon/vqpuflow.py`. The key vQPU flows are 
+The basic building block tasks and flows are in :file:`qbitbridge/vqpuflow.py`. The key vQPU flows are 
 
 * `@task launch_vqpu`: Launch a virtual QPU service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. 
 * `@task run_vqpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime.
@@ -58,8 +63,8 @@ There are other tasks, such as those associated with sending circuits to vqpus. 
 AWS Braket
 ----------
 
-`AWS Braket <https://docs.aws.amazon.com/braket/latest/developerguide/what-is-braket.html>`_` provides an interface for launching jobs on AWS cloud-accessible QPU's. 
-The integration for this service is in :file:`workflow/vqpucommon/vqpubraket.py`. This contains the key QPU access tasks and flows:
+`AWS Braket <https://docs.aws.amazon.com/braket/latest/developerguide/what-is-braket.html>`_ provides an interface for launching jobs on AWS cloud-accessible QPU's. 
+The integration for this service is in :file:`qbitbridge/vqpubraket.py`. This contains the key QPU access tasks and flows:
 
 * `@task launch_aws_braket_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that 
   can be accessed by other tasks and flows. Checks to see if credentials are able to access the device. 
@@ -72,7 +77,7 @@ QuEra Bloqade
 -------------
 
 There is also a preliminary interface to QuEra QPU's via `bloqade <https://bloqade.quera.com/latest/>`_. The integration for this service is 
-in :file:`workflow/vqpucommon/vqpuquera.py`. This contains the key QPU access tasks and flows simlar to aws. 
+in :file:`qbitbridge/vqpuquera.py`. This contains the key QPU access tasks and flows simlar to aws. 
 
 * `@task launch_quera_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed 
   by other tasks and flows. Checks to see if credentials are able to access the device. 

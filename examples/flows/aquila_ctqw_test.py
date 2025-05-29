@@ -11,9 +11,9 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
-from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase
-from vqpucommon.vqpuflow import (
+from qbitbridge.options import vQPUWorkflow
+from qbitbridge.vqpubase import HybridQuantumWorkflowBase
+from qbitbridge.vqpuflow import (
     launch_vqpu_workflow,
     circuits_with_nqvpuqs_workflow,
     circuits_vqpu_workflow,
@@ -23,7 +23,7 @@ from vqpucommon.vqpuflow import (
     run_cpu,
     run_circuits_once_vqpu_ready,
 )
-from vqpucommon.utils import EventFile, save_artifact
+from qbitbridge.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import flow

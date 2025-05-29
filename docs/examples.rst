@@ -5,7 +5,7 @@ Example Workflow
 
 There are example workflows in `examples/flows/` that could make use of the tasks and flows defined in **QBitBridge**. 
 We discuss a multi-vqpu example here see :file:`examples/flows/multi_vqpu_cpugpu_workflow.py`. 
-This flow uses some basic build-block tasks and flows defined in :file:`workflow/vqpucommon/vqpuflows.py`. 
+This flow uses some basic build-block tasks and flows defined in :file:`qbitbridge/vqpuflows.py`. 
 The Prefect view is of this flow is shown below.
 
 .. figure:: figs/example_multivqpuflow.png
