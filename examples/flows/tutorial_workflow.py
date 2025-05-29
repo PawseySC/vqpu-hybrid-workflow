@@ -5,26 +5,26 @@
 
 import sys, os, re
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../workflow/")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
 
 # import key classes from
-from vqpucommon.vqpubase import (
+from qbitbridge.vqpubase import (
     QPUMetaData,
     HybridQuantumWorkflowBase,
 )
 
 # import useful utilities
-from vqpucommon.utils import (
+from qbitbridge.utils import (
     EventFile,
     save_artifact,
-    getnumgpus,
+    get_num_gpus,
 )
 
 # import basic flows and tasks  from the vqpuflow as desired
-from vqpucommon.vqpuflow import (
+from qbitbridge.vqpuflow import (
     # tasks
     run_cpu,
     run_gpu,
@@ -108,10 +108,10 @@ async def async_workflow(
         for i in range(10):
             tg.create_task(simple_async_task.submit())
         # once the async taskgroup is finished all tasks have been submited
-    # we can also just create a list of tasks 
+    # we can also just create a list of tasks
     tg = []
     for i in range(10):
-            tg.append(asyncio.create_task(simple_async_task.submit()))
+        tg.append(asyncio.create_task(simple_async_task.submit()))
     done, pending = await asyncio.wait(tg)
     # once they are all done, let's get the results
     for d in done:
