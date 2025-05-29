@@ -1,0 +1,16 @@
+name: Greetings
+
+on: [pull_request_target, issues]
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+    - uses: actions/first-interaction@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        issue-message: "Thanks for submitting an issue. Please provide useful labels, such as bug, feature request, etc."
+        pr-message: "Thanks for submitting a pull request. Please provide clear description and if possible tests of any new functionality. Thanks"
