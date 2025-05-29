@@ -1,0 +1,465 @@
+generic:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: generic
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    # env-extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/25.3"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export OMP_NUM_THREADS=1"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 1
+    job_mem: "8GB"
+    job_extra: null
+    # add anything extra #SBATCH additions
+    job_extra_directives: 
+      - "-w ella-n00[1-2]"
+      - "--ntasks=1"
+      - '-e dask_logs/dask_generic_worker_%J.err'
+      - '-o dask_logs/dask_generic_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 70
+      minimum_workers: 1
+      maximum_workers: 144
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+circuit:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: circuit
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    # env-extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/25.3"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export PYTHONPATH=/software/ella/2025.02/qb/qristal/1.7.0/sdk/lib64:/software/ella/2025.02/qb/qristal/1.7.0/xacc:$PYTHONPATH:"
+      - "export OMP_NUM_THREADS=1"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 1
+    job_mem: "8GB"
+    job_extra: null
+    # add anything extra #SBATCH additions
+    job_extra_directives: 
+      - "-w ella-n00[1-2]"
+      - "--ntasks=1"
+      - '-e dask_logs/dask_circuit_worker_%J.err'
+      - '-o dask_logs/dask_circuit_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 70
+      minimum_workers: 1
+      maximum_workers: 144
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+vqpu:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: vqpu
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "24:00:00"
+    env_extra: null
+    job_script_prologue: 
+      - "module use /software/ella/2025.02/modules/custom/"
+      - "module load vQPU-QB/1.7.0"
+      # - "source /software/projects/pawsey0001/pelahi/py-venv-vqpu/bin/activate"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export UCX_IB_MLX5_DEVX=no"
+      - "source /software/ella/2025.02/qb/qristal/1.7.0/bin/qbenv.sh"
+      - "export PYTHONPATH=/software/ella/2025.02/qb/qristal/1.7.0/sdk/lib64:/software/ella/2025.02/qb/qristal/1.7.0/xacc:$PYTHONPATH:"
+      - "export OMP_NUM_THREADS=32"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "nvidia-smi"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 32
+    job_mem: null
+    job_extra: null
+    job_extra_directives: 
+      - "--gres=gpu:1"
+      - "-w ella-n00[5-7]"
+      - "--nodes=1"
+      - "--exclusive"
+      - "--ntasks=1"
+      - "--mem=0"
+      - "--cpus-per-task=32"
+      - '-e dask_logs/dask_vqpu_worker_%J.err'
+      - '-o dask_logs/dask_vqpu_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 4
+      minimum_workers: 1
+      maximum_workers: 4
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+gpu:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: gpu
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    # shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    env_extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/25.3"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export UCX_IB_MLX5_DEVX=no"
+      - "export OMP_NUM_THREADS=32"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "nvidia-smi"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 32
+    #job_mem: null
+    #job_extra: null
+    job_extra_directives: 
+      - "--gres=gpu:1"
+      - "-w ella-n00[2-4]"
+      - "--nodes=1"
+      - "--exclusive"
+      - "--cpus-per-task=32"
+      - "--mem=0"
+      - '-e dask_logs/dask_gpu_worker_%J.err'
+      - '-o dask_logs/dask_gpu_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+    # Scheduler options
+    # scheduler_options: {}
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 1
+      minimum_workers: 1
+      maximum_workers: 1
+      target_duration: "3600s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+cpu:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: cpu
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 4                # Number of Python processes per job
+
+    python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    env_extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/24.5"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export OMP_NUM_THREADS=8"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 8
+    job_mem: "32GB"
+    job_extra: null
+
+    job_extra_directives: 
+      - "-w ella-n00[1-2]"
+      - "--nodes=1"
+      - "--cpus-per-task=8"
+      - '-e dask_logs/dask_cpu_worker_%J.err'
+      - '-o dask_logs/dask_cpu_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 16
+      minimum_workers: 1
+      maximum_workers: 32
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+generic-aws:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: generic-aws
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    # env-extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/25.3"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export OMP_NUM_THREADS=1"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "source /software/projects/pawsey0001/pelahi/aws_profile_env.sh"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 1
+    job_mem: "8GB"
+    job_extra: null
+    # add anything extra #SBATCH additions
+    job_extra_directives: 
+      - "-w ella-n00[1-2]"
+      - "--ntasks=1"
+      - '-e dask_logs/dask_generic_aws_worker_%J.err'
+      - '-o dask_logs/dask_generic_aws_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 70
+      minimum_workers: 1
+      maximum_workers: 144
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+generic-quera:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: generic-quera
+
+    # Dask worker options
+    cores: 70                 # Total number of cores per job
+    memory: "480GB"                # Total amount of memory per job
+    processes: 1                # Number of Python processes per job
+
+    # python: python3                # Python executable
+    death_timeout: 30           # Number of seconds to wait if a worker can not find a scheduler
+    local_directory: "$TMPDIR"       # Location of fast local storage like /scratch or $TMPDIR
+    shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
+    # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
+    # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
+    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+
+    # SLURM resource manager options
+    shebang: "#!/usr/bin/bash"
+    queue: "gpu"
+    account: "pawsey0001"
+    walltime: "1:00:00"
+    # env-extra: null
+    job_script_prologue: 
+      - "module load cmake/3.24.4 nvhpc/25.3"
+      - "module load python/3.11.10"
+      - "module load hpcx-mt-ompi"
+      - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
+      - "export PYTHONPATH=$PYTHONPATH:/software/projects/pawsey0001/pelahi/vqpu-tests/"
+      - "export PREFECT_HOME=/scratch/pawsey0001/pelahi/prefect2"
+      - "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/nvidia/hpc_sdk/Linux_aarch64/25.3/cuda/12.8/targets/sbsa-linux/lib/"
+      - "export OMP_NUM_THREADS=1"
+      - "export OMP_PLACES=cores"
+      - "export OMP_MAX_ACTIVE_LEVELS=4"
+      - "source /software/projects/pawsey0001/pelahi/quera_profile_env.sh"
+      - "echo \"Node state:\""
+      - "hostname"
+      - "python --version; echo $PYTHONPATH"
+      - "prefect version"
+      - "env | grep SLURM_"
+    job_cpu: 1
+    job_mem: "8GB"
+    job_extra: null
+    # add anything extra #SBATCH additions
+    job_extra_directives: 
+      - "-w ella-n00[1-2]"
+      - "--ntasks=1"
+      - '-e dask_logs/dask_generic_quera_worker_%J.err'
+      - '-o dask_logs/dask_generic_quera_worker_%J.log'
+    log_directory: dask_logs
+    silence_logs: 'info'
+    job_directives_skip: ['-e', '-o']    
+
+  # now for number of slurm jobs
+  adapt_kwargs:
+      minimum_jobs: 1
+      maximum_jobs: 70
+      minimum_workers: 1
+      maximum_workers: 144
+      target_duration: "30s" # Amount of time we want a computation to take. This affects how aggressively we scale up.
+      interval: "1s" # Milliseconds between checks
+      wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
+
+distributed:
+  worker:
+    memory:
+      target: False    # Avoid spilling to disk
+      spill: False     # Avoid spilling to disk

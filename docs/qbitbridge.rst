@@ -1,73 +1,73 @@
-.. _vqpcommon 
+.. _qbitbridge
 
-vqpucommon package
+qbitbridge package
 ==================
 
 
 Submodules
 ----------
 
-vqpucommon.clusters module
+qbitbridge.clusters module
 --------------------------
 
-.. automodule:: vqpucommon.clusters
+.. automodule:: qbitbridge.clusters
    :members:
    :show-inheritance:
    :undoc-members:
    
-vqpucommon.options module
+qbitbridge.options module
 -------------------------
 
-.. automodule:: vqpucommon.options
+.. automodule:: qbitbridge.options
    :members:
    :show-inheritance:
    :undoc-members:
 
-vqpucommon.utils module
+qbitbridge.utils module
 -----------------------
 
-.. automodule:: vqpucommon.utils
+.. automodule:: qbitbridge.utils
    :members:
    :show-inheritance:
    :undoc-members:
 
-vqpucommon.vqpubase module
+qbitbridge.vqpubase module
 --------------------------
 
-.. automodule:: vqpucommon.vqpubase
+.. automodule:: qbitbridge.vqpubase
    :members:
    :show-inheritance:
    :undoc-members:
 
-vqpucommon.vqpuflow module
+qbitbridge.vqpuflow module
 --------------------------
 
-.. automodule:: vqpucommon.vqpuflow
+.. automodule:: qbitbridge.vqpuflow
    :members:
    :show-inheritance:
    :undoc-members:
 
-vqpucommon.vqpubraket module
+qbitbridge.vqpubraket module
 ----------------------------
 
-.. automodule:: vqpucommon.vqpubraket
+.. automodule:: qbitbridge.vqpubraket
    :members:
    :show-inheritance:
    :undoc-members:
 
 
-vqpucommon.vqpuquera module
+qbitbridge.vqpuquera module
 ---------------------------
 
-.. automodule:: vqpucommon.vqpuquera
+.. automodule:: qbitbridge.vqpuquera
    :members:
    :show-inheritance:
    :undoc-members:
 
-.. vqpucommon.vqpuworkflow\_deprecated module
+.. qbitbridge.vqpuworkflow\_deprecated module
 .. ------------------------------------------
 
-.. .. automodule:: vqpucommon.vqpuworkflow_deprecated
+.. .. automodule:: qbitbridge.vqpuworkflow_deprecated
 ..    :members:
 ..    :show-inheritance:
 ..    :undoc-members:
@@ -75,7 +75,7 @@ vqpucommon.vqpuquera module
 .. Module contents
 .. ---------------
 
-.. .. automodule:: vqpucommon
+.. .. automodule:: qbitbridge
 ..    :members:
 ..    :show-inheritance:
 ..    :undoc-members:

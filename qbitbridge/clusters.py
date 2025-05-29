@@ -21,8 +21,8 @@ def list_packaged_clusters(yaml_files_dir: str = "./") -> List[str]:
     dask_jobqueue specification YAML files.
 
     Args:
-        yaml_files_dir (str): string for directory to search for clusters 
-    
+        yaml_files_dir (str): string for directory to search for clusters
+
     Returns:
         list (str): A list of preinstalled dask_jobqueue cluster specification files
     """
@@ -57,9 +57,7 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
     if Path(cluster).exists():
         yaml_file = cluster
     else:
-        yaml_file = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/../clusters/{cluster}.yaml"
-        )
+        yaml_file = f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/clusters/{cluster}.yaml"
 
     if yaml_file is None or not Path(yaml_file).exists():
         raise ValueError(
@@ -86,7 +84,7 @@ def get_dask_runners(
         extra_cluster_kwargs (Dict): Optional arguments to be passed to update the dask task runners of a cluster
 
     Returns:
-        Dict[str, DaskTaskRunner | Dict[str, str]]: dictionary of dask task runners with specific names, 
+        Dict[str, DaskTaskRunner | Dict[str, str]]: dictionary of dask task runners with specific names,
         the associated job scripts and the specs need to create a new dask task runner
     """
 

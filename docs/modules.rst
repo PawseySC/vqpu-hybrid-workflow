@@ -1,7 +1,7 @@
-vqpucommon
+qbitbridge
 ==========
 
 .. toctree::
    :maxdepth: 4
 
-   vqpucommon
+   qbitbridge

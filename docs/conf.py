@@ -10,7 +10,7 @@
 import os
 import sys
 
-packagepath = os.path.abspath('../workflow/') 
+packagepath = os.path.abspath('../') 
 sys.path.insert(0, packagepath)
 # pypath = os.getenv("PYTHONPATH")
 # os.environ["PYTHONPATH"] = f"${pypath}:{packagepath}"

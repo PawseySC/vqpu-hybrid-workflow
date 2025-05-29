@@ -6,9 +6,9 @@
 QBitBridge documentation
 ========================
 
-.. image:: figs/qbitbridge.jpeg
-  :scale:  100 %
-  :align:  left
+.. .. image:: figs/qbitbridge.jpeg
+..   :scale:  100 %
+..   :align:  left
 
 QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
 It is meant to easy the integration of quantum computing acceleration into a workflow. 

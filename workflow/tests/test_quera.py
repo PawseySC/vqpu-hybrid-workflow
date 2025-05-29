@@ -9,9 +9,10 @@ import io
 import sys, os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 import json
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
-from vqpucommon.vqpuquera import (
+from qbitbridge.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
+from qbitbridge.vqpuquera import (
     quera_check_credentials,
     quera_parse_args,
     quera_check_qpu,
@@ -19,8 +20,8 @@ from vqpucommon.vqpuquera import (
     launch_quera_qpu_workflow,
 )
 
-from vqpucommon.utils import EventFile
-from vqpucommon.clusters import get_dask_runners
+from qbitbridge.utils import EventFile
+from qbitbridge.clusters import get_dask_runners
 
 # from circuits.braket_circuits import noisy_circuit
 import asyncio

@@ -132,7 +132,7 @@ class QPUMetaData:
 
     def to_dict(self) -> Dict:
         """Converts class to dictionary for serialisation
-        
+
         Returns:
             Dict containin relevant info. Can be used for serialization
         """
@@ -153,15 +153,15 @@ class QPUMetaData:
     @classmethod
     def from_dict(cls, data: Dict):
         """Create an object from a dictionary
-                
+
         Args:
             data (dict): input dict
 
         Raises:
-            ValueError if dict does not contain appropriate information 
-        
+            ValueError if dict does not contain appropriate information
+
         Returns:
-            QPUMetaData instance 
+            QPUMetaData instance
         """
         if "QPUMetaData" not in list(data.keys()):
             raise ValueError("Not an QPUMetaData dictionary")
@@ -181,15 +181,15 @@ class QPUMetaData:
     @classmethod
     def from_string(cls, arg: str):
         """Create an object from a string
-        
+
         Args:
             arg (str): input string
 
         Raises:
-            ValueError if string does not contain appropriate information 
-        
+            ValueError if string does not contain appropriate information
+
         Returns:
-            QPUMetaData instance 
+            QPUMetaData instance
         """
         if cls.info_header not in arg:
             raise ValueError("Not an QPUMetaData string")
@@ -346,12 +346,14 @@ class HybridQuantumWorkflowBase:
         """cluster name for slurm configurations"""
         self.maxvqpu: int = 100
         """max number of virtual qpus"""
-        self.vqpu_template_script: str = f"{fpath}/../qb-vqpu/vqpu_template.sh"
+        self.vqpu_template_script: str = f"{fpath}/../workflow/qb-vqpu/vqpu_template.sh"
         """template vqpu start up script to run"""
-        self.vqpu_template_yaml: str = f"{fpath}/../qb-vqpu/remote_vqpu_template.yaml"
+        self.vqpu_template_yaml: str = (
+            f"{fpath}/../workflow/qb-vqpu/remote_vqpu_template.yaml"
+        )
         """vqpu remote yaml template"""
         self.vqpu_run_dir: str = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/../vqpus/"
+            f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/vqpus/"
         )
         """directory where to store the active vqpu yamls and scripts"""
         self.vqpu_exec: str = "qcstack"
@@ -362,7 +364,9 @@ class HybridQuantumWorkflowBase:
         """list of backend end used of the vqpu (state-vector, density-matrix, MPS)"""
         self.events: Dict[str, EventFile] = dict()
         """list of events"""
-        self.eventloc: str = f"{os.path.dirname(os.path.abspath(__file__))}/../events/"
+        self.eventloc: str = (
+            f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/events/"
+        )
         """location of where to store event files"""
         # before taskrunners also stored the DaskTaskRunner but this leads to issues
         # with serialization. Now just store the slurm job script
@@ -485,7 +489,7 @@ class HybridQuantumWorkflowBase:
 
     def to_dict(self) -> Dict:
         """Converts class to dictionary for serialisation
-        
+
         Returns:
             Dict containing relevant info
         """
@@ -512,10 +516,10 @@ class HybridQuantumWorkflowBase:
     @classmethod
     def from_dict(cls, data: Dict):
         """Create an object from a dictionary
-        
+
         Args:
-            data (dict): input dictionary 
-        
+            data (dict): input dictionary
+
         Raises:
             ValueError if input dictionary does contain appropriate key indicating that it contains appropriate data
 
@@ -545,12 +549,12 @@ class HybridQuantumWorkflowBase:
 
     def __eq__(self, other) -> bool:
         """Equality operator based on serializing HybridQuantumWorkflowBase as a dict
-        
+
         Args:
             other: the other object to compare to
 
         Returns:
-            bool, True for equality 
+            bool, True for equality
         """
         if isinstance(other, HybridQuantumWorkflowBase):
             return self.to_dict() == other.to_dict()
@@ -558,7 +562,7 @@ class HybridQuantumWorkflowBase:
 
     async def getqpudata(self, qpu_id: int) -> QPUMetaData:
         """Get the QPU Meta Data for a given qpu_id
- 
+
         Args:
             qpu_id (int) : The qpu_id to query
 
@@ -586,7 +590,7 @@ class HybridQuantumWorkflowBase:
 
         Args:
             task_runner_name (str): name of dasktaskrunner configuration
- 
+
         Returns:
             A DaskTaskRunner
         """
@@ -1057,14 +1061,14 @@ class HybridQuantumWorkflowBase:
 #             except:
 #                 return super().loads(value)
 
+
 class SillyTestClass:
     """To run unit tests and check flows"""
 
     y: int = 0
 
     def __init__(self, cluster: str | None = None, x: float = 2):
-        """Constructor
-        """
+        """Constructor"""
         self.x: float = x
         """ just a float """
         if cluster is not None:
@@ -1085,17 +1089,18 @@ class SillyTestClass:
         else:
             self.cluster = ""
 
-    def gettaskrunner(self, task_runner_name: str)->Optional[DaskTaskRunner]:
+    def gettaskrunner(self, task_runner_name: str) -> Optional[DaskTaskRunner]:
         """Gets a dask task runner
-        
+
         Args:
             task_runner_name (str): name of task runner
-        
-        Raises: 
+
+        Raises:
             ValueError if taskrunner is not in list
-            
+
         Returns:
-            The taskurnner or if there is no cluster and thus no task runners, return None"""
+            The taskurnner or if there is no cluster and thus no task runners, return None
+        """
 
         if self.cluster == "":
             return None
