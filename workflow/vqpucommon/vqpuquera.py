@@ -21,8 +21,9 @@ from typing import (
     Generator,
     Callable,
 )
-from vqpucommon.clusters import get_dask_runners
-from vqpucommon.utils import (
+
+from .clusters import get_dask_runners
+from .utils import (
     check_python_installation,
     get_argparse_args,
     save_artifact,
@@ -36,7 +37,7 @@ from vqpucommon.utils import (
     SlurmInfo,
     EventFile,
 )
-from vqpucommon.vqpubase import (
+from .vqpubase import (
     QPUMetaData,
     HybridQuantumWorkflowBase,
 )
@@ -52,7 +53,7 @@ from prefect.serializers import Serializer, JSONSerializer
 # AWS imports: Import QuEra bloqade modules
 libcheck = check_python_installation("bloqade")
 if not libcheck:
-    raise ImportError("Missing braket library, cannot interact with AWS Braket QPUs")
+    raise ImportError("Missing bloqade library, cannot interact with QuEra QPUs")
 # import bloqade digital and analogue
 import bloqade as bq
 import bloqade.analog as bloqade_analog

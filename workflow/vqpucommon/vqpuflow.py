@@ -20,8 +20,8 @@ from typing import (
     Generator,
     Callable,
 )
-from vqpucommon.clusters import get_dask_runners
-from vqpucommon.utils import (
+from .clusters import get_dask_runners
+from .utils import (
     check_python_installation,
     save_artifact,
     run_a_srun_process,
@@ -33,11 +33,10 @@ from vqpucommon.utils import (
     upload_image_as_artifact,
     SlurmInfo,
     EventFile,
-    getnumgpus,
+    get_num_gpus,
 )
-from vqpucommon.vqpubase import QPUMetaData, HybridQuantumWorkflowBase, SillyTestClass
-
-# from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
+from .vqpubase import QPUMetaData, HybridQuantumWorkflowBase, SillyTestClass
+# from .vqpubase import HybridQuantumWorkflowSerializer
 import asyncio
 from prefect import flow, task
 from prefect.logging import get_run_logger
@@ -892,7 +891,7 @@ async def gpu_workflow(
     # submit the task and wait for results
     futures = []
     # get number of gpus available to chunk submission of tasks
-    ngpus, gputype = getnumgpus()
+    ngpus, gputype = get_num_gpus()
     logger.info(f"Running on {ngpus} {gputype} gpus")
     nchunks = np.int32(np.ceil(float(len(execs)) / float(ngpus)))
     offset = 0

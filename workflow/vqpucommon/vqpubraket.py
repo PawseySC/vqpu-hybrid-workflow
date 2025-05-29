@@ -22,8 +22,8 @@ from typing import (
     Generator,
     Callable,
 )
-from vqpucommon.clusters import get_dask_runners
-from vqpucommon.utils import (
+from .clusters import get_dask_runners
+from .utils import (
     check_python_installation,
     get_argparse_args,
     save_artifact,
@@ -37,7 +37,7 @@ from vqpucommon.utils import (
     SlurmInfo,
     EventFile,
 )
-from vqpucommon.vqpubase import (
+from .vqpubase import (
     QPUMetaData,
     HybridQuantumWorkflowBase,
 )
