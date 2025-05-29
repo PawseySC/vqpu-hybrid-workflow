@@ -7,13 +7,15 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 
 import sys, os, re
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
+# import qbitbridge
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+# import circuits
 from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict
-from vqpucommon.options import vQPUWorkflow
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase
-from vqpucommon.vqpuflow import (
+from qbitbridge.options import vQPUWorkflow
+from qbitbridge.vqpubase import HybridQuantumWorkflowBase
+from qbitbridge.vqpuflow import (
     launch_vqpu_workflow,
     circuits_with_nqvpuqs_workflow,
     circuits_vqpu_workflow,
@@ -23,8 +25,8 @@ from vqpucommon.vqpuflow import (
     run_cpu,
     run_circuits_once_vqpu_ready,
 )
-from vqpucommon.utils import EventFile, save_artifact
-from circuits.qristal_circuits import simulator_setup, noisy_circuit
+from qbitbridge.utils import EventFile, save_artifact
+from workflow.circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import flow
 from prefect_dask import DaskTaskRunner
@@ -120,8 +122,10 @@ async def cpu_with_random_qpu_workflow(
                     )
                 )
             else:
-                await myqpuworkflow.events[f"vqpu_{vqpu_id}_launch"].wait()
-                myqpuworkflow.events[f"vqpu_{vqpu_id}_circuits_finished"].set()
+                # note that since the workflow is also designed to have qpu events,
+                # if explicitly waiting for event, use qpu_<id>_*
+                await myqpuworkflow.events[f"qpu_{vqpu_id}_launch"].wait()
+                myqpuworkflow.events[f"qpu_{vqpu_id}_circuits_finished"].set()
 
     logger.info("Finished CPU with QPU flow")
 
@@ -304,16 +308,17 @@ def wrapper_to_async_flow(
     @brief run the workflow with the appropriate task runner
     """
     if yaml_template == None:
-        yaml_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/remote_vqpu_ella_template.yaml"
+        yaml_template = f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/remote_vqpu_ella_template.yaml"
     if script_template == None:
-        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
+        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
     if cluster == None:
-        cluster = "ella-qb-1.7.0"
+        cluster = "ella-qb-1.7.0-pypath"
     myflow = HybridQuantumWorkflowBase(
         cluster=cluster,
         vqpu_ids=[1, 2, 3, 16],
         vqpu_template_yaml=yaml_template,
         vqpu_template_script=script_template,
+        eventloc=f"{os.path.dirname(os.path.abspath(__file__))}/events/",
     )
 
     # asyncio.run(workflow2(

@@ -9,9 +9,10 @@ import io
 import sys, os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 import json
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
-from vqpucommon.vqpubraket import (
+from qbitbridge.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
+from qbitbridge.vqpubraket import (
     aws_check_credentials,
     aws_braket_parse_args,
     aws_braket_check_qpu,
@@ -19,13 +20,13 @@ from vqpucommon.vqpubraket import (
     launch_aws_braket_qpu_workflow,
 )
 
-# from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
-from vqpucommon.vqpuflow import (
+# from qbitbridge.vqpubase import HybridQuantumWorkflowSerializer
+from qbitbridge.vqpuflow import (
     cpu_workflow,
     gpu_workflow,
 )
-from vqpucommon.utils import EventFile
-from vqpucommon.clusters import get_dask_runners
+from qbitbridge.utils import EventFile
+from qbitbridge.clusters import get_dask_runners
 
 # from circuits.braket_circuits import noisy_circuit
 import asyncio
@@ -35,7 +36,7 @@ import inspect
 
 
 class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
-    cluster: str = "ella-qb-1.7.0"
+    cluster: str = "ella-qb-1.7.0-pypath"
 
     # def test_aws_braket_credentials(self):
     #     print(aws_check_credentials())
@@ -73,5 +74,5 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
 if __name__ == "__main__":
 
     # if necessary, alter the cluster yaml configuration name
-    TestHybridAWSBraketWorkflowBasics.cluster = "ella-qb"
+    TestHybridAWSBraketWorkflowBasics.cluster = "ella-qb-1.7.0-pypath"
     unittest.main()

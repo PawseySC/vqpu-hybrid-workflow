@@ -9,19 +9,20 @@ import io
 import sys, os
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 import json
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
+from qbitbridge.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
 
-# from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
-from vqpucommon.vqpuflow import (
+# from qbitbridge.vqpubase import HybridQuantumWorkflowSerializer
+from qbitbridge.vqpuflow import (
     launch_vqpu_workflow,
     cpu_workflow,
     gpu_workflow,
     FlowForSillyTestClass,
     circuits_vqpu_workflow,
 )
-from vqpucommon.utils import EventFile, getnumgpus
-from vqpucommon.clusters import get_dask_runners
+from qbitbridge.utils import EventFile, get_num_gpus
+from qbitbridge.clusters import get_dask_runners
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import task, flow
@@ -99,7 +100,7 @@ async def multivqpuworkflow(
 
 
 class TestHybridWorkflowBasics(unittest.TestCase):
-    cluster: str = "ella-qb-1.7.0"
+    cluster: str = "ella-qb-1.7.0-pypath"
     vqpu_template_script: str = (
         os.path.dirname(os.path.abspath(__file__))
         + "/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
@@ -212,7 +213,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         print(
-            "Check simple flow with SillyTestClass defined in vqpucommon.vqpuworkflow works"
+            "Check simple flow with SillyTestClass defined in qbitbridge.vqpuworkflow works"
         )
         FlowForSillyTestClass()
 
@@ -246,7 +247,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
         print(
-            "Check simple flow with SillyTestClass defined in vqpucommon.vqpuworkflow works"
+            "Check simple flow with SillyTestClass defined in qbitbridge.vqpuworkflow works"
         )
         # task_runners = get_dask_runners(self.cluster)
         # myflow = FlowForSillyTestClass.with_options(task_runner = task_runners['cpu'])
@@ -366,5 +367,5 @@ class TestHybridWorkflowBasics(unittest.TestCase):
 if __name__ == "__main__":
 
     # if necessary, alter the cluster yaml configuration name
-    TestHybridWorkflowBasics.cluster = "ella-qb-1.7.0"
+    TestHybridWorkflowBasics.cluster = "ella-qb-1.7.0-pypath"
     unittest.main()

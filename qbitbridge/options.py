@@ -1,6 +1,5 @@
 """
-@file options.py
-@brief options class for handling arguments of workflow. Not yet implemented
+options class for handling arguments of workflow. Not yet implemented
 """
 
 from datetime import datetime
@@ -9,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 class vQPUWorkflow(BaseModel):
     """
-    @brief arguments to workflow
+    Arguments to workflow
     """
 
     nqubits: int = 2

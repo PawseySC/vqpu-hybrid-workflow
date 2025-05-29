@@ -3,13 +3,13 @@
 # define basic package information 
 [tool.poetry]
 name = "QBitBridge"
-version = "0.1"
+version = "0.1.1"
 description = "Example hybrid workflow for running (v)QPUs, GPUs and CPUs"
 authors = ["pelahi <pascal.elahi@pawsey.org.au>"]
 license = "MIT"
 readme = "README.md"
 include = [
-    {path = 'workflow/vqpucommon'},
+    {path = 'qbitbridge'},
     {path = 'workflow/clusters'},
     {path = 'workflow/scripts/'},
     {path = 'workflow/tests/'},
@@ -31,6 +31,7 @@ scikit-image = "*"
 bloqade = "*"
 awscli = "*"
 amazon-braket-sdk = "*"
+sphinx = "*"
 
 # set poetry dependencies 
 [tool.poetry.group.dev.dependencies]

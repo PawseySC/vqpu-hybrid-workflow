@@ -1,7 +1,6 @@
 """
-@file utils.py
-@brief Collection of functions and tooling intended for general usage.
-
+Collection of functions and tooling intended for general usage.
+The key functionality to explore here is the EventFile class.
 """
 
 import datetime
@@ -40,8 +39,11 @@ SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
 
 
 def check_python_installation(library: str):
-    """check if library present and otherwise catch ImporError
-    and report missing library"""
+    """Check if library present and otherwise catch ImporError
+    and report missing library
+
+    Args:
+    """
     try:
         importlib.import_module(library)
         return True
@@ -86,9 +88,7 @@ def get_environment_variable(
 
 
 class SlurmInfo(NamedTuple):
-    """
-    @brief simple class to store slurm information
-    """
+    """Simple class to store slurm information"""
 
     hostname: str
     """The hostname of the slurm job"""
@@ -143,10 +143,12 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
 def get_argparse_args(
     arguments: str, parser: argparse.ArgumentParser
 ) -> argparse.Namespace:
-    """Parse a string based on an argparser and also strip out '_' from an argument
+    """Parse a string based on an argparser and also strip out _ from an argument
+
     Args:
         arguments (str): string of arguments
         parser (argparse.ArgumentParser): parser that processes list of strings
+
     Return:
         The argparser namespace
     """
@@ -256,7 +258,7 @@ def run_a_process_bg(
                 logger.info(f"{error_output.strip()}")
 
 
-def getnumgpus() -> Tuple[int, str]:
+def get_num_gpus() -> Tuple[int, str]:
     """Poll node for number of gpus on host
 
     Returns:
@@ -299,8 +301,7 @@ async def async_create_markdown_artifcat(key, markdown, description) -> None:
 async def save_artifact(
     data: Any, key: str = "key", description: str = "Data to be shared between subflows"
 ):
-    """
-    @brief Use this to save data between workflows and tasks. Best used for small artifacts
+    """Use this to save data between workflows and tasks. Best used for small artifacts
 
     Args:
         data (): data to be saved
@@ -390,9 +391,7 @@ async def get_flow_runs(
 
 
 class EventFile:
-    """
-    @brief simple class to create a file for a given event.
-    """
+    """Simple class to create a file for a given event."""
 
     def __init__(
         self,
