@@ -6,23 +6,26 @@
 QBitBridge documentation
 ========================
 
-.. image:: figs/qbitbridge.png
+.. image:: figs/qbitbridge.jpeg
   :scale:  100 %
   :align:  left
 
-QBitBridge is a Prefect orchestrated framework for running hybrid workflows containing 
-(v)QPU, GPU and CPU oriented tasks on HPC systems. 
-
-The API
+QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
+It is meant to easy the integration of quantum computing acceleration into a workflow. 
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   description
    usage
-   utils
-   vqpubase
-   vqpuflow
-   vqpubraket
-   vqpuquera
+   examples
+   modules
+
+Indices and Tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 

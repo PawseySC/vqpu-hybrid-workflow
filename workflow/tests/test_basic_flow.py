@@ -8,9 +8,9 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 import io
 import sys, os
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 import json
-from vqpucommon.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
+from qbitbridge.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
 
 # from vqpucommon.vqpubase import HybridQuantumWorkflowSerializer
 from vqpucommon.vqpuflow import (

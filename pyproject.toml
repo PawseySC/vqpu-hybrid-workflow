@@ -3,7 +3,7 @@
 # define basic package information 
 [tool.poetry]
 name = "QBitBridge"
-version = "0.1"
+version = "0.1.1"
 description = "Example hybrid workflow for running (v)QPUs, GPUs and CPUs"
 authors = ["pelahi <pascal.elahi@pawsey.org.au>"]
 license = "MIT"

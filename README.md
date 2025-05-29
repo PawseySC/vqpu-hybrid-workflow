@@ -1,5 +1,6 @@
 # QBitBridge 
-A Prefect orchestrated framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
+QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
+It is meant to easy the integration of quantum computing acceleration into a workflow. 
 
 ## Description
 This framework uses [Prefect](https://www.prefect.io) to orchesetrate asynchronous tasks and flows, an EventFile class that produces globally visible events to the orchestration process and all other processes, Dask for integration with Slurm to run hybrid workflows. 
@@ -16,12 +17,12 @@ It consists of a primary directory `workflow/` which contains
 - `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming. 
 - `circuits/`: collection of example circuits.
 - `tests/`: python unit test for package 
-- `example_flows`: a useful set of example workflows. 
+- `example/flows`: a useful set of example workflows. 
 
 There are other directories, such as `events` that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem. 
 
 ### Main classes and functions
-The main classes and basic tasks of the hybrid flow are found in [vqpubase](workflow/vqpucommon/vqpubase.py) and [vqpuflow](workflow/vqpucommon/vqpuflow.py) respectively. The key components of the QBitBridge fraemwork is the introduction of the `EventFile` class (see [utils](workflow/vqpucommon/utils.py)), the `QPUMetaData` and `HybridQuantumWorkflowBase` classes (see [vqpubase](workflow/vqpucommon/vqpubase.py)). 
+The main classes and basic tasks of the hybrid flow are found in [vqpubase](workflow/vqpucommon/vqpubase.py) and [vqpuflow](workflow/vqpucommon/vqpuflow.py) respectively. The key components of the QBitBridge framework is the introduction of the `EventFile` class (see [utils](workflow/vqpucommon/utils.py)), the `QPUMetaData` and `HybridQuantumWorkflowBase` classes (see [vqpubase](workflow/vqpucommon/vqpubase.py)). 
 
 #### EventFile
 The `EventFile` class is the interaface to storing events via a file globally visible to all processes. File is created if set and dependent tasks can be set to `await eventfile.wait()` for the file to be created and have appropriate information before moving on. Events can also be cleared. 
