@@ -38,6 +38,7 @@ autodoc_mock_imports = [
     "dask_jobqueue", 
     "braket", 
     "bloqade",
+    "pydantic"
     ]
 
 templates_path = ['_templates']

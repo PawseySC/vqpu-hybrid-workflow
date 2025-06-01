@@ -1,8 +1,13 @@
 # QBitBridge 
-QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
-It is meant to easy the integration of quantum computing acceleration into a workflow. 
+
+<img src="docs/figs/qbitbridge_logo.png" style="float: right; margin: 0 0 15px 15px; width: 20%;" alt="Logo">
+
+<!-- ![multivqpuflow](docs/figs/qbitbridge_logo.png) -->
+
+QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. It is meant to easy the integration of quantum computing acceleration into a workflow. 
 
 ## Description
+
 This framework uses [Prefect](https://www.prefect.io) to orchesetrate asynchronous tasks and flows, an EventFile class that produces globally visible events to the orchestration process and all other processes, Dask for integration with Slurm to run hybrid workflows. 
 
 The current setup is designed to integrate with the virtual QPU from Quantum Brilliance, a emulator for quantum circuit simulation that runs as a service, accepting circuits sent to a specific port with a specific API and format. Currently it has been tested with circuits produced by the Qristal SDK produced by Quantum Brilliance. 
@@ -85,7 +90,7 @@ For the basic tests, it will also be necessary to build the [profile_util](workf
 
 ## Installation
 
-You can use the [pyproject.toml](pyproject.toml) and pip to install the package 
+You can use the [pyproject.toml](pyproject.toml) and pip to install the package
 ```bash
 # Install a package with its pyproject.toml configuration
 pip install .
@@ -96,6 +101,8 @@ pip install -e .
 # Install with optional dependencies
 pip install ".[dev]"
 ```
+
+We strongly recommend use of python virtual environments and that this virtual environment is loadable on all the nodes that will be doing compute on the HPC system. 
 
 ## Services required
 
@@ -126,6 +133,8 @@ python3 <your_workflow>
 ```
 which will make use of this server to orchestrate and submit flows and tasks to the appropriate slurm partitions with appropriate resource requests. 
 
+Note that the python virtual environment that contains all the required dependencies should be loaded as part of the `job_script_prologue` portion of a cluster's slurm configuration yaml file. Otherwise, a variety of errors can be reported. 
+
 ## Future work
 
 - Better integration with the DaskTaskRunner and Slurm so that a node check is run (if desired) upon submission of a flow to check for node(s) health. If the nodes are not healthy, raise exception to retry (possibly on different nodes)
@@ -133,3 +142,7 @@ which will make use of this server to orchestrate and submit flows and tasks to 
 - Running service infront of remote back end that can be contact to better handle QPU queue
 - Better suspend/restart handling.
 
+## Contact Information
+For bug reports or inquiries, please submit an issue on [GitHub](https://github.com/PawseySC/vqpu-hybrid-workflow) or contact:
+
+Pascal Jahan Elahi Email: pascal.elahi@pawsey.org.au
