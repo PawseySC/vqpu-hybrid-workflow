@@ -38,7 +38,6 @@ from qbitbridge.vqpuflow import (
 #
 import asyncio
 from prefect import task, flow
-from prefect_dask import DaskTaskRunner
 from prefect.logging import get_run_logger
 import numpy as np
 
