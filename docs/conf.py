@@ -28,6 +28,7 @@ extensions = [
     'sphinx.ext.napoleon', #Allows google/numpy docstrings
     'sphinx.ext.githubpages', #Adds .nojekyll file
     'sphinx.ext.viewcode', 
+    'sphinx.ext.graphviz', # add graphviz visualisation 
 ]
 todo_include_todos = True 
 autodoc_mock_imports = [
@@ -42,10 +43,23 @@ autodoc_mock_imports = [
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-
-
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'nature'
 html_static_path = ['_static']
+
+# Control text wrapping in HTML output
+html_theme_options = {
+    'body_max_width': '90%',  # Adjust based on your theme
+}
+
+# For LaTeX output
+latex_elements = {
+    'papersize': 'letterpaper',
+    'pointsize': '10pt',
+    'preamble': r'''
+        \usepackage[margin=1in]{geometry}
+        \setlength{\parindent}{0pt}
+    ''',
+}

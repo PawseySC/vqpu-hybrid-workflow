@@ -3,6 +3,10 @@
 Description
 ###########
 
+.. image:: figs/qbitbridge_logo.png
+  :scale:  75 %
+  :align:  right
+
 This framework several existing tools to run hybrid (v)QPU, GPU, CPU workflows on Quantum Computers and HPC systems. It uses 
 
 * `Prefect <https://www.prefect.io>`_ to orchesetrate asynchronous tasks and flows, and track/visualizes flows. 

@@ -1,0 +1,177 @@
+# dot file of a multi-vqpu-workflow
+digraph G {
+    size ="32,32";
+    # rankdir=TB;
+    subgraph vqpu_flow_0{
+        label = "vQPU 0 flow"
+        fontsize=18;
+        fontname="arial";
+        shape=box;
+        style="filled,solid";
+        color="black";
+        fillcolor="#f5f5f5"
+        labelloc="t";
+        penwidth=2.0;
+        node [fontname="times",
+            shape=box,
+            penwidth=0.0
+            style="filled,solid";
+            color="#fdc46f";
+            fillcolor="#fdc46f"
+            labelloc="c"
+            width=2.5,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        vqpu_0_launch [label="vQPU-0 launch" ];
+        vqpu_0_run [label="vQPU-0 run" ];
+        vqpu_0_shutdown [label="vQPU-0 shutdown" ];
+    }
+
+    subgraph vqpu_flow_1{
+        label = "vQPU 1 flow"
+        fontsize=18;
+        fontname="arial";
+        shape=box;
+        style="filled,solid";
+        color="black";
+        fillcolor="#f5f5f5"
+        labelloc="t";
+        penwidth=2.0;
+        node [fontname="times",
+            shape=box,
+            penwidth=0.0
+            style="filled,solid";
+            color="#fdc46f";
+            fillcolor="#fdc46f"
+            labelloc="c"
+            width=2.5,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        vqpu_1_launch [label="vQPU-1 launch" ];
+        vqpu_1_run [label="vQPU-1 run" ];
+        vqpu_1_shutdown [label="vQPU-1 shutdown" ];
+    }
+
+    subgraph circuit_flow_0{
+        label = "vQPU 1 flow"
+        fontsize=18;
+        fontname="arial";
+        shape=box;
+        style="filled,solid";
+        color="black";
+        fillcolor="#f5f5f5"
+        labelloc="t";
+        penwidth=2.0;
+        node [fontname="times",
+            shape=box,
+            penwidth=0.0
+            style="filled,solid";
+            color="#6ffd6fff";
+            fillcolor="#6ffd6fff"
+            labelloc="c"
+            width=3,
+            height=0.75,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        circuit_start [label="Circuit : start" ];
+        circuit_wait_vqpu_0 [label="Circuit :\nwait for vQPU-0" ];
+        circuit_wait_vqpu_1 [label="Circuit :\nwait for vQPU-1" ];
+        circuit_run [label="Circuits: run" ];
+        circuit_finish [label="Circuits: finish" ];
+    }
+
+    subgraph cpu_flow{
+        label = "CPU flow"
+        fontsize=18;
+        fontname="arial";
+        shape=box;
+        style="filled,solid";
+        color="black";
+        fillcolor="#f5f5f5"
+        labelloc="t";
+        penwidth=2.0;
+        node [fontname="times",
+            shape=box,
+            penwidth=0.0
+            style="filled,solid";
+            color="#3c7de6";
+            fillcolor="#3c7de6"
+            labelloc="c"
+            width=3,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        cpu_start [label="CPU flow : start" ];
+        cpu_run [label="CPU flow: run" ];
+        cpu_circuit [label="CPU flow: run circuits" ];
+        cpu_finish [label="CPU flow: finish" ];
+    }
+
+    subgraph gpu_flow{
+        label = "GPU flow"
+        fontsize=18;
+        fontname="arial";
+        shape=box;
+        style="filled,solid";
+        color="black";
+        fillcolor="#f5f5f5"
+        labelloc="t";
+        penwidth=2.0;
+        node [fontname="times",
+            shape=box,
+            penwidth=0.0
+            style="filled,solid";
+            color="#3ce6e6ff";
+            fillcolor="#3ce6e6ff";
+            labelloc="c"
+            width=3,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        gpu_start [label="GPU flow : start" ];
+        gpu_run [label="GPU flow: run" ];
+        gpu_finish [label="GPU flow: finish" ];
+    }
+
+    {rank=same;vqpu_0_launch;vqpu_1_launch;cpu_start;} 
+
+    {rank=same;vqpu_0_run;circuit_run;vqpu_1_run;cpu_circuit;} 
+    {rank=same;cpu_run;gpu_start;} 
+    // {rank=same;vqpu_0_shutdown;vqpu_1_shutdown;} 
+
+    # connections
+    vqpu_0_launch -> vqpu_0_run
+    vqpu_0_run -> vqpu_0_shutdown
+    vqpu_1_launch -> vqpu_1_run
+    vqpu_1_run -> vqpu_1_shutdown
+    circuit_start -> circuit_wait_vqpu_0
+    circuit_start -> circuit_wait_vqpu_1
+    circuit_wait_vqpu_0:s -> circuit_run:n
+    circuit_wait_vqpu_1:s -> circuit_run:n
+    circuit_run -> circuit_finish
+
+    cpu_start -> cpu_run
+    cpu_run:e -> gpu_start:w
+    cpu_run:w -> cpu_circuit
+    cpu_run -> cpu_finish
+    gpu_start -> gpu_run
+    gpu_run -> gpu_finish
+
+    # connects between flows
+    vqpu_0_launch -> circuit_wait_vqpu_0:w [label = "vQPU-start event", color=blue, style=dashed, fontcolor=blue]
+    vqpu_1_launch -> circuit_wait_vqpu_1:w [label = "vQPU-start event", color=blue, style=dashed, fontcolor=blue]
+    circuit_finish:n -> vqpu_0_run:s [label = "circuit complete\n vQPU shutdown event", color=blue, style=dashed, fontcolor=blue]
+    circuit_finish:n -> vqpu_1_run:s [label = "circuit complete\n vQPU shutdown event", color=blue, style=dashed, fontcolor=blue]
+    vqpu_1_launch -> cpu_circuit:w [label = "vQPU-start event", color=blue, style=dashed, fontcolor=blue]
+
+    vqpu_0_run:e -> circuit_run:w [label = "vQPU circuits\n results", dir=both, color="#ff5100ff", style=dotted, fontcolor="#ff5100ff", penwidth=2]
+    vqpu_1_run:e -> circuit_run:w [label = "vQPU circuits\n results", dir=both, color="#ff5100ff", style=dotted, fontcolor="#ff5100ff", penwidth=2]
+    vqpu_1_run:e -> cpu_circuit:w [label = "vQPU circuits\n results", dir=both, color="#ff5100ff", style=dotted, fontcolor="#ff5100ff", penwidth=2]
+}
