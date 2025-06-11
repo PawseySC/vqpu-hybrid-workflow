@@ -273,13 +273,18 @@ def get_num_gpus() -> Tuple[int, str]:
         "AMD": ["rocm-smi", "--showtopo", "--csv"],
     }
     gpucmd = list()
+    gputypefound = False
     for l in lines:
         if "PCI bridge:" in l:
             for gt in gputypes:
                 if gt in l:
                     gpucmd = gpucmds[gt]
                     gputype = gt
+                    gputypefound = True
                     break
+        if gputypefound:
+            break
+    process = subprocess.run(['hostname'], capture_output=True, text=True)
     process = subprocess.run(gpucmd, capture_output=True, text=True)
     numgpu = len(process.stdout.strip().split("\n"))
     if gputype == "AMD":
