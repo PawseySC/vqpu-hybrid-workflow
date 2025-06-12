@@ -98,9 +98,9 @@ then
         if [[ ! -e postgres_latest.sif ]]
         then
             echo "Downloading the latest postgres docker container"
-            singularity pull docker://postgres
-            container_image=$(pwd)/postgres_latest.sif
+            singularity pull docker://postgres            
         fi
+        container_image=$(pwd)/postgres_latest.sif
     fi 
     # set the singularity arguments 
     singargs="--cleanenv --bind $POSTGRES_SCRATCH:/var"
