@@ -817,6 +817,14 @@ async def run_gpu(
     process = run_a_process(cmds)
     logger.info("Finished GPU task")
 
+@task(
+    retries=10,
+    retry_delay_seconds=2,
+    timeout_seconds=60,
+)
+def run_get_gpu_info() -> Tuple[int, str]:
+    return get_num_gpus()
+    
 
 @flow(
     name="Simple CPU flow",
@@ -892,7 +900,9 @@ async def gpu_workflow(
     # submit the task and wait for results
     futures = []
     # get number of gpus available to chunk submission of tasks
-    ngpus, gputype = get_num_gpus()
+    
+    future = run_get_gpu_info.submit()
+    ngpus, gputype = future.result()
     logger.info(f"Running on {ngpus} {gputype} gpus")
     nchunks = np.int32(np.ceil(float(len(execs)) / float(ngpus)))
     offset = 0
