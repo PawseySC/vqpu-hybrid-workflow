@@ -5,6 +5,7 @@
 """
 
 import sys, os, re
+import ast
 from pathlib import Path
 from time import sleep
 import datetime
@@ -12,18 +13,15 @@ from typing import List, Set, Callable, Tuple, Dict, Any
 import warnings
 
 # import qbitbridge
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
-from qbitbridge.options import vQPUWorkflow
-from qbitbridge.vqpubase import HybridQuantumWorkflowBase
-
-from qbitbridge.utils import (
+from .vqpubase import HybridQuantumWorkflowBase
+from .utils import (
     EventFile,
     check_python_installation,
     save_artifact,
     upload_image_as_artifact,
     check_file_can_be_created,
 )
-from workflow.circuits.qristal_circuits import simulator_setup, noisy_circuit
+from prefect.artifacts import Artifact
 import asyncio
 from prefect import task, flow
 from prefect_dask import DaskTaskRunner
@@ -143,6 +141,74 @@ class LikelihoodModel:
         with h5py.File(self.filename, "r") as f:
             self.X = np.array(f[self.data_keys[0]])
             self.ref = np.array(f[self.data_keys[1]])
+
+
+class LikelihoodFit:
+    def __init__(
+        self,
+        name: str,
+        evidence: np.float64,
+        quantiles: List[float],
+        params: List[Tuple[str, List[np.float64]]],
+    ) -> None:
+        self.name = name
+        """Model name of fit"""
+        self.evidence = evidence
+        """bayes evidence"""
+        self.quantiles = quantiles
+        """quantiles of the parameters"""
+        self.params = params
+        """parameters"""
+        self.ndim = len(params)
+        """number of parameters"""
+
+    def __str__(self) -> str:
+
+        form = "{0} = {1:.3f}_{{-{2:.3f}}}^{{+{3:.3f}}} = [{4:.3f}, {5:.3f}, {6:.3f}]"
+
+        info: str = f"# Model fit for {self.name}\n"
+        info += f"Evidence = {self.evidence}\n"
+        info += f"NParams = {self.ndim}\n"
+        info += f"Quantiles = {self.quantiles}\n"
+        for i in range(self.ndim):
+            label = self.params[i][0]
+            mcmc = self.params[i][1]
+            q = np.diff(mcmc)
+            txt = form.format(label, mcmc[1], q[0], q[1], mcmc[0], mcmc[1], mcmc[2])
+            info += txt + "\n"
+        return info
+
+    @classmethod
+    def from_string(cls, arg: str):
+        """Create an object from a string
+
+        Args:
+            arg (str): input string
+
+        Raises:
+            ValueError if string does not contain appropriate information
+
+        Returns:
+            QPUMetaData instance
+        """
+        if "# Model fit for " not in arg:
+            raise ValueError("Not a Model Fit string")
+
+        lines = arg.strip().split("\n")[1:][:-2]
+        # print(lines)
+        name = lines[0].split("# Model fit for ")[0]
+        evidence = np.float64(lines[1].split("Evidence = ")[1])
+        nparam = int(lines[2].split("NParams = ")[1])
+        quantiles = ast.literal_eval(lines[3].split("Quantiles = ")[1])
+        params = []
+        for l in lines[4 : nparam + 4]:
+            label = l.split(" = ")[0]
+            values = ast.literal_eval(l.split(" = ")[2])
+            values = [np.float64(v) for v in values]
+            params.append((label, values))
+        # need to also parse the noise, calibration, connectivity data so that
+        # they are not strings
+        return cls(name=name, quantiles=quantiles, evidence=evidence, params=params)
 
 
 class LikelihoodModelRuntime:
@@ -291,7 +357,7 @@ def model_flatten_sampler(
 async def model_report_fit(
     name: str,
     flat_samples: np.ndarray,
-    evidence: float,
+    evidence: np.float64,
     labels: List[str],
     quantiles: List[float] | None = None,
     fit_filename: str | None = None,
@@ -315,16 +381,16 @@ async def model_report_fit(
     else:
         quantiles = np.sort(quantiles)
     results = np.zeros((ndim, len(quantiles)))
-    info: str = f"# Model {name}\n"
-    info: str = f"Evidence {evidence}\n"
+    params = []
     for i in range(ndim):
         # will need to generalize this eventually
         mcmc = np.percentile(flat_samples[:, i], quantiles)
-        results[i] = mcmc[:]
-        q = np.diff(mcmc)
-        txt = "{3} = {0:.3f}_{{-{1:.3f}}}^{{{2:.3f}}}"
-        txt = txt.format(mcmc[1], q[0], q[1], labels[i])
-        info += txt + "\n"
+        results[i][:] = mcmc[:]
+        params.append((labels[i], mcmc))
+    modelfit = LikelihoodFit(
+        name=name, evidence=evidence, quantiles=quantiles, params=params
+    )
+    info = modelfit.__str__()
     logger.info(info)
     if fit_filename is not None:
         if not check_file_can_be_created(fit_filename):
@@ -336,7 +402,36 @@ async def model_report_fit(
     # strip name should be all lower case with no special characters
     stripname = name.lower().strip("-").strip("_").strip(" ")
     await save_artifact(info, key=stripname)
+
     return results
+
+
+@task(
+    retries=5,
+    retry_delay_seconds=2,
+    timeout_seconds=600,
+    task_run_name="report_fit-{name}",
+)
+async def model_retrieve_fit(
+    name: str,
+) -> LikelihoodFit:
+    """Retrieve model parameters
+
+    Args:
+        name (str) : model name
+
+    Returns:
+        LikelihoodFit of the model
+    """
+    # strip name should be all lower case with no special characters
+    stripname = name.lower().strip("-").strip("_").strip(" ")
+    artifact = await Artifact.get(key=stripname)
+    if artifact is None:
+        raise ValueError(
+            "asking workflow to get active qpu data but no active qpu found!"
+        )
+    data = dict(artifact)["data"]
+    return LikelihoodFit.from_string(data)
 
 
 @task(
@@ -743,3 +838,11 @@ async def multi_model_flow(
             )
     logger.info("Finished running models")
     logger.info("Retriving models ... ")
+    futures = dict()
+    for k in model_info.keys():
+        futures[k] = await model_retrieve_fit.submit(name=model_info[k].name)
+    fits = dict()
+    for k in model_info.keys():
+        fits[k] = await futures[k].result()
+    for k in model_info.keys():
+        logger.info(fits[k])
