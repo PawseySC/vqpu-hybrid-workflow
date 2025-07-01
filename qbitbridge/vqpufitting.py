@@ -35,6 +35,8 @@ if not libcheck:
 import emcee
 import corner
 
+# import dynesty
+
 libcheck = check_python_installation("h5py")
 if not libcheck:
     raise ImportError("Missing h5py library, cannot save data using h5py")
@@ -42,7 +44,7 @@ import h5py
 
 
 class LikelihoodModel:
-    """model object that summarise properties of the model and how to evalate it"""
+    """model object that summarise properties of the model, the data the model is fitting, and the log_probability"""
 
     def __init__(
         self,
@@ -144,17 +146,19 @@ class LikelihoodModel:
 
 
 class LikelihoodFit:
+    """Used to store a fit of a model"""
+
     def __init__(
         self,
         name: str,
-        evidence: np.float64,
+        log_evidence: np.float64,
         quantiles: List[float],
         params: List[Tuple[str, List[np.float64]]],
     ) -> None:
         self.name = name
         """Model name of fit"""
-        self.evidence = evidence
-        """bayes evidence"""
+        self.log_evidence = log_evidence
+        """bayes evidence in form of logZ"""
         self.quantiles = quantiles
         """quantiles of the parameters"""
         self.params = params
@@ -167,7 +171,7 @@ class LikelihoodFit:
         form = "{0} = {1:.3f}_{{-{2:.3f}}}^{{+{3:.3f}}} = [{4:.3f}, {5:.3f}, {6:.3f}]"
 
         info: str = f"# Model fit for {self.name}\n"
-        info += f"Evidence = {self.evidence}\n"
+        info += f"Evidence logZ = {self.log_evidence}\n"
         info += f"NParams = {self.ndim}\n"
         info += f"Quantiles = {self.quantiles}\n"
         for i in range(self.ndim):
@@ -196,8 +200,8 @@ class LikelihoodFit:
 
         lines = arg.strip().split("\n")[1:][:-2]
         # print(lines)
-        name = lines[0].split("# Model fit for ")[0]
-        evidence = np.float64(lines[1].split("Evidence = ")[1])
+        name = lines[0].split("# Model fit for ")[1]
+        log_evidence = np.float64(lines[1].split("Evidence logZ = ")[1])
         nparam = int(lines[2].split("NParams = ")[1])
         quantiles = ast.literal_eval(lines[3].split("Quantiles = ")[1])
         params = []
@@ -208,24 +212,33 @@ class LikelihoodFit:
             params.append((label, values))
         # need to also parse the noise, calibration, connectivity data so that
         # they are not strings
-        return cls(name=name, quantiles=quantiles, evidence=evidence, params=params)
+        return cls(
+            name=name, quantiles=quantiles, log_evidence=log_evidence, params=params
+        )
 
 
 class LikelihoodModelRuntime:
+    """Runtime options for running the fitting"""
+
+    allowed_sampler_types = ["emcee", "nestle", "dynesty"]
+
     def __init__(
         self,
         outputdir: str = "./",
+        sampler_type: str = "emcee",
         nwalkers: int = 32,
         nsteps: int = 5000,
-        nburnin: np.int64 = np.int64(100),
+        nburnin: np.int64 | None = None,
         init_pos: np.ndarray | None = None,
         analysis_dask_runner: str | None = None,
         compare_plot: bool = True,
-        quantiles: List[float] | None = None,
+        quantiles: List[float] = [16.0, 50.0, 84.0],
         fit_filename: str | None = None,
         chain_filename: str | None = None,
         show_progress: bool = False,
     ) -> None:
+        self.sampler_type = sampler_type
+        """Type of sampler to use. Default is emcee EnsembleSampler """
         self.outputdir = outputdir
         """output directory"""
         self.nwalkers = nwalkers
@@ -249,6 +262,49 @@ class LikelihoodModelRuntime:
         self.show_progress = show_progress
         """whether to have emcee report progress"""
 
+        if self.sampler_type not in self.allowed_sampler_types:
+            raise ValueError(
+                f"Sampler type {self.sampler_type} not allowed. Choose from {self.allowed_sampler_types}"
+            )
+        self.sampler_type = sampler_type
+
+
+class LikelihoodSampler:
+    """Sampler wrapper"""
+
+    def __init__(
+        self,
+        model: LikelihoodModel,
+        runargs: LikelihoodModelRuntime,
+    ):
+        self.sampler: (
+            emcee.EnsembleSampler | None
+        )  # | add other options like dynesty, etc
+        """sampler for likelihood evaluation"""
+        if runargs.sampler_type == "emcee":
+            self.sampler = emcee.EnsembleSampler(
+                runargs.nwalkers,
+                model.model_dim,
+                model.log_prob,
+                args=(model.model_func, model.X, model.ref),
+            )
+        else:
+            self.sampler = None
+
+    def run_sampler(
+        self, init_pos: np.ndarray, nsteps: int, show_progress: bool
+    ) -> None:
+        """Run the sampler"""
+        self.sampler.run_mcmc(init_pos, nsteps, progress=show_progress)
+
+    def get_evidence(self) -> np.float64:
+        """Calculate the evidencde"""
+        log_probs = self.sampler.get_log_prob(flat=True)
+        log_evidence = np.float64(
+            np.logaddexp.reduce(log_probs) - np.log(len(log_probs))
+        )
+        return log_evidence
+
 
 @task(
     retries=5,
@@ -263,7 +319,8 @@ def model_run_sampler(
     init_pos: np.ndarray | None = None,
     show_progress: bool = False,
 ) -> emcee.EnsembleSampler:
-    """Run emcee sampler
+    """Run emcee sampler. Note that if this sampler call is trivial and it is the model call that is computational intensive,
+    this tasks should be called as a function so model evaluations can be submitted as tasks to the dasktaskrunner.
 
     Args:
         model (LikelihoodModel) : the model class that contains relevant info
@@ -306,7 +363,7 @@ def model_estimate_evidence(name: str, sampler: emcee.EnsembleSampler) -> np.flo
         sampler (EnsembleSampler): the sampler used to get the evidence
 
     Returns:
-        float of the evidence
+        float of the evidence in the form of logZ
     """
     logger = get_run_logger()
     logger.info(f"Estimating evidence for {name} model...")
@@ -335,7 +392,7 @@ def model_flatten_sampler(
         nburnin (int) : burn in
 
     Returns:
-        float of the evidence
+        np.ndarray of the samples
     """
     # get the autocorrelation number of steps for all model parameters
     tau = sampler.get_autocorr_time()
@@ -343,7 +400,7 @@ def model_flatten_sampler(
     if nthin is None:
         nthin = np.int32(np.max(tau) / 2)
     if nburnin is None:
-        nburnin = np.int64(100)
+        nburnin = np.int64(np.max(tau) * 3)
     flat_samples = sampler.get_chain(discard=nburnin, thin=nthin, flat=True)
     return flat_samples
 
@@ -357,9 +414,9 @@ def model_flatten_sampler(
 async def model_report_fit(
     name: str,
     flat_samples: np.ndarray,
-    evidence: np.float64,
+    log_evidence: np.float64,
     labels: List[str],
-    quantiles: List[float] | None = None,
+    quantiles: List[float] = [16.0, 50.0, 84.0],
     fit_filename: str | None = None,
 ) -> np.ndarray:
     """Report the quantiles of the model parameters
@@ -376,10 +433,7 @@ async def model_report_fit(
     logger = get_run_logger()
     logger.info(f"Getting quantiles for model {name} ... ")
     ndim = flat_samples.shape[1]
-    if quantiles is None:
-        quantiles = [16.0, 50.0, 84.0]
-    else:
-        quantiles = np.sort(quantiles)
+    # quantiles = np.sort(quantiles)
     results = np.zeros((ndim, len(quantiles)))
     params = []
     for i in range(ndim):
@@ -388,7 +442,7 @@ async def model_report_fit(
         results[i][:] = mcmc[:]
         params.append((labels[i], mcmc))
     modelfit = LikelihoodFit(
-        name=name, evidence=evidence, quantiles=quantiles, params=params
+        name=name, log_evidence=log_evidence, quantiles=quantiles, params=params
     )
     info = modelfit.__str__()
     logger.info(info)
@@ -444,7 +498,7 @@ async def model_save_chain(
     model: LikelihoodModel,
     filename: str,
     flat_samples: np.ndarray,
-    evidence: float,
+    log_evidence: float,
     quantiles: List[float] = [16.0, 50.0, 84.0],
     fit_values: np.ndarray | None = None,
 ) -> None:
@@ -464,8 +518,8 @@ async def model_save_chain(
     with h5py.File(filename, "w") as h5f:
         with h5f.create_group("Model") as modgrp:
             modgrp["Name"] = model.name
-            modgrp.attrs["NParam"] = ndim
-            modgrp.attrs["Evidence"] = evidence
+            modgrp.attrs["NParams"] = ndim
+            modgrp.attrs["logZ"] = log_evidence
             modgrp.create_dataset("Params", data=labels)
             modgrp.create_dataset("Fit", data=fit_values)
             with modgrp.create_group("Likelihood_Chain") as grp:
@@ -595,7 +649,7 @@ async def model_analysis_wrapper(
     sampler: emcee.EnsembleSampler,
     outputdir: str,
     nburnin: np.int64 | None = None,
-    quantiles: List[np.float64] | None = None,
+    quantiles: List[float] = [16.0, 50.0, 84.0],
     fit_filename: str | None = None,
     chain_filename: str | None = None,
     compare_plot: bool = True,
@@ -604,7 +658,7 @@ async def model_analysis_wrapper(
     future = model_flatten_sampler.submit(sampler=sampler, nburnin=nburnin)
     flat_samples = future.result()
     future = model_estimate_evidence.submit(name=model.name, sampler=sampler)
-    evidence = future.result()
+    log_evidence = future.result()
 
     # make fit dir and update file names if necessary
     fitdir = f"{outputdir}/fits/"
@@ -619,7 +673,7 @@ async def model_analysis_wrapper(
         flat_samples=flat_samples,
         labels=model.param_labels,
         quantiles=quantiles,
-        evidence=evidence,
+        log_evidence=log_evidence,
         fit_filename=fit_filename,
     )
     fit_values = await future.result()
@@ -635,7 +689,7 @@ async def model_analysis_wrapper(
                     model=model,
                     filename=chain_filename,
                     flat_samples=flat_samples,
-                    evidence=evidence,
+                    log_evidence=log_evidence,
                     quantiles=quantiles,
                     fit_values=fit_values,
                 )
@@ -657,7 +711,7 @@ async def model_analysis_wrapper(
                     flat_samples=flat_samples,
                 )
             )
-    return evidence, fit_values
+    return log_evidence, fit_values
 
 
 @flow(
@@ -718,6 +772,7 @@ async def model_analysis_workflow(
 async def model_fit_and_analyse_workflow(
     myflow: HybridQuantumWorkflowBase,
     model: LikelihoodModel,
+    fit_run_args: LikelihoodModelRuntime | None = None,
     nwalkers: int = 32,
     nsteps: int = 5000,
     outputdir: str = "./",
@@ -742,10 +797,10 @@ async def model_fit_and_analyse_workflow(
     logger.info(f"Running sampler")
     future = model_run_sampler.submit(
         model=model,
-        nwalkers=nwalkers,
-        nsteps=nsteps,
-        init_pos=init_pos,
-        show_progress=show_progress,
+        nwalkers=fit_run_args.nwalkers,
+        nsteps=fit_run_args.nsteps,
+        init_pos=fit_run_args.init_pos,
+        show_progress=fit_run_args.show_progress,
     )
     logger.info(f"Flattening and analysing results ...")
     fname = model.name + "_fit"
@@ -755,12 +810,12 @@ async def model_fit_and_analyse_workflow(
             myflow=myflow,
             model=model,
             sampler=sampler,
-            outputdir=outputdir,
-            nburnin=nburnin,
-            compare_plot=compare_plot,
-            quantiles=quantiles,
-            fit_filename=fit_filename,
-            chain_filename=chain_filename,
+            outputdir=fit_run_args.outputdir,
+            nburnin=fit_run_args.nburnin,
+            compare_plot=fit_run_args.compare_plot,
+            quantiles=fit_run_args.quantiles,
+            fit_filename=fit_run_args.fit_filename,
+            chain_filename=fit_run_args.chain_filename,
         )
     else:
         analysis_flow = model_analysis_workflow.with_options(
@@ -771,12 +826,12 @@ async def model_fit_and_analyse_workflow(
                 myflow=myflow,
                 model=model,
                 sampler=sampler,
-                outputdir=outputdir,
-                nburnin=nburnin,
-                compare_plot=compare_plot,
-                quantiles=quantiles,
-                fit_filename=fit_filename,
-                chain_filename=chain_filename,
+                outputdir=fit_run_args.outputdir,
+                nburnin=fit_run_args.nburnin,
+                compare_plot=fit_run_args.compare_plot,
+                quantiles=fit_run_args.quantiles,
+                fit_filename=fit_run_args.fit_filename,
+                chain_filename=fit_run_args.chain_filename,
             )
         )
 
@@ -792,7 +847,7 @@ async def model_fit_and_analyse_workflow(
 async def multi_model_flow(
     myflow: HybridQuantumWorkflowBase,
     model_info: Dict[str, LikelihoodModel],
-    model_run_args: Dict[str, LikelihoodModelRuntime] | None = None,
+    fit_run_args: Dict[str, LikelihoodModelRuntime] | None = None,
     date: datetime.datetime = datetime.datetime.now(),
 ) -> None:
     """Multi-model workflow
@@ -803,19 +858,19 @@ async def multi_model_flow(
     logger = get_run_logger()
 
     model_flows = dict()
-    if model_run_args is None:
-        model_run_args = dict()
+    if fit_run_args is None:
+        fit_run_args = dict()
     for k in model_info.keys():
         m = model_info[k]
         model_flows[k] = model_fit_and_analyse_workflow.with_options(
             task_runner=myflow.gettaskrunner(m.dask_runner)
         )
-        if k not in model_run_args.keys():
+        if k not in fit_run_args.keys():
             warnings.warn(
                 f"model {k} missing explicit runtime args, running with defaults",
                 RuntimeWarning,
             )
-            model_run_args[k] = LikelihoodModelRuntime()
+            fit_run_args[k] = LikelihoodModelRuntime()
 
     tasks = dict()
     async with asyncio.TaskGroup() as tg:
@@ -824,16 +879,7 @@ async def multi_model_flow(
                 model_flows[k](
                     myflow=myflow,
                     model=model_info[k],
-                    nwalkers=model_run_args[k].nwalkers,
-                    nsteps=model_run_args[k].nsteps,
-                    nburnin=model_run_args[k].nburnin,
-                    init_pos=model_run_args[k].init_pos,
-                    analysis_dask_runner=model_run_args[k].analysis_dask_runner,
-                    compare_plot=model_run_args[k].compare_plot,
-                    quantiles=model_run_args[k].quantiles,
-                    fit_filename=model_run_args[k].fit_filename,
-                    chain_filename=model_run_args[k].chain_filename,
-                    show_progress=model_run_args[k].show_progress,
+                    fit_run_args=fit_run_args[k],
                 )
             )
     logger.info("Finished running models")
@@ -846,3 +892,15 @@ async def multi_model_flow(
         fits[k] = await futures[k].result()
     for k in model_info.keys():
         logger.info(fits[k])
+    logger.info("Comparing models ... ")
+    logZs = np.array([fits[k].log_evidence for k in model_info.keys()])
+    names = [fits[k].name for k in model_info.keys()]
+    imax = np.argmax(logZs)
+    logger.info(f"Model with largest evidence {names[imax]} with logZ = {logZs[imax]}")
+    logger.info(f"Bayes factor logK of model with largest evidence ... ")
+    for i in range(logZs.size):
+        if i == imax:
+            continue
+        logger.info(f"LogK({names[imax]}, {names[i]}) = {logZs[imax]-logZs[i]}")
+
+    logger.info("Finished model")
