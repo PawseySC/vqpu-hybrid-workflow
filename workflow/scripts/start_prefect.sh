@@ -58,25 +58,25 @@ while getopts 'p:a:s:e:H:Svh' arg; do
 done
 
 # Now set up some postgres values
-# might want a more secure way of setting the password. 
-# might not want it in the script at all. 
-if [[ -z $postgres_pass ]]; then 
+# might want a more secure way of setting the password.
+# might not want it in the script at all.
+if [[ -z $postgres_pass ]]; then
     echo "No password provided"
     exit 1
 fi
-if [[ -z $postgres_addr ]]; then 
+if [[ -z $postgres_addr ]]; then
     echo "No address provided"
     exit 1
 fi
-if [[ -z $postgres_scratch ]]; then 
+if [[ -z $postgres_scratch ]]; then
     echo "No scratch space provided"
     exit 1
 fi
-if [[ -z $prefect_home ]]; then 
+if [[ -z $prefect_home ]]; then
     echo "No prefect home dir provided"
     exit 1
 fi
-if [[ -z $prefect_python_venv ]]; then 
+if [[ -z $prefect_python_venv ]]; then
     echo "No python virtual env provided"
     exit 1
 fi
@@ -100,36 +100,28 @@ export PREFECT_SQLALCHEMY_MAX_OVERFLOW=10
 #PREFECT_HOME="$(pwd)/prefect"
 export PREFECT_HOME=$prefect_home
 
-if [[ $VERBOSE -eq 1 ]]; then 
+if [[ $VERBOSE -eq 1 ]]; then
     echo "Prefect environment"
     env | grep "PREFECT"
     env | grep "POSTGRES"
-fi 
-
-
-if [[ $START_SERVER -eq 1 ]]
-then
-    if [[ ! -z $prefect_python_venv ]]; then 
-        echo "Loading python venv using ${prefect_python_venv}"
-        source ${prefect_python_venv}/bin/activate
-    fi
-    # before could just run prefect but here are issues with long living processes and 
-    # memory leaks. Instead explicitly invoke uvicorn to control this 
-    # prefect server start --host 0.0.0.0
-    # when using uvicorn, it might be necessary to set --app-dir explicitly 
-    # but I think if the PYTHONPATHs are correct, then nothing is required. 
-    # calling uvicorn with default port used by prefect
-    python -m uvicorn \
-        --app-dir ${prefect_python_venv}/lib/python3.11/site-packages/ \
-        --factory prefect.server.api.server:create_app \
-        --host 0.0.0.0 \
-        --port 4200 \
-        --timeout-keep-alive 10 \
-        --limit-max-requests 4096 \
-        --timeout-graceful-shutdown 7200 & 
-    echo "Set the following"
-    echo "export PREFECT_API_URL=http://${POSTGRES_ADDR}:4200/api"
-    # and then also set the server 
 fi
 
+if [[ $START_SERVER -eq 1 ]]; then
+    if [[ -n $prefect_python_venv ]]; then
+        source "${prefect_python_venv}/bin/activate"
+    fi
 
+    export PREFECT_API_DATABASE_CONNECTION_URL="postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASS}@${POSTGRES_ADDR}:5432/${POSTGRES_DB}"
+    export PREFECT_API_URL="http://${POSTGRES_ADDR}:4200/api"
+    export PREFECT_HOME="$prefect_home"
+
+    echo "running migrations…"
+    prefect server database upgrade -y
+
+    echo "starting Prefect server…"
+    prefect server start \
+        --port 4200 \
+        --ui &
+
+    echo "Set your client to point at: http://${POSTGRES_ADDR}:4200/api"
+fi
