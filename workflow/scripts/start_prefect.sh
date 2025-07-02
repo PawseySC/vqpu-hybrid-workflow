@@ -12,16 +12,18 @@ Options:
     -s <> - provide the postgres scratch space
     -v  - verbose
     -S  - will attempt to start the postgres server from a singularity container
+    -F  - assumes first time starting prefect server and will use prefect server directly rather than more robust uvicorn
     -h  - will print this help page
 
 Usage:
-start_prefect.sh [-p <> | -a <> | -s <> | -e <> | -H <> | -v | -S | -h]
+start_prefect.sh [-p <> | -a <> | -s <> | -e <> | -H <> | -v | -S | -F | -h]
 "
 
 START_SERVER=0
+FIRST_TIME=0
 VERBOSE=0
 
-while getopts 'p:a:s:e:H:Svh' arg; do
+while getopts 'p:a:s:e:H:SFvh' arg; do
     case $arg in
     e)
         echo "Prefect Python Environment to source before running prefect: $OPTARG"
@@ -45,6 +47,10 @@ while getopts 'p:a:s:e:H:Svh' arg; do
         ;;
     S)
         echo "Will attempt to start orion server"
+        START_SERVER=1
+        ;;
+    F)
+        echo "Will launch prefect for first time, use prefect server rather than uvicorn."
         START_SERVER=1
         ;;
     v)
@@ -108,20 +114,39 @@ fi
 
 if [[ $START_SERVER -eq 1 ]]; then
     if [[ -n $prefect_python_venv ]]; then
+        echo "Loading python venv using ${prefect_python_venv}"
         source "${prefect_python_venv}/bin/activate"
     fi
 
-    export PREFECT_API_DATABASE_CONNECTION_URL="postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASS}@${POSTGRES_ADDR}:5432/${POSTGRES_DB}"
     export PREFECT_API_URL="http://${POSTGRES_ADDR}:4200/api"
-    export PREFECT_HOME="$prefect_home"
 
-    echo "running migrations…"
-    prefect server database upgrade -y
 
-    echo "starting Prefect server…"
-    prefect server start \
-        --port 4200 \
-        --ui &
-
-    echo "Set your client to point at: http://${POSTGRES_ADDR}:4200/api"
+    echo "Starting Prefect server ... "
+    if [[ $FIRST_TIME -eq 1 ]]; then
+        # if necessary run migrations 
+        echo "running migrations…"
+        prefect server database upgrade -y
+        # if running prefect for the first time, just launch server. 
+        # but otherwise make use of uvicorn to avoid memory leaks
+        prefect server start \
+            --port 4200 \
+            --ui &
+    else
+        # before could just run prefect but here are issues with long living processes and 
+        # memory leaks. Instead explicitly invoke uvicorn to control this 
+        # prefect server start --host 0.0.0.0
+        # when using uvicorn, it might be necessary to set --app-dir explicitly 
+        # but I think if the PYTHONPATHs are correct, then nothing is required. 
+        # calling uvicorn with default port used by prefect
+        python -m uvicorn \
+            --app-dir ${prefect_python_venv}/lib/python3.11/site-packages/ \
+            --factory prefect.server.api.server:create_app \
+            --host 0.0.0.0 \
+            --port 4200 \
+            --timeout-keep-alive 10 \
+            --limit-max-requests 4096 \
+            --timeout-graceful-shutdown 7200 & 
+    fi
+    echo "When running workflows and client, set the client to point to http://${POSTGRES_ADDR}:4200/api by:"
+    echo "export PREFECT_API_URL=http://${POSTGRES_ADDR}:4200/api"
 fi
