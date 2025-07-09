@@ -37,12 +37,31 @@ from uuid import UUID
 
 SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
 
+def check_file_can_be_created(filename : str) -> bool:
+    """check if file can be created
+    
+    Args: 
+        filename (str): filename to check 
+    
+    Returns:
+        bool if creatable
+    """
+    base_dir = os.path.dirname(filename)
+    return (
+        not os.path.exists(filename)
+        and os.path.isdir(base_dir)
+        and os.access(base_dir, os.W_OK)
+        )
 
 def check_python_installation(library: str):
     """Check if library present and otherwise catch ImporError
     and report missing library
 
     Args:
+        library (str): name of library to check
+    
+    Returns:
+        bool of whether library can be imported
     """
     try:
         importlib.import_module(library)
@@ -53,7 +72,14 @@ def check_python_installation(library: str):
 
 
 def _printtostr(thingtoprint: Any) -> str:
-    """Print something to string rather than stdout"""
+    """Print something to string rather than stdout
+    
+    Args:
+        thingtoprint (Any) : print to a string 
+
+    Returns:
+        str of the thing to print 
+    """
     from io import StringIO
 
     f = StringIO()
@@ -61,7 +87,6 @@ def _printtostr(thingtoprint: Any) -> str:
     result = f.getvalue()
     f.close()
     return result
-
 
 def get_environment_variable(
     variable: Union[str, None], default: Optional[str] = None
