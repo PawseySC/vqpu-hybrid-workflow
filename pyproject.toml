@@ -31,7 +31,10 @@ scikit-image = "*"
 bloqade = "*"
 awscli = "*"
 amazon-braket-sdk = "*"
-sphinx = "*"
+mpi4py = "*"
+
+# set optional dependencies 
+[tool.poetry.]
 
 # set poetry dependencies 
 [tool.poetry.group.dev.dependencies]
@@ -53,6 +56,12 @@ dev = [
     "pytest",
     "pytest-cov",
     "sphinx",
+]
+fitting = [
+    "emcee",
+    "corner",
+    "h5py",
+    "dynesty",
 ]
 
 # set the build system 
