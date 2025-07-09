@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Using QBitBridge &#8212; QBitBridge 0.2.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/nature.css?v=279e0f84" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Example Workflow" href="examples.html" />
+    <link rel="prev" title="Installation" href="installation.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="examples.html" title="Example Workflow"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="installation.html" title="Installation"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Using QBitBridge</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="using-qbitbridge">
+<span id="usage"></span><h1>Using QBitBridge<a class="headerlink" href="#using-qbitbridge" title="Link to this heading">¶</a></h1>
+<p>The workflow makes use of <a class="reference external" href="https://www.prefect.io">Prefect</a>, <a class="reference external" href="https://www.postgresql.org/">Postgres</a>,
+<a class="reference external" href="https://slurm.schedmd.com/documentation.html">Slurm</a>.
+We do not discuss setting a slurm service here as this service will likely be setup by the HPC centre.</p>
+<section id="running-a-workflow">
+<h2>Running A Workflow<a class="headerlink" href="#running-a-workflow" title="Link to this heading">¶</a></h2>
+<p>To run a workflow, there a few key steps that are needed:</p>
+<ul class="simple">
+<li><p>Launch Prefect and Postgres services on a node that allows running long-running services.
+These services (typically) do not require significant computational or memory resources.</p></li>
+<li><p>Ensure you have set the PREFECT_API_URL to the appropriate port and hostname.</p></li>
+<li><p>Launch with <cite>python &lt;workflow.py&gt;</cite></p></li>
+</ul>
+</section>
+<section id="services-to-run-prefect">
+<h2>Services to run Prefect<a class="headerlink" href="#services-to-run-prefect" title="Link to this heading">¶</a></h2>
+<section id="running-postgres">
+<h3>Running postgres<a class="headerlink" href="#running-postgres" title="Link to this heading">¶</a></h3>
+<p>The workflows will be best run with a <a class="reference external" href="https://www.prefect.io">Prefect</a> server running using <code class="docutils literal notranslate"><span class="pre">uvicorn</span></code> and a postgres database.
+The bundle includes two scripts located in <code class="docutils literal notranslate"><span class="pre">workflow/scripts/</span></code> designed to launch these services.
+By default, there is an assumption that both of these services run on the same host but that does not need to be the case.</p>
+<p>This can be started with <code class="docutils literal notranslate"><span class="pre">start_postgres.sh</span></code> script. This will launch the postgres database using the
+<a class="reference external" href="https://docs.sylabs.io/guides/latest/user-guide/">Singularity</a> container engine.
+This script makes use of several key <code class="docutils literal notranslate"><span class="pre">POSTGRES</span></code> environment variables (like <code class="docutils literal notranslate"><span class="pre">POSTGRES_ADDR</span></code>).
+This will pull the latest postgres container image from docker hub to locally store it.
+This script could be altered to use other container engines as well.</p>
+</section>
+<section id="running-prefect-server">
+<h3>Running Prefect Server<a class="headerlink" href="#running-prefect-server" title="Link to this heading">¶</a></h3>
+<p>This can be started with <code class="docutils literal notranslate"><span class="pre">start_prefect.sh</span></code>. This will launch prefect using</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>python -m uvicorn \
+  --app-dir ${prefect_python_venv}/lib/python3.11/site-packages/ \
+  --factory prefect.server.api.server:create_app \
+  --host 0.0.0.0 \
+  --port 4200 \
+  --timeout-keep-alive 10 \
+  --limit-max-requests 4096 \
+  --timeout-graceful-shutdown 7200 &amp;
+</pre></div>
+</div>
+<p>and when running on the command line with a simple workflow, one can follow the reported message
+and set <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">PREFECT_API_URL=http://${POSTGRES_ADDR}:4200/api</span></code> where <code class="docutils literal notranslate"><span class="pre">POSTGRES_ADD</span></code>
+will be replaced with the host on which the postgres database will be run.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>At the moment, scripts geared towards using Singularity and on the same host.
+You will need to alter it to use other container engines.</p>
+</div>
+</section>
+<section id="prefect-ui">
+<h3>Prefect UI<a class="headerlink" href="#prefect-ui" title="Link to this heading">¶</a></h3>
+<p>Once these services are running you can use your browser to load up the Prefect UI by using 127.0.0.1:4200
+once you have setup an ssh tunnel <cite>ssh -N -f -L 4200:&lt;remote&gt;:4200 &lt;remote&gt;</cite>.</p>
+</section>
+<section id="setup-cluster-yaml-file">
+<h3>Setup cluster yaml file<a class="headerlink" href="#setup-cluster-yaml-file" title="Link to this heading">¶</a></h3>
+<p>It is important to consider what resources a given flow will need.
+This will be set by the <cite>DaskTaskRunner</cite> used by the flow, which is defined in the
+cluster yaml file. This it is important to write an appropriate cluster configuration for the
+HPC cluster and the available Slurm partitions.
+Examples of a cluster configurations can be found in <code class="file docutils literal notranslate"><span class="pre">workflow/clusters/</span></code>.
+This configuration needs a certain minimum set of named configurations:</p>
+<ul class="simple">
+<li><p><cite>generic</cite>: a small resource for running computationally simple tasks (such as launching some services)</p></li>
+<li><p><cite>vqpu</cite>: for running gpu-accelerated vQPU service.</p></li>
+<li><p><cite>circuit</cite>: for running circuit submission service (likely need to ensure Python paths are correct)</p></li>
+<li><p><cite>cpu</cite>: for moderate cpu-heavy tasks</p></li>
+<li><p><cite>gpu</cite>: for gpu tasks</p></li>
+</ul>
+<p>You will find in the examples that <cite>generic-aws</cite>, <cite>circuit-aws</cite> are also present to run <cite>aws</cite> tasks
+which need environment variables setup to log in to the AWS CLI. Similarly there are <cite>generic-quera</cite>,
+<cite>circuit-quera</cite> that also need some environment variables set for access.</p>
+</section>
+</section>
+<section id="designing-a-hybrid-workflow">
+<h2>Designing A Hybrid Workflow<a class="headerlink" href="#designing-a-hybrid-workflow" title="Link to this heading">¶</a></h2>
+<p>There are several things to consider when designing a workflow. As a start point, we suggest looking at
+examples of some workflows in the <code class="file docutils literal notranslate"><span class="pre">examples/flows/</span></code> directory (see <a class="reference internal" href="examples.html#examples"><span class="std std-ref">Example Workflow</span></a>).</p>
+<p>Let’s start by using the <code class="file docutils literal notranslate"><span class="pre">tutorial_workflow.py</span></code>. This workflow starts with some key imports</p>
+<section id="qbitbridge-imports">
+<h3>QbitBridge imports<a class="headerlink" href="#qbitbridge-imports" title="Link to this heading">¶</a></h3>
+<p>Load the key classes and other useful routines</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># import key classes from</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">qbitbridge.vqpubase</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+   <span class="n">QPUMetaData</span><span class="p">,</span>
+   <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># import useful utilities</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">qbitbridge.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+   <span class="n">EventFile</span><span class="p">,</span> <span class="c1"># Event files</span>
+   <span class="n">save_artifact</span><span class="p">,</span> <span class="c1"># to save prefect artificats</span>
+   <span class="n">get_num_gpus</span><span class="p">,</span> <span class="c1"># to get number of gpus</span>
+<span class="p">)</span>
+
+<span class="c1"># import basic flows and tasks  from the vqpuflow as desired</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">qbitbridge.vqpuflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+   <span class="c1"># tasks</span>
+   <span class="n">run_cpu</span><span class="p">,</span> <span class="c1"># run a cpu task</span>
+   <span class="n">run_gpu</span><span class="p">,</span> <span class="c1"># run a gpu task</span>
+   <span class="c1"># and here are some flows</span>
+   <span class="n">launch_vqpu_workflow</span><span class="p">,</span> <span class="c1"># launch a vqpu workflow</span>
+   <span class="n">cpu_workflow</span><span class="p">,</span> <span class="c1"># launch a cpu workflow</span>
+   <span class="n">gpu_workflow</span><span class="p">,</span> <span class="c1"># launch a gpu workflow</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="prefect-imports">
+<h3>Prefect imports<a class="headerlink" href="#prefect-imports" title="Link to this heading">¶</a></h3>
+<p>It will also be critical to import relevant prefect items</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span> <span class="c1"># for asynchronous tasks and flows</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect</span><span class="w"> </span><span class="kn">import</span> <span class="n">task</span><span class="p">,</span> <span class="n">flow</span> <span class="c1"># task and flow decorators</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect.logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_run_logger</span> <span class="c1">#logger</span>
+</pre></div>
+</div>
+</section>
+<section id="define-tasks-and-flows">
+<h3>Define tasks and flows<a class="headerlink" href="#define-tasks-and-flows" title="Link to this heading">¶</a></h3>
+<p>Then you can start defining some simple tasks. Here we have a standard Prefect task
+along with an ayncio async task.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># let&#39;s create some tasks</span>
+<span class="nd">@task</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Example task&quot;</span><span class="p">,</span> <span class="n">task_run_name</span><span class="o">=</span><span class="s2">&quot;example_task-{date:%Y-%m-</span><span class="si">%d</span><span class="s2">:%H:%M:%S}&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">simple_task</span><span class="p">(</span>
+   <span class="n">date</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span>
+<span class="p">):</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Task&quot;&quot;&quot;</span>
+   <span class="k">pass</span>
+
+
+<span class="nd">@task</span><span class="p">(</span>
+   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Example async task&quot;</span><span class="p">,</span>
+   <span class="n">task_run_name</span><span class="o">=</span><span class="s2">&quot;example_async_task-{date:%Y-%m-</span><span class="si">%d</span><span class="s2">:%H:%M:%S}&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">simple_async_task</span><span class="p">(</span>
+   <span class="n">date</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span>
+<span class="p">):</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Async task&quot;&quot;&quot;</span>
+   <span class="k">pass</span>
+</pre></div>
+</div>
+<p>Flows can be simple and just submit several tasks and get the results or try to have some
+dependency between tasks. We show a standard Prefect flow and an asynio asynchronous one.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@flow</span><span class="p">(</span>
+   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Example flow&quot;</span><span class="p">,</span>
+   <span class="n">flow_run_name</span><span class="o">=</span><span class="s2">&quot;example_flow-{date:%Y-%m-</span><span class="si">%d</span><span class="s2">:%H:%M:%S}&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">workflow</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="n">date</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Example flow&quot;&quot;&quot;</span>
+   <span class="n">logger</span> <span class="o">=</span> <span class="n">get_run_logger</span><span class="p">()</span>
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Example flow&quot;</span><span class="p">)</span>
+   <span class="c1"># let&#39;s submit a task to the flow</span>
+   <span class="n">future</span> <span class="o">=</span> <span class="n">simple_task</span><span class="o">.</span><span class="n">submit</span><span class="p">()</span>
+   <span class="c1"># and then get results</span>
+   <span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Finished flow&quot;</span><span class="p">)</span>
+
+
+<span class="nd">@flow</span><span class="p">(</span>
+   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Example async flow&quot;</span><span class="p">,</span>
+   <span class="n">flow_run_name</span><span class="o">=</span><span class="s2">&quot;example_async_flow-{date:%Y-%m-</span><span class="si">%d</span><span class="s2">:%H:%M:%S}&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">async_workflow</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="n">date</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;Example async flow that can call asynchronous functions&quot;&quot;&quot;</span>
+   <span class="n">logger</span> <span class="o">=</span> <span class="n">get_run_logger</span><span class="p">()</span>
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Example async flow&quot;</span><span class="p">)</span>
+   <span class="c1"># submit several tasks at once</span>
+   <span class="n">futures</span> <span class="o">=</span> <span class="p">[]</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
+      <span class="n">futures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">simple_task</span><span class="o">.</span><span class="n">submit</span><span class="p">())</span>
+   <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">futures</span><span class="p">:</span>
+      <span class="n">f</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+   <span class="c1"># We can also submit some asynchronous tasks</span>
+   <span class="k">async</span> <span class="k">with</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TaskGroup</span><span class="p">()</span> <span class="k">as</span> <span class="n">tg</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
+            <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">simple_async_task</span><span class="o">.</span><span class="n">submit</span><span class="p">())</span>
+      <span class="c1"># once the async taskgroup is finished all tasks have been submited</span>
+   <span class="c1"># we can also just create a list of tasks</span>
+   <span class="n">tg</span> <span class="o">=</span> <span class="p">[]</span>
+   <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">):</span>
+      <span class="n">tg</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">simple_async_task</span><span class="o">.</span><span class="n">submit</span><span class="p">()))</span>
+   <span class="n">done</span><span class="p">,</span> <span class="n">pending</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">tg</span><span class="p">)</span>
+   <span class="c1"># once they are all done, let&#39;s get the results</span>
+   <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">done</span><span class="p">:</span>
+      <span class="n">d</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Finished async flow&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>More details of a complex flow can be found in <a class="reference internal" href="examples.html#examples"><span class="std std-ref">Example Workflow</span></a>.</p>
+</section>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Using QBitBridge</a><ul>
+<li><a class="reference internal" href="#running-a-workflow">Running A Workflow</a></li>
+<li><a class="reference internal" href="#services-to-run-prefect">Services to run Prefect</a><ul>
+<li><a class="reference internal" href="#running-postgres">Running postgres</a></li>
+<li><a class="reference internal" href="#running-prefect-server">Running Prefect Server</a></li>
+<li><a class="reference internal" href="#prefect-ui">Prefect UI</a></li>
+<li><a class="reference internal" href="#setup-cluster-yaml-file">Setup cluster yaml file</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#designing-a-hybrid-workflow">Designing A Hybrid Workflow</a><ul>
+<li><a class="reference internal" href="#qbitbridge-imports">QbitBridge imports</a></li>
+<li><a class="reference internal" href="#prefect-imports">Prefect imports</a></li>
+<li><a class="reference internal" href="#define-tasks-and-flows">Define tasks and flows</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="installation.html"
+                          title="previous chapter">Installation</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="examples.html"
+                          title="next chapter">Example Workflow</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/usage.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="examples.html" title="Example Workflow"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="installation.html" title="Installation"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Using QBitBridge</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2025, Pascal Jahan Elahi.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>
