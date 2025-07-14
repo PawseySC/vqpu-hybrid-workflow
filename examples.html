@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Example Workflow &#8212; QBitBridge 0.2.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/nature.css?v=279e0f84" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="qbitbridge" href="modules.html" />
+    <link rel="prev" title="Using QBitBridge" href="usage.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="modules.html" title="qbitbridge"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="usage.html" title="Using QBitBridge"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Example Workflow</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="example-workflow">
+<span id="examples"></span><h1>Example Workflow<a class="headerlink" href="#example-workflow" title="Link to this heading">¶</a></h1>
+<p>There are example workflows in <cite>examples/flows/</cite> that could make use of the tasks and flows
+defined in QBitBridge.
+We discuss a multi-vqpu example here see <code class="file docutils literal notranslate"><span class="pre">multi_vqpu_cpugpu_workflow.py</span></code> in detail here.
+This flow uses some basic build-block tasks and flows defined in <code class="file docutils literal notranslate"><span class="pre">qbitbridge/vqpuflows.py</span></code>.
+The Prefect view is of this flow is shown below.</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="_images/example_multivqpuflow.png"><img alt="Workflow example" src="_images/example_multivqpuflow.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">An example of a multi-vQPU workflow as visualized by the Prefect UI.</span><a class="headerlink" href="#id1" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other
+vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and
+how to run these flows in an asynchronous fashion.</p>
+<p>We strongly suggest you alter the CPU and GPU commands before trialling this workflow if you would like to test it. The
+code as it stands also uses a cluster specific yaml file where the python path variable has been updated to include the
+absolute path of the <code class="file docutils literal notranslate"><span class="pre">workflow/</span></code> directory.</p>
+<p>This example showcases a few key things:</p>
+<ul class="simple">
+<li><p>Use of the <cite>HybridQuantumWorkflowBase</cite> class to manage a flow</p></li>
+<li><p>Use of basic flows like <cite>gpu_workflow</cite> being launched with a <cite>DaskTaskRunner</cite> that differs form the parent flow runner.</p></li>
+<li><p>Use of asynchronous flows launched using <cite>asyncio.TaskGroup</cite></p></li>
+<li><p>Multiple vQPUs being launched and awaiting circuits</p></li>
+<li><p>Circuits being sent to several different vQPUs from a single flow</p></li>
+</ul>
+<p>To get a better understanding of the workflow, let’s break it down.</p>
+<section id="main-flow">
+<h2>Main flow<a class="headerlink" href="#main-flow" title="Link to this heading">¶</a></h2>
+<p>The main workflow, <cite>Multi-vQPU Test</cite>, launches several other flows, each with appropriate DaskTaskRunners
+which effectively submit Slurm jobs with appropriate resource requests. If we look at the code</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@flow</span><span class="p">(</span>
+   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Multi-vQPU Test&quot;</span><span class="p">,</span>
+   <span class="n">flow_run_name</span><span class="o">=</span><span class="s2">&quot;Mulit-vQPU_test_</span><span class="si">{myqpuworkflow.vqpu_ids}</span><span class="s2">_on-{date:%Y-%m-</span><span class="si">%d</span><span class="s2">:%H:%M:%S}&quot;</span><span class="p">,</span>
+   <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Running a multi-(v)QPU+CPU+GPU hybrid workflow&quot;</span><span class="p">,</span>
+   <span class="n">retries</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+   <span class="n">retry_delay_seconds</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+   <span class="n">log_prints</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">workflow</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="n">circuitargs</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+   <span class="n">cpuexecs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+   <span class="n">cpuargs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+   <span class="n">gpuexecs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+   <span class="n">gpuargs</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+   <span class="n">vqpu_walltimes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+   <span class="n">date</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span>
+<span class="p">):</span>
+<span class="w">   </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">   @brief overall workflow for hydrid multi-(v)QPU+CPU+GPU</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+   <span class="n">MAXWALLTIME</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">86400.0</span>
+   <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">vqpu_walltimes</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">vqpu_ids</span><span class="p">):</span>
+      <span class="n">num_to_add</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">vqpu_ids</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">vqpu_walltimes</span><span class="p">)</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_to_add</span><span class="p">):</span>
+            <span class="n">vqpu_walltimes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">MAXWALLTIME</span><span class="p">)</span>
+
+   <span class="n">logger</span> <span class="o">=</span> <span class="n">get_run_logger</span><span class="p">()</span>
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Running hybrid multi-(v)QPU workflow&quot;</span><span class="p">)</span>
+
+   <span class="n">vqpuflows</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+   <span class="n">circuits</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+   <span class="n">circuitflows</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+   <span class="k">for</span> <span class="n">vqpu_id</span> <span class="ow">in</span> <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">vqpu_ids</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">vqpu_id</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">vqpu_id</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">circuits</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">noisy_circuit</span><span class="p">,</span> <span class="n">noisy_circuit</span><span class="p">,</span> <span class="n">noisy_circuit</span><span class="p">]</span>
+      <span class="k">elif</span> <span class="n">vqpu_id</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">circuits</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[(</span><span class="n">noisy_circuit</span><span class="p">,</span> <span class="n">postprocessing_histo_plot</span><span class="p">)]</span>
+      <span class="k">else</span><span class="p">:</span>
+            <span class="n">circuits</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[(</span><span class="n">noisy_circuit</span><span class="p">,</span> <span class="n">postprocessing_histo_plot</span><span class="p">)]</span>
+
+      <span class="c1"># lets define the flows with the appropriate task runners</span>
+      <span class="c1"># this would be for the real vqpu</span>
+      <span class="n">vqpuflows</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">launch_vqpu_workflow</span><span class="o">.</span><span class="n">with_options</span><span class="p">(</span>
+            <span class="n">task_runner</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">gettaskrunner</span><span class="p">(</span><span class="s2">&quot;vqpu&quot;</span><span class="p">),</span>
+      <span class="p">)</span>
+   <span class="n">circuitflows</span> <span class="o">=</span> <span class="n">circuits_with_nqvpuqs_workflow</span><span class="o">.</span><span class="n">with_options</span><span class="p">(</span>
+      <span class="n">task_runner</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">gettaskrunner</span><span class="p">(</span><span class="s2">&quot;circuit&quot;</span><span class="p">),</span>
+   <span class="p">)</span>
+   <span class="n">othercircuitflows</span> <span class="o">=</span> <span class="n">cpu_with_random_qpu_workflow</span><span class="o">.</span><span class="n">with_options</span><span class="p">(</span>
+      <span class="n">task_runner</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">gettaskrunner</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">),</span>
+   <span class="p">)</span>
+
+   <span class="c1"># silly change so that any vqpu_ids past 3 are</span>
+   <span class="c1"># not provided to circuitflows but rather</span>
+   <span class="c1"># set aside to the cpu flow that can spawn vqpus</span>
+   <span class="n">circ_vqpu_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+   <span class="n">other_vqpu_ids</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+   <span class="k">for</span> <span class="n">vqpu_id</span> <span class="ow">in</span> <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">vqpu_ids</span><span class="p">:</span>
+      <span class="k">if</span> <span class="n">vqpu_id</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="n">other_vqpu_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vqpu_id</span><span class="p">)</span>
+      <span class="k">else</span><span class="p">:</span>
+            <span class="n">circ_vqpu_ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vqpu_id</span><span class="p">)</span>
+
+   <span class="k">async</span> <span class="k">with</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TaskGroup</span><span class="p">()</span> <span class="k">as</span> <span class="n">tg</span><span class="p">:</span>
+      <span class="c1"># either spin up real vqpu</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">vqpu_ids</span><span class="p">)):</span>
+            <span class="n">vqpu_id</span> <span class="o">=</span> <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">vqpu_ids</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">vqpu_walltime</span> <span class="o">=</span> <span class="n">vqpu_walltimes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+               <span class="n">vqpuflows</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">](</span>
+                  <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+                  <span class="n">walltime</span><span class="o">=</span><span class="n">vqpu_walltime</span><span class="p">,</span>
+                  <span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">,</span>
+               <span class="p">)</span>
+            <span class="p">)</span>
+
+      <span class="c1"># silly change so that any vqpu_ids past 3 are</span>
+      <span class="c1"># not provided to circuitflows but rather</span>
+      <span class="c1"># set aside to the cpu flow that can spawn vqpus</span>
+      <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+            <span class="n">circuitflows</span><span class="p">(</span>
+               <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+               <span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">,</span>
+               <span class="n">vqpu_ids_subset</span><span class="o">=</span><span class="n">circ_vqpu_ids</span><span class="p">,</span>
+               <span class="n">arguments</span><span class="o">=</span><span class="n">circuitargs</span><span class="p">,</span>
+            <span class="p">)</span>
+      <span class="p">)</span>
+      <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+            <span class="n">othercircuitflows</span><span class="p">(</span>
+               <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+               <span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">,</span>
+               <span class="n">vqpu_ids_subset</span><span class="o">=</span><span class="n">other_vqpu_ids</span><span class="p">,</span>
+               <span class="n">circuitargs</span><span class="o">=</span><span class="n">circuitargs</span><span class="p">,</span>
+               <span class="n">cpuexecs</span><span class="o">=</span><span class="n">cpuexecs</span><span class="p">,</span>
+               <span class="n">cpuargs</span><span class="o">=</span><span class="n">cpuargs</span><span class="p">,</span>
+               <span class="n">gpuexecs</span><span class="o">=</span><span class="n">gpuexecs</span><span class="p">,</span>
+               <span class="n">gpuargs</span><span class="o">=</span><span class="n">gpuargs</span><span class="p">,</span>
+            <span class="p">)</span>
+      <span class="p">)</span>
+
+   <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">events</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+      <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">clean</span><span class="p">()</span>
+
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Finished hybrid multi-(v)QPU workflow&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We can several key features:</p>
+<ul class="simple">
+<li><p>The flow is passed a <cite>HybridQuantumWorkflowBase</cite> instance. This instance is passed along to
+every subflow that is called.</p></li>
+<li><p>Subflow as defined are never called directly. Instead, a flow instance is create from a flow definition
+using the <cite>with_options</cite> to set the <cite>task_runner</cite> to an appropriate task runner.</p></li>
+<li><p>Sublows instances are called from within an <cite>asycio.TaskGroup</cite> to run the flows concurrently.</p></li>
+</ul>
+</section>
+<section id="subflows">
+<h2>Subflows<a class="headerlink" href="#subflows" title="Link to this heading">¶</a></h2>
+<p>The subflows called by the parent flow are</p>
+<ul>
+<li><p><cite>qbitbridge.vqpuflow.launch_vqpu_workflow.with_options</cite> - which launches a vQPU service that can
+receive circuits and will return results to the appropriate calling circuit submission process.
+This flow runs a <cite>launch_vqpu`</cite> task, a <cite>run_vqpu`</cite> task and a <cite>shudown_vqpu</cite>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@flow</span><span class="p">()</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">launch_vqpu_workflow</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="n">vqpu_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+   <span class="n">future</span> <span class="o">=</span> <span class="k">await</span> <span class="n">launch_vqpu</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
+      <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+      <span class="o">...</span><span class="p">,</span>
+   <span class="p">)</span>
+   <span class="k">await</span> <span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+   <span class="c1"># run vqpu till shut-down signal received</span>
+   <span class="n">future</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_vqpu</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span>
+      <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span> <span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">,</span> <span class="n">walltime</span><span class="o">=</span><span class="n">walltime</span>
+   <span class="p">)</span>
+   <span class="k">await</span> <span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+
+   <span class="c1"># once the run has finished, shut it down</span>
+   <span class="n">future</span> <span class="o">=</span> <span class="k">await</span> <span class="n">shutdown_vqpu</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span> <span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">)</span>
+   <span class="k">await</span> <span class="n">future</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p><cite>qbitbridge.vqpuflow.circuits_with_nqvpuqs_workflow</cite> - runs circuits on a set of vQPUs once the vQPUs
+are available. A dictionary of vqpu ids and the circuits that they will run is provided. The flow
+makes use of the <cite>qbitbridge.vqpuflow.run_circuits_once_vqpu_ready</cite> task.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@flow</span><span class="p">()</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">circuits_with_nqvpuqs_workflow</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="n">circuits</span><span class="p">,</span>
+   <span class="o">...</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]:</span>
+   <span class="k">async</span> <span class="k">with</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TaskGroup</span><span class="p">()</span> <span class="k">as</span> <span class="n">tg</span><span class="p">:</span>
+      <span class="c1"># either spin up real vqpu</span>
+      <span class="k">for</span> <span class="n">vqpu_id</span> <span class="ow">in</span> <span class="n">vqpu_ids_subset</span><span class="p">:</span>
+            <span class="n">tasks</span><span class="p">[</span><span class="n">vqpu_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+               <span class="n">run_circuits_once_vqpu_ready</span><span class="p">(</span>
+                  <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+                  <span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">],</span>
+                  <span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">,</span>
+                  <span class="n">arguments</span><span class="o">=</span><span class="n">arguments</span><span class="p">,</span>
+                  <span class="n">circuits_complete</span><span class="o">=</span><span class="n">circuits_complete</span><span class="p">,</span>
+               <span class="p">)</span>
+            <span class="p">)</span>
+   <span class="n">results</span> <span class="o">=</span> <span class="p">{</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">:</span> <span class="n">task</span><span class="o">.</span><span class="n">result</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">tasks</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+   <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+   <span class="k">return</span> <span class="n">results</span>
+</pre></div>
+</div>
+</li>
+<li><p><cite>qbitbridge.vqpuflow.run_circuits_once_vqpu_ready</cite> task that handles ciccuit submission to
+to a given remote vqpu service (can also be a real qpu). It waits for the service to be running.
+Once all circuits have been submitted, it can tell the vqpu to shutdown if the vqpu is listening
+for all circuits submitted event.</p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@task</span><span class="p">()</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_circuits_once_vqpu_ready</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="n">circuits</span><span class="p">,</span>
+   <span class="n">circuits_complete</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+   <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span>
+   <span class="n">remote</span> <span class="o">=</span> <span class="k">await</span> <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">getremoteaftervqpulaunch</span><span class="p">(</span><span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">)</span>
+   <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> running, submitting circuits ...&quot;</span><span class="p">)</span>
+   <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">circuits</span><span class="p">:</span>
+      <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_circuitandpost_vqpu</span><span class="o">.</span><span class="n">fn</span><span class="p">(</span>
+            <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+            <span class="n">circuit</span><span class="o">=</span><span class="n">c</span><span class="p">,</span>
+            <span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">,</span>
+            <span class="n">arguments</span><span class="o">=</span><span class="n">arguments</span><span class="p">,</span>
+            <span class="n">remote</span><span class="o">=</span><span class="n">remote</span><span class="p">,</span>
+      <span class="p">)</span>
+      <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+   <span class="c1"># if circuits completed should trigger a shutdown of the vqpu, then set the circuits complete event</span>
+   <span class="k">if</span> <span class="n">circuits_complete</span><span class="p">:</span>
+      <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;qpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">_circuits_finished&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+   <span class="k">return</span> <span class="n">results</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+<li><p><cite>cpu_with_random_qpu_workflow</cite> - a flow that also creates several subflows dynamically. The key
+feature of this flow is similar to the main workflow: creating flow instances with appropriate task
+runners and submitting these flow instances to run within <cite>asyncio.TaskGroup</cite></p>
+<blockquote>
+<div><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@flow</span><span class="p">()</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">cpu_with_random_qpu_workflow</span><span class="p">(</span>
+   <span class="n">myqpuworkflow</span><span class="p">:</span> <span class="n">HybridQuantumWorkflowBase</span><span class="p">,</span>
+   <span class="o">...</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+   <span class="c1"># run cpu tasks using this flows taskrunner</span>
+   <span class="k">for</span> <span class="n">exec</span><span class="p">,</span> <span class="n">args</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">cpuexecs</span><span class="p">,</span> <span class="n">cpuargs</span><span class="p">):</span>
+      <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running </span><span class="si">{</span><span class="n">exec</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">args</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+      <span class="n">futures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="k">await</span> <span class="n">run_cpu</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span> <span class="n">exec</span><span class="o">=</span><span class="n">exec</span><span class="p">,</span> <span class="n">arguments</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+      <span class="p">)</span>
+   <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">futures</span><span class="p">:</span>
+      <span class="k">await</span> <span class="n">f</span><span class="o">.</span><span class="n">result</span><span class="p">()</span>
+
+   <span class="n">circflow</span> <span class="o">=</span> <span class="n">circuits_vqpu_workflow</span><span class="o">.</span><span class="n">with_options</span><span class="p">(</span>
+      <span class="n">task_runner</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">gettaskrunner</span><span class="p">(</span><span class="s2">&quot;circuit&quot;</span><span class="p">),</span>
+   <span class="p">)</span>
+   <span class="c1"># dynamically launch a gpu flow with the gpu task runner</span>
+   <span class="c1"># and cpu flows with the cpu task runner</span>
+   <span class="c1"># or submit circuits to a vqpu</span>
+   <span class="k">async</span> <span class="k">with</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">TaskGroup</span><span class="p">()</span> <span class="k">as</span> <span class="n">tg</span><span class="p">:</span>
+      <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_num_gpu_launches</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">:</span>
+               <span class="n">tasks</span><span class="p">[</span><span class="s2">&quot;gpu&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                  <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+                        <span class="n">gpu_workflow</span><span class="o">.</span><span class="n">with_options</span><span class="p">(</span>
+                           <span class="n">task_runner</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">gettaskrunner</span><span class="p">(</span><span class="s2">&quot;gpu&quot;</span><span class="p">)</span>
+                        <span class="p">)(</span>
+                           <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+                           <span class="n">execs</span><span class="o">=</span><span class="n">gpuexecs</span><span class="p">,</span>
+                           <span class="n">arguments</span><span class="o">=</span><span class="n">gpuargs</span><span class="p">,</span>
+                        <span class="p">)</span>
+                  <span class="p">)</span>
+               <span class="p">)</span>
+               <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">0.75</span><span class="p">:</span>
+                  <span class="n">tasks</span><span class="p">[</span><span class="s2">&quot;cpu&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+                           <span class="n">cpu_workflow</span><span class="o">.</span><span class="n">with_options</span><span class="p">(</span>
+                              <span class="n">task_runner</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">gettaskrunner</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+                           <span class="p">)(</span>
+                              <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+                              <span class="n">execs</span><span class="o">=</span><span class="n">cpuexecs</span><span class="p">,</span>
+                              <span class="n">arguments</span><span class="o">=</span><span class="n">cpuargs</span><span class="p">,</span>
+                           <span class="p">)</span>
+                        <span class="p">)</span>
+                  <span class="p">)</span>
+      <span class="c1"># either spin up real vqpu</span>
+      <span class="k">for</span> <span class="n">vqpu_id</span> <span class="ow">in</span> <span class="n">vqpu_ids_subset</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">:</span>
+               <span class="n">tasks</span><span class="p">[</span><span class="s2">&quot;qpu&quot;</span><span class="p">][</span><span class="n">vqpu_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">tg</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span>
+                  <span class="n">circflow</span><span class="p">(</span>
+                        <span class="n">myqpuworkflow</span><span class="o">=</span><span class="n">myqpuworkflow</span><span class="p">,</span>
+                        <span class="n">vqpu_id</span><span class="o">=</span><span class="n">vqpu_id</span><span class="p">,</span>
+                        <span class="n">circuits</span><span class="o">=</span><span class="n">circuits</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;vqpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">],</span>
+                        <span class="n">arguments</span><span class="o">=</span><span class="n">circuitargs</span><span class="p">,</span>
+                        <span class="n">circuits_complete</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                  <span class="p">)</span>
+               <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+               <span class="c1"># note that since the workflow is also designed to have qpu events,</span>
+               <span class="c1"># if explicitly waiting for event, use qpu_&lt;id&gt;_*</span>
+               <span class="k">await</span> <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;qpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">_launch&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+               <span class="n">myqpuworkflow</span><span class="o">.</span><span class="n">events</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;qpu_</span><span class="si">{</span><span class="n">vqpu_id</span><span class="si">}</span><span class="s2">_circuits_finished&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+</pre></div>
+</div>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="overall-flow">
+<h2>Overall flow<a class="headerlink" href="#overall-flow" title="Link to this heading">¶</a></h2>
+<p>The dynamic nature of the workflow means it can be difficult to visualise it with a
+directed acyclic graph (DAG). The use of asynchronous tasks and flows means it is not possible
+to use in-built tools to create a DAG. Even the Prefect UI does not capture the
+dependency between tasks since some tasks in one flow, specifically the circuit submission ones
+will not start running till an event is created in another flow, namely the vQPU flows.
+These circuits can trigger a vQPU shutdown as well.</p>
+<p>However, the full set of interdependencies need not be fully known a-priori, just key interdependencies
+between tasks within the same flow (by ordering the of tasks) and across flows (by setting events).
+An example of the flowchart for the multi-vQPU workflow (here limited to two vQPUs) is presented below, which
+illustrates the communication managed by QBitBridge, Prefect, and the (v)QPU API calls.</p>
+<figure class="align-default" id="id2">
+<div class="graphviz"><img src="_images/graphviz-ea9202fc0cc42697507b225b57af3168ae3e5a64.png" alt="# dot file of a multi-vqpu-workflow
+digraph G {
+    size =&quot;32,32&quot;;
+    # rankdir=TB;
+    subgraph vqpu_flow_0{
+        label = &quot;vQPU 0 flow&quot;
+        fontsize=18;
+        fontname=&quot;arial&quot;;
+        shape=box;
+        style=&quot;filled,solid&quot;;
+        color=&quot;black&quot;;
+        fillcolor=&quot;#f5f5f5&quot;
+        labelloc=&quot;t&quot;;
+        penwidth=2.0;
+        node [fontname=&quot;times&quot;,
+            shape=box,
+            penwidth=0.0
+            style=&quot;filled,solid&quot;;
+            color=&quot;#fdc46f&quot;;
+            fillcolor=&quot;#fdc46f&quot;
+            labelloc=&quot;c&quot;
+            width=2.5,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        vqpu_0_launch [label=&quot;vQPU-0 launch&quot; ];
+        vqpu_0_run [label=&quot;vQPU-0 run&quot; ];
+        vqpu_0_shutdown [label=&quot;vQPU-0 shutdown&quot; ];
+    }
+
+    subgraph vqpu_flow_1{
+        label = &quot;vQPU 1 flow&quot;
+        fontsize=18;
+        fontname=&quot;arial&quot;;
+        shape=box;
+        style=&quot;filled,solid&quot;;
+        color=&quot;black&quot;;
+        fillcolor=&quot;#f5f5f5&quot;
+        labelloc=&quot;t&quot;;
+        penwidth=2.0;
+        node [fontname=&quot;times&quot;,
+            shape=box,
+            penwidth=0.0
+            style=&quot;filled,solid&quot;;
+            color=&quot;#fdc46f&quot;;
+            fillcolor=&quot;#fdc46f&quot;
+            labelloc=&quot;c&quot;
+            width=2.5,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        vqpu_1_launch [label=&quot;vQPU-1 launch&quot; ];
+        vqpu_1_run [label=&quot;vQPU-1 run&quot; ];
+        vqpu_1_shutdown [label=&quot;vQPU-1 shutdown&quot; ];
+    }
+
+    subgraph circuit_flow_0{
+        label = &quot;vQPU 1 flow&quot;
+        fontsize=18;
+        fontname=&quot;arial&quot;;
+        shape=box;
+        style=&quot;filled,solid&quot;;
+        color=&quot;black&quot;;
+        fillcolor=&quot;#f5f5f5&quot;
+        labelloc=&quot;t&quot;;
+        penwidth=2.0;
+        node [fontname=&quot;times&quot;,
+            shape=box,
+            penwidth=0.0
+            style=&quot;filled,solid&quot;;
+            color=&quot;#6ffd6fff&quot;;
+            fillcolor=&quot;#6ffd6fff&quot;
+            labelloc=&quot;c&quot;
+            width=3,
+            height=0.75,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        circuit_start [label=&quot;Circuit : start&quot; ];
+        circuit_wait_vqpu_0 [label=&quot;Circuit :\nwait for vQPU-0&quot; ];
+        circuit_wait_vqpu_1 [label=&quot;Circuit :\nwait for vQPU-1&quot; ];
+        circuit_run [label=&quot;Circuits: run&quot; ];
+        circuit_finish [label=&quot;Circuits: finish&quot; ];
+    }
+
+    subgraph cpu_flow{
+        label = &quot;CPU flow&quot;
+        fontsize=18;
+        fontname=&quot;arial&quot;;
+        shape=box;
+        style=&quot;filled,solid&quot;;
+        color=&quot;black&quot;;
+        fillcolor=&quot;#f5f5f5&quot;
+        labelloc=&quot;t&quot;;
+        penwidth=2.0;
+        node [fontname=&quot;times&quot;,
+            shape=box,
+            penwidth=0.0
+            style=&quot;filled,solid&quot;;
+            color=&quot;#3c7de6&quot;;
+            fillcolor=&quot;#3c7de6&quot;
+            labelloc=&quot;c&quot;
+            width=3,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        cpu_start [label=&quot;CPU flow : start&quot; ];
+        cpu_run [label=&quot;CPU flow: run&quot; ];
+        cpu_circuit [label=&quot;CPU flow: run circuits&quot; ];
+        cpu_finish [label=&quot;CPU flow: finish&quot; ];
+    }
+
+    subgraph gpu_flow{
+        label = &quot;GPU flow&quot;
+        fontsize=18;
+        fontname=&quot;arial&quot;;
+        shape=box;
+        style=&quot;filled,solid&quot;;
+        color=&quot;black&quot;;
+        fillcolor=&quot;#f5f5f5&quot;
+        labelloc=&quot;t&quot;;
+        penwidth=2.0;
+        node [fontname=&quot;times&quot;,
+            shape=box,
+            penwidth=0.0
+            style=&quot;filled,solid&quot;;
+            color=&quot;#3ce6e6ff&quot;;
+            fillcolor=&quot;#3ce6e6ff&quot;;
+            labelloc=&quot;c&quot;
+            width=3,
+            height=0.5,
+            fontsize=18;
+            fixedsize=true,
+            ];
+        gpu_start [label=&quot;GPU flow : start&quot; ];
+        gpu_run [label=&quot;GPU flow: run&quot; ];
+        gpu_finish [label=&quot;GPU flow: finish&quot; ];
+    }
+
+    {rank=same;vqpu_0_launch;vqpu_1_launch;cpu_start;} 
+
+    {rank=same;vqpu_0_run;circuit_run;vqpu_1_run;cpu_circuit;} 
+    {rank=same;cpu_run;gpu_start;} 
+    // {rank=same;vqpu_0_shutdown;vqpu_1_shutdown;} 
+
+    # connections
+    vqpu_0_launch -&gt; vqpu_0_run
+    vqpu_0_run -&gt; vqpu_0_shutdown
+    vqpu_1_launch -&gt; vqpu_1_run
+    vqpu_1_run -&gt; vqpu_1_shutdown
+    circuit_start -&gt; circuit_wait_vqpu_0
+    circuit_start -&gt; circuit_wait_vqpu_1
+    circuit_wait_vqpu_0:s -&gt; circuit_run:n
+    circuit_wait_vqpu_1:s -&gt; circuit_run:n
+    circuit_run -&gt; circuit_finish
+
+    cpu_start -&gt; cpu_run
+    cpu_run:e -&gt; gpu_start:w
+    cpu_run:w -&gt; cpu_circuit
+    cpu_run -&gt; cpu_finish
+    gpu_start -&gt; gpu_run
+    gpu_run -&gt; gpu_finish
+
+    # connects between flows
+    vqpu_0_launch -&gt; circuit_wait_vqpu_0:w [label = &quot;vQPU-start event&quot;, color=blue, style=dashed, fontcolor=blue]
+    vqpu_1_launch -&gt; circuit_wait_vqpu_1:w [label = &quot;vQPU-start event&quot;, color=blue, style=dashed, fontcolor=blue]
+    circuit_finish:n -&gt; vqpu_0_run:s [label = &quot;circuit complete\n vQPU shutdown event&quot;, color=blue, style=dashed, fontcolor=blue]
+    circuit_finish:n -&gt; vqpu_1_run:s [label = &quot;circuit complete\n vQPU shutdown event&quot;, color=blue, style=dashed, fontcolor=blue]
+    vqpu_1_launch -&gt; cpu_circuit:w [label = &quot;vQPU-start event&quot;, color=blue, style=dashed, fontcolor=blue]
+
+    vqpu_0_run:e -&gt; circuit_run:w [label = &quot;vQPU circuits\n results&quot;, dir=both, color=&quot;#ff5100ff&quot;, style=dotted, fontcolor=&quot;#ff5100ff&quot;, penwidth=2]
+    vqpu_1_run:e -&gt; circuit_run:w [label = &quot;vQPU circuits\n results&quot;, dir=both, color=&quot;#ff5100ff&quot;, style=dotted, fontcolor=&quot;#ff5100ff&quot;, penwidth=2]
+    vqpu_1_run:e -&gt; cpu_circuit:w [label = &quot;vQPU circuits\n results&quot;, dir=both, color=&quot;#ff5100ff&quot;, style=dotted, fontcolor=&quot;#ff5100ff&quot;, penwidth=2]
+}" class="graphviz" /></div>
+<figcaption>
+<p><span class="caption-text"><strong>Outline of the multi-vQPU workflow.</strong> Flows are colour-coded according to the resources used.
+We also show the events that communicate across flows as blue arrows and communication that occurs between
+flows and the remote vQPU service (which can be also replaced by a real QPU) as red arrows.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>The dynamic nature of the flow means that the exact number of flows and the inter-flow communication
+will change each time it is run.</p>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Example Workflow</a><ul>
+<li><a class="reference internal" href="#main-flow">Main flow</a></li>
+<li><a class="reference internal" href="#subflows">Subflows</a></li>
+<li><a class="reference internal" href="#overall-flow">Overall flow</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="usage.html"
+                          title="previous chapter">Using QBitBridge</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="modules.html"
+                          title="next chapter">qbitbridge</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/examples.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="modules.html" title="qbitbridge"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="usage.html" title="Using QBitBridge"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Example Workflow</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2025, Pascal Jahan Elahi.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>

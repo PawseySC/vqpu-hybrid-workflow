@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>qbitbridge.utils &#8212; QBitBridge 0.2.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/nature.css?v=279e0f84" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+    <script src="../../_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">qbitbridge.utils</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for qbitbridge.utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Collection of functions and tooling intended for general usage.</span>
+<span class="sd">The key functionality to explore here is the EventFile class.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">datetime</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">importlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">secrets</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">select</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">socket</span><span class="w"> </span><span class="kn">import</span> <span class="n">gethostname</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">List</span><span class="p">,</span>
+    <span class="n">Any</span><span class="p">,</span>
+    <span class="n">Dict</span><span class="p">,</span>
+    <span class="n">NamedTuple</span><span class="p">,</span>
+    <span class="n">Optional</span><span class="p">,</span>
+    <span class="n">Tuple</span><span class="p">,</span>
+    <span class="n">Union</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect.artifacts</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_markdown_artifact</span><span class="p">,</span> <span class="n">Artifact</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect.logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_run_logger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_client</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect.client.schemas.objects</span><span class="w"> </span><span class="kn">import</span> <span class="n">FlowRun</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect.client.schemas.filters</span><span class="w"> </span><span class="kn">import</span> <span class="n">FlowRunFilter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">prefect.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">TaskRunContext</span><span class="p">,</span> <span class="n">get_run_context</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span>
+
+<span class="n">SUPPORTED_IMAGE_TYPES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;.jpg&quot;</span><span class="p">,</span> <span class="s2">&quot;.jpeg&quot;</span><span class="p">,</span> <span class="s2">&quot;.png&quot;</span><span class="p">,</span> <span class="s2">&quot;.gif&quot;</span><span class="p">,</span> <span class="s2">&quot;.svg&quot;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="check_file_can_be_created">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.check_file_can_be_created">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_file_can_be_created</span><span class="p">(</span><span class="n">filename</span> <span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;check if file can be created</span>
+<span class="sd">    </span>
+<span class="sd">    Args: </span>
+<span class="sd">        filename (str): filename to check </span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        bool if creatable</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">base_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">base_dir</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">access</span><span class="p">(</span><span class="n">base_dir</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">W_OK</span><span class="p">)</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="check_python_installation">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.check_python_installation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_python_installation</span><span class="p">(</span><span class="n">library</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check if library present and otherwise catch ImporError</span>
+<span class="sd">    and report missing library</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        library (str): name of library to check</span>
+<span class="sd">    </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        bool of whether library can be imported</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">library</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">library</span><span class="si">}</span><span class="s2"> is not installed.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_printtostr</span><span class="p">(</span><span class="n">thingtoprint</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Print something to string rather than stdout</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        thingtoprint (Any) : print to a string </span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        str of the thing to print </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">io</span><span class="w"> </span><span class="kn">import</span> <span class="n">StringIO</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">()</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">thingtoprint</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+<div class="viewcode-block" id="get_environment_variable">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_environment_variable">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_environment_variable</span><span class="p">(</span>
+    <span class="n">variable</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">default</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the value of an environment variable if it exists. If it does not</span>
+<span class="sd">    a None is returned.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        variable (Union[str,None]): The variable to lookup. If it starts with `$` it is removed. If `None` is provided `None` is returned.</span>
+<span class="sd">        default (Optional[str], optional): If the variable lookup is not resolved this is returned. Defaults to None.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Union[str,None]: Value of environment variable if it exists. None if it does not.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">variable</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">variable</span> <span class="o">=</span> <span class="n">variable</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s2">&quot;$&quot;</span><span class="p">)</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="n">variable</span><span class="p">)</span>
+
+    <span class="n">value</span> <span class="o">=</span> <span class="n">default</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">value</span>
+
+    <span class="k">return</span> <span class="n">value</span></div>
+
+
+
+<div class="viewcode-block" id="SlurmInfo">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.SlurmInfo">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SlurmInfo</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Simple class to store slurm information&quot;&quot;&quot;</span>
+
+    <span class="n">hostname</span><span class="p">:</span> <span class="nb">str</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The hostname of the slurm job&quot;&quot;&quot;</span>
+    <span class="n">resource</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The slurm resource request&quot;&quot;&quot;</span>
+    <span class="n">job_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The job ID of the slurm job&quot;&quot;&quot;</span>
+    <span class="n">task_id</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The task ID of the slurm job&quot;&quot;&quot;</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The time time the job information was gathered&quot;&quot;&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="get_slurm_info">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_slurm_info">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_slurm_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SlurmInfo</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Collect key slurm attributes of a job</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        SlurmInfo: Collection of slurm items from the job environment</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hostname</span> <span class="o">=</span> <span class="n">gethostname</span><span class="p">()</span>
+    <span class="n">job_id</span> <span class="o">=</span> <span class="n">get_environment_variable</span><span class="p">(</span><span class="s2">&quot;SLURM_JOB_ID&quot;</span><span class="p">)</span>
+    <span class="n">task_id</span> <span class="o">=</span> <span class="n">get_environment_variable</span><span class="p">(</span><span class="s2">&quot;SLURM_ARRAY_TASK_ID&quot;</span><span class="p">)</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">SlurmInfo</span><span class="p">(</span><span class="n">hostname</span><span class="o">=</span><span class="n">hostname</span><span class="p">,</span> <span class="n">job_id</span><span class="o">=</span><span class="n">job_id</span><span class="p">,</span> <span class="n">task_id</span><span class="o">=</span><span class="n">task_id</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">now</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="get_job_info">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_job_info">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_job_info</span><span class="p">(</span><span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;slurm&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Union</span><span class="p">[</span><span class="n">SlurmInfo</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the job information for the supplied mode</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        mode (str, optional): Which mode to poll information for. Defaults to &quot;slurm&quot;.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Raised if the mode is not supported</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Union[SlurmInfo]: The specified mode</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># TODO: Add other modes? Return a default?</span>
+    <span class="n">modes</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;slurm&quot;</span><span class="p">,)</span>
+
+    <span class="k">if</span> <span class="n">mode</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;slurm&quot;</span><span class="p">:</span>
+        <span class="n">job_info</span> <span class="o">=</span> <span class="n">get_slurm_info</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">mode</span><span class="si">=}</span><span class="s2"> not supported. Supported </span><span class="si">{</span><span class="n">modes</span><span class="si">=}</span><span class="s2"> &quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">job_info</span></div>
+
+
+
+<div class="viewcode-block" id="get_argparse_args">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_argparse_args">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_argparse_args</span><span class="p">(</span>
+    <span class="n">arguments</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">parser</span><span class="p">:</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">argparse</span><span class="o">.</span><span class="n">Namespace</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parse a string based on an argparser and also strip out _ from an argument</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        arguments (str): string of arguments</span>
+<span class="sd">        parser (argparse.ArgumentParser): parser that processes list of strings</span>
+
+<span class="sd">    Return:</span>
+<span class="sd">        The argparser namespace</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">shlex</span>
+
+    <span class="c1"># split the string</span>
+    <span class="n">args_list</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+    <span class="c1"># if string contains a __ replace it with a space</span>
+    <span class="n">args_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;__&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args_list</span><span class="p">]</span>
+    <span class="c1"># Parse the arguments from our string</span>
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">(</span><span class="n">args_list</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="log_slurm_job_environment">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.log_slurm_job_environment">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">log_slurm_job_environment</span><span class="p">(</span><span class="n">logger</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SlurmInfo</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Log components of the slurm environment.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        SlurmInfo: Collection of slurm items from the job environment</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># TODO: Expand this to allow potentially other job queue systems</span>
+    <span class="n">slurm_info</span> <span class="o">=</span> <span class="n">get_slurm_info</span><span class="p">()</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running on </span><span class="si">{</span><span class="n">slurm_info</span><span class="o">.</span><span class="n">hostname</span><span class="si">=}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Slurm job id is </span><span class="si">{</span><span class="n">slurm_info</span><span class="o">.</span><span class="n">job_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Slurm task id is </span><span class="si">{</span><span class="n">slurm_info</span><span class="o">.</span><span class="n">task_id</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">slurm_info</span></div>
+
+
+
+<div class="viewcode-block" id="run_a_srun_process">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.run_a_srun_process">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_a_srun_process</span><span class="p">(</span>
+    <span class="n">shell_cmd</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+    <span class="n">srunargs</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="p">[],</span>
+    <span class="n">add_output_to_log</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">logger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;runs a srun process given by the shell command.</span>
+<span class="sd">    If given a logger and asked to append, adds to the logger.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        subprocess.Popen: new proccess spawned by the shell_cmd</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">wrappername</span> <span class="o">=</span> <span class="n">secrets</span><span class="o">.</span><span class="n">token_hex</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+    <span class="n">wrappercmd</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s2">&quot;#!/bin/bash&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;export OMP_PLACES=cores&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;export OMP_MAX_ACTIVE_LEVELS=4&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">wrappername</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">cmd</span> <span class="ow">in</span> <span class="n">wrappercmd</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">cmd</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">shell_cmd</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="n">wrappername</span><span class="p">,</span> <span class="mo">0o777</span><span class="p">)</span>
+    <span class="n">newcmd</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">newcmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;srun&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">srunargs</span>
+    <span class="n">newcmd</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;./&quot;</span> <span class="o">+</span> <span class="n">wrappername</span><span class="p">]</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">run_a_process</span><span class="p">(</span><span class="n">newcmd</span><span class="p">,</span> <span class="n">logger</span><span class="p">,</span> <span class="n">add_output_to_log</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">wrappername</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">process</span></div>
+
+
+
+<div class="viewcode-block" id="run_a_process">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.run_a_process">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_a_process</span><span class="p">(</span>
+    <span class="n">shell_cmd</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+    <span class="n">add_output_to_log</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">logger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs a process given by the shell command.</span>
+<span class="sd">    If given a logger and asked to append, adds to the logger.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        subprocess: new proccess spawned by the shell_cmd</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="n">shell_cmd</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="n">add_output_to_log</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">add_output_to_log</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">add_output_to_log</span> <span class="ow">and</span> <span class="n">logger</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">process</span></div>
+
+
+
+<div class="viewcode-block" id="run_a_process_bg">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.run_a_process_bg">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_a_process_bg</span><span class="p">(</span>
+    <span class="n">shell_cmd</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+    <span class="n">add_output_to_log</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">sleeplength</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">logger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs a process given by the shell command.</span>
+<span class="sd">    If given a logger and asked to append, adds to the logger.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        subprocess: new proccess spawned by the shell_cmd</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+        <span class="n">shell_cmd</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="n">add_output_to_log</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">add_output_to_log</span>
+    <span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">sleeplength</span><span class="p">)</span>
+    <span class="n">reads</span> <span class="o">=</span> <span class="p">[</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">fileno</span><span class="p">(),</span> <span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">fileno</span><span class="p">()]</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">select</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">reads</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[])</span>
+    <span class="k">for</span> <span class="n">fd</span> <span class="ow">in</span> <span class="n">ret</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">fd</span> <span class="o">==</span> <span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">fileno</span><span class="p">():</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">output</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">fd</span> <span class="o">==</span> <span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">fileno</span><span class="p">():</span>
+            <span class="n">error_output</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">error_output</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">error_output</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="get_num_gpus">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_num_gpus">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_num_gpus</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Poll node for number of gpus on host</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        int number of gpus on a node and the type</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;lspci&quot;</span><span class="p">]</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">gputypes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;NVIDIA&quot;</span><span class="p">,</span> <span class="s2">&quot;AMD&quot;</span><span class="p">,</span> <span class="s2">&quot;INTEL&quot;</span><span class="p">]</span>
+    <span class="n">gpucmds</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;NVIDIA&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;nvidia-smi&quot;</span><span class="p">,</span> <span class="s2">&quot;--query-gpu=name&quot;</span><span class="p">,</span> <span class="s2">&quot;--format=csv,noheader&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;AMD&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;rocm-smi&quot;</span><span class="p">,</span> <span class="s2">&quot;--showtopo&quot;</span><span class="p">,</span> <span class="s2">&quot;--csv&quot;</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="n">gpucmd</span> <span class="o">=</span> <span class="nb">list</span><span class="p">()</span>
+    <span class="n">gputypefound</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s2">&quot;PCI bridge:&quot;</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">gt</span> <span class="ow">in</span> <span class="n">gputypes</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">gt</span> <span class="ow">in</span> <span class="n">l</span><span class="p">:</span>
+                    <span class="n">gpucmd</span> <span class="o">=</span> <span class="n">gpucmds</span><span class="p">[</span><span class="n">gt</span><span class="p">]</span>
+                    <span class="n">gputype</span> <span class="o">=</span> <span class="n">gt</span>
+                    <span class="n">gputypefound</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+        <span class="k">if</span> <span class="n">gputypefound</span><span class="p">:</span>
+            <span class="k">break</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="s1">&#39;hostname&#39;</span><span class="p">],</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">gpucmd</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">numgpu</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">gputype</span> <span class="o">==</span> <span class="s2">&quot;AMD&quot;</span><span class="p">:</span>
+        <span class="n">numgpu</span> <span class="o">-=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">numgpu</span><span class="p">,</span> <span class="n">gt</span></div>
+
+
+
+<div class="viewcode-block" id="multinodenumberofgpus">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.multinodenumberofgpus">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">multinodenumberofgpus</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the number of gpus per host&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+
+<div class="viewcode-block" id="async_create_markdown_artifcat">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.async_create_markdown_artifcat">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">async_create_markdown_artifcat</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">markdown</span><span class="p">,</span> <span class="n">description</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;create a markdown artifact in a asynchronous fashion.</span>
+<span class="sd">    Wrapper allows more complexity to be added.&quot;&quot;&quot;</span>
+    <span class="k">await</span> <span class="n">create_markdown_artifact</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">markdown</span><span class="o">=</span><span class="n">markdown</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="save_artifact">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.save_artifact">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">save_artifact</span><span class="p">(</span>
+    <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;Data to be shared between subflows&quot;</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Use this to save data between workflows and tasks. Best used for small artifacts</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        data (): data to be saved</span>
+<span class="sd">        key (str): key for accessing the data</span>
+<span class="sd">        description (str) : description of the data</span>
+
+<span class="sd">    Returns :</span>
+<span class="sd">        a markdown artifact to transmit data between workflows</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">await</span> <span class="n">async_create_markdown_artifcat</span><span class="p">(</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">markdown</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;```json</span><span class="se">\n</span><span class="si">{</span><span class="n">data</span><span class="si">}</span><span class="se">\n</span><span class="s2">```&quot;</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="n">description</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="upload_image_as_artifact">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.upload_image_as_artifact">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">upload_image_as_artifact</span><span class="p">(</span>
+    <span class="n">image_path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create and submit a markdown artifact tracked by prefect for an</span>
+<span class="sd">    input image. Currently supporting png formatted images.</span>
+
+<span class="sd">    The input image is converted to a base64 encoding, and embedded directly</span>
+<span class="sd">    within the markdown string. Therefore, be mindful of the image size as this</span>
+<span class="sd">    is tracked in the postgres database.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        image_path (Path): Path to the image to upload</span>
+<span class="sd">        key (str): A key. Defaults to filename with lower_case.</span>
+<span class="sd">        description (Optional[str], optional): A description passed to the markdown artifact. Defaults to None.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span> <span class="o">=</span> <span class="n">get_run_logger</span><span class="p">()</span>
+    <span class="n">image_type</span> <span class="o">=</span> <span class="n">image_path</span><span class="o">.</span><span class="n">suffix</span>
+    <span class="k">assert</span> <span class="n">image_path</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">image_path</span><span class="si">}</span><span class="s2"> does not exist&quot;</span>
+    <span class="k">assert</span> <span class="p">(</span>
+        <span class="n">image_type</span> <span class="ow">in</span> <span class="n">SUPPORTED_IMAGE_TYPES</span>
+    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">image_path</span><span class="si">}</span><span class="s2"> has type </span><span class="si">{</span><span class="n">image_type</span><span class="si">}</span><span class="s2">, and is not supported. Supported types are </span><span class="si">{</span><span class="n">SUPPORTED_IMAGE_TYPES</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">image_path</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">open_image</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Encoding </span><span class="si">{</span><span class="n">image_path</span><span class="si">}</span><span class="s2"> in base64&quot;</span><span class="p">)</span>
+        <span class="n">image_base64</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">open_image</span><span class="o">.</span><span class="n">read</span><span class="p">())</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Creating markdown tag&quot;</span><span class="p">)</span>
+    <span class="n">markdown</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;![</span><span class="si">{</span><span class="n">image_path</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">](data:image/</span><span class="si">{</span><span class="n">image_type</span><span class="si">}</span><span class="s2">;base64,</span><span class="si">{</span><span class="n">image_base64</span><span class="si">}</span><span class="s2">)&quot;</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Registering artifact&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">image_path</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">image_path</span><span class="o">.</span><span class="n">suffix</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">await</span> <span class="n">async_create_markdown_artifcat</span><span class="p">(</span>
+        <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span>
+        <span class="n">markdown</span><span class="o">=</span><span class="n">markdown</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Image saved as artifcat with key = </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+    <span class="c1"># artifact = await Artifact.get(key=key)</span>
+    <span class="c1"># logger.info(artifact)</span>
+
+
+<div class="viewcode-block" id="get_task_run_id">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_task_run_id">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_task_run_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get the Task ID of the task calling this function. If there is no context, then the task_run_id is set to a descriptive, non-unique value&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">TaskRunContext</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="n">get_run_context</span><span class="p">()</span>
+        <span class="n">task_run_id</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">task_run</span><span class="o">.</span><span class="n">id</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">task_run_id</span> <span class="o">=</span> <span class="s2">&quot;not_a_task&quot;</span>
+    <span class="k">return</span> <span class="n">task_run_id</span></div>
+
+
+
+<div class="viewcode-block" id="get_flow_runs">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.get_flow_runs">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_flow_runs</span><span class="p">(</span>
+    <span class="n">flow_run_filter</span><span class="p">:</span> <span class="n">FlowRunFilter</span><span class="p">,</span> <span class="n">sort</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;-start_time&quot;</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">FlowRun</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get list of flow runs that satisfy some filter&quot;&quot;&quot;</span>
+    <span class="k">async</span> <span class="k">with</span> <span class="n">get_client</span><span class="p">()</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+        <span class="n">flow_runs</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">read_flow_runs</span><span class="p">(</span>
+            <span class="n">flow_run_filter</span><span class="o">=</span><span class="n">flow_run_filter</span><span class="p">,</span>
+            <span class="c1"># sort=sort,</span>
+            <span class="c1"># limit=limit,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">flow_runs</span></div>
+
+
+
+<div class="viewcode-block" id="EventFile">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.EventFile">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">EventFile</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Simple class to create a file for a given event.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">loc</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">sampling</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">,</span>
+        <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">etime</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">eset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_loc</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;directory where to store file event locks&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The name of the event&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;File name where event will be saved&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sampling</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;how often to check for event file&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">identifer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;unique identifer&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_time</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Time of event creation&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_set</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Counter for number of times set&quot;&quot;&quot;</span>
+
+        <span class="c1"># now set values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_loc</span> <span class="o">=</span> <span class="n">loc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="k">if</span> <span class="nb">id</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">identifer</span> <span class="o">=</span> <span class="n">secrets</span><span class="o">.</span><span class="n">token_hex</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">identifer</span> <span class="o">=</span> <span class="nb">id</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fname</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_loc</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_name</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">identifer</span> <span class="o">+</span> <span class="s2">&quot;.txt&quot;</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sampling</span> <span class="o">=</span> <span class="n">sampling</span>
+        <span class="c1"># if etime != None:</span>
+        <span class="c1">#     self.event_time = etime</span>
+        <span class="c1"># if eset != None:</span>
+        <span class="c1">#     self.event_set = eset</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Event </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_name</span><span class="si">}</span><span class="s2"> with id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">identifer</span><span class="si">}</span><span class="s2"> saved to </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="si">}</span><span class="s2"> : &quot;</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">):</span>
+            <span class="n">message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;- not set</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="p">)</span>
+                <span class="n">eset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">etime</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">message</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">&quot;- set at </span><span class="si">{</span><span class="n">etime</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">eset</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="k">return</span> <span class="n">message</span>
+
+<div class="viewcode-block" id="EventFile.set">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.EventFile.set">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">meta_data</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Dict</span> <span class="o">|</span> <span class="n">List</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the event by creating a file. If already set,</span>
+<span class="sd">        read the file and return an exception.</span>
+<span class="sd">        @todo Might want to add explicit lock to file when writing to it.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            RunTimeError saying event has already been set.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">):</span>
+            <span class="n">current_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_time</span> <span class="o">=</span> <span class="n">current_time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-%D::%H:%M:%S&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_set</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_set</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_time</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">meta_data</span> <span class="o">!=</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">meta_data</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># need to throw exception</span>
+            <span class="n">eset</span><span class="p">:</span> <span class="nb">int</span>
+            <span class="n">etime</span><span class="p">:</span> <span class="nb">str</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="p">)</span>
+                <span class="n">eset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">etime</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Event </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">event_name</span><span class="si">}</span><span class="s2"> id=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">identifer</span><span class="si">}</span><span class="s2"> has already been set at </span><span class="si">{</span><span class="n">etime</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">eset</span><span class="si">}</span><span class="s2"> is being requested to be set again.&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">message</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="EventFile.wait">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.EventFile.wait">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">wait</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span> <span class="o">|</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Wait till file indicating event set to exist</span>
+<span class="sd">        and then return. Function should be called with await.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">meta_data</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">):</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sampling</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="p">)</span>
+            <span class="n">eset</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">etime</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>  <span class="c1"># Empty string indicates end of file</span>
+                <span class="n">meta_data</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">etime</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_time</span> <span class="ow">or</span> <span class="n">eset</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_set</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_time</span> <span class="o">=</span> <span class="n">etime</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">event_set</span> <span class="o">=</span> <span class="n">eset</span>
+        <span class="k">return</span> <span class="n">meta_data</span></div>
+
+
+<div class="viewcode-block" id="EventFile.clean">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.EventFile.clean">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clean</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Clean the file if present, unsetting the event&quot;&quot;&quot;</span>
+        <span class="c1"># remove the file as a lock</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fname</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_time</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_set</span> <span class="o">=</span> <span class="mi">0</span></div>
+
+        <span class="c1"># # if local dask runner copy has been used to call clean then</span>
+        <span class="c1"># # also reduce the event time and set</span>
+        <span class="c1"># if self.event_set &gt; 0:</span>
+        <span class="c1">#     self.event_time = &#39;&#39;</span>
+        <span class="c1">#     self.event_set -= 1</span>
+
+<div class="viewcode-block" id="EventFile.to_dict">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.EventFile.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Converts class to dictionary for serialisation&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">&quot;EventFile&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_name</span><span class="p">,</span>
+                <span class="s2">&quot;loc&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_loc</span><span class="p">,</span>
+                <span class="s2">&quot;sampling&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">sampling</span><span class="p">,</span>
+                <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">identifer</span><span class="p">,</span>
+                <span class="s2">&quot;etime&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_time</span><span class="p">,</span>
+                <span class="s2">&quot;eset&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">event_set</span><span class="p">,</span>
+            <span class="p">}</span>
+        <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="EventFile.from_dict">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.EventFile.from_dict">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Dict</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create an object from a dictionary&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s2">&quot;EventFile&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Not an EventFile dictionary&quot;</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;EventFile&quot;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">],</span>
+            <span class="n">loc</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;loc&quot;</span><span class="p">],</span>
+            <span class="n">sampling</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;sampling&quot;</span><span class="p">],</span>
+            <span class="nb">id</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">],</span>
+            <span class="n">etime</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;etime&quot;</span><span class="p">],</span>
+            <span class="n">eset</span><span class="o">=</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;eset&quot;</span><span class="p">],</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="c1"># Decorators</span>
+
+
+<div class="viewcode-block" id="validate_keys">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.validate_keys">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_keys</span><span class="p">(</span><span class="n">allowed_keys</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure dictionary data passed to a function only contains specific keys&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;decorator&quot;&quot;&quot;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;wrapper to the function&quot;&quot;&quot;</span>
+            <span class="c1"># Assume first argument is the dictionary to validate</span>
+            <span class="k">if</span> <span class="n">args</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">invalid_keys</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span> <span class="o">-</span> <span class="nb">set</span><span class="p">(</span><span class="n">allowed_keys</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">invalid_keys</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Invalid keys: </span><span class="si">{</span><span class="n">invalid_keys</span><span class="si">}</span><span class="s2">. Allowed keys: </span><span class="si">{</span><span class="n">allowed_keys</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+            <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+    <span class="k">return</span> <span class="n">decorator</span></div>
+
+
+
+<div class="viewcode-block" id="measure_time">
+<a class="viewcode-back" href="../../qbitbridge.html#qbitbridge.utils.measure_time">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">measure_time</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;measure the time taken by a function&quot;&quot;&quot;</span>
+
+    <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Execution time : </span><span class="si">{</span><span class="n">end</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2"> s&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span></div>
+
+</pre></div>
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">qbitbridge.utils</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2025, Pascal Jahan Elahi.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>
