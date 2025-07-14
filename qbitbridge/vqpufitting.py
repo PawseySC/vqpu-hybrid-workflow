@@ -230,6 +230,7 @@ class LikelihoodModelRuntime:
         nsteps: int = 5000,
         nburnin: np.int64 | None = None,
         init_pos: np.ndarray | None = None,
+        run_model_evaluation_in_dask: bool = False, 
         analysis_dask_runner: str | None = None,
         compare_plot: bool = True,
         quantiles: List[float] = [16.0, 50.0, 84.0],
@@ -249,6 +250,8 @@ class LikelihoodModelRuntime:
         """number to burn in before analysing"""
         self.init_pos = init_pos
         """initial position of walkers in model space"""
+        self.run_model_evaluation_in_dask = run_model_evaluation_in_dask
+        """whether model evaulations is run through dask runner as a task or overall sampler"""
         self.analysis_dask_runner = analysis_dask_runner
         """what dask runner to use when analysing data"""
         self.quantiles = quantiles
@@ -508,7 +511,7 @@ async def model_save_chain(
     if labels is None:
         labels = [f"param-{i}" for i in range(ndim)]
     if fit_values is None:
-        fitvalues = await model_report_fit.fn(
+        fit_values = await model_report_fit.fn(
             name=model.name,
             flat_samples=flat_samples,
             labels=model.param_labels,
@@ -773,17 +776,6 @@ async def model_fit_and_analyse_workflow(
     myflow: HybridQuantumWorkflowBase,
     model: LikelihoodModel,
     fit_run_args: LikelihoodModelRuntime | None = None,
-    nwalkers: int = 32,
-    nsteps: int = 5000,
-    outputdir: str = "./",
-    nburnin: np.int64 | None = None,
-    init_pos: np.ndarray | None = None,
-    show_progress: bool = False,
-    analysis_dask_runner: str | None = None,
-    compare_plot: bool = True,
-    quantiles: List[np.float64] | None = None,
-    fit_filename: str | None = None,
-    chain_filename: str | None = None,
     date: datetime.datetime = datetime.datetime.now(),
 ):
     """Flow for fitting a model.
@@ -795,17 +787,27 @@ async def model_fit_and_analyse_workflow(
     """
     logger = get_run_logger()
     logger.info(f"Running sampler")
-    future = model_run_sampler.submit(
-        model=model,
-        nwalkers=fit_run_args.nwalkers,
-        nsteps=fit_run_args.nsteps,
-        init_pos=fit_run_args.init_pos,
-        show_progress=fit_run_args.show_progress,
-    )
+    # might want to change sampler runner to not be called as a task so that it can run
+    # through the appropriate resources when calling likelihood evaluations
+    if fit_run_args.run_model_evaluation_in_dask:
+        sampler = model_run_sampler.fn(
+            model=model,
+            nwalkers=fit_run_args.nwalkers,
+            nsteps=fit_run_args.nsteps,
+            init_pos=fit_run_args.init_pos,
+            show_progress=fit_run_args.show_progress,
+        )
+    else:
+        future = model_run_sampler.submit(
+            model=model,
+            nwalkers=fit_run_args.nwalkers,
+            nsteps=fit_run_args.nsteps,
+            init_pos=fit_run_args.init_pos,
+            show_progress=fit_run_args.show_progress,
+        )
+        sampler = future.result()
     logger.info(f"Flattening and analysing results ...")
-    fname = model.name + "_fit"
-    sampler = future.result()
-    if analysis_dask_runner is None:
+    if fit_run_args.analysis_dask_runner is None:
         await model_analysis_wrapper(
             myflow=myflow,
             model=model,
@@ -897,7 +899,7 @@ async def multi_model_flow(
     names = [fits[k].name for k in model_info.keys()]
     imax = np.argmax(logZs)
     logger.info(f"Model with largest evidence {names[imax]} with logZ = {logZs[imax]}")
-    logger.info(f"Bayes factor logK of model with largest evidence ... ")
+    logger.info("Bayes factor logK of model with largest evidence relative to other models ... ")
     for i in range(logZs.size):
         if i == imax:
             continue
