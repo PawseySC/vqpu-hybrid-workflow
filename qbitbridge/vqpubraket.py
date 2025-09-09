@@ -108,9 +108,9 @@ def aws_braket_parse_args(arguments: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process AWS args")
     # Add device
     parser.add_argument(
-        "--awsdevice",
+        "--braketdevice",
         type=str,
-        help="AWS Device. For names with a space, replace with __ ",
+        help="AWS Braket Device. For names with a space, replace with __ ",
         required=True,
     )
     # Add something else

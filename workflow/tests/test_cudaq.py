@@ -12,19 +12,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 import json
 from qbitbridge.vqpubase import HybridQuantumWorkflowBase, SillyTestClass
-from qbitbridge.vqpubraket import (
-    aws_check_credentials,
-    aws_braket_parse_args,
-    aws_braket_check_qpu,
-    aws_braket_get_metadata,
-    launch_aws_braket_qpu_workflow,
+from qbitbridge.vqpucudaq import (
+    cudaq_check_credentials,
+    cudaq_parse_args,
+    cudaq_check_qpu,
+    cudaq_get_metadata,
+    launch_cudaq_qpu_workflow,
+    cudaq_allowed_devices
 )
 
-# from qbitbridge.vqpubase import HybridQuantumWorkflowSerializer
-from qbitbridge.vqpuflow import (
-    cpu_workflow,
-    gpu_workflow,
-)
 from qbitbridge.utils import EventFile
 from qbitbridge.clusters import get_dask_runners
 
@@ -35,21 +31,21 @@ import unittest
 import inspect
 
 
-class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
-    cluster: str = "ella-qb-1.7.0-pypath"
+class TestHybridQueraWorkflowBasics(unittest.TestCase):
+    cluster: str = "ella-qb-1.7.0"
 
-    # def test_aws_braket_credentials(self):
-    #     print(aws_check_credentials())
+    def test_cudaq_credentials(self):
+        print(cudaq_check_credentials())
 
-    # def test_aws_braket_device_calls(self):
-    #     devices = ["Aquila", "Forte__1", "Aria__1", "Aria__2", "Ankaa-3"]
-    #     for d in devices:
-    #         arguments : str = f"--awsdevice={d}"
-    #         print(f"Check if {d} available")
-    #         result = asyncio.run(aws_braket_check_qpu(arguments=arguments))
-    #         print(result)
-    #         result = asyncio.run(aws_braket_get_metadata(arguments=arguments))
-    #         print(result)
+    def test_cudaq_device_calls(self):
+        
+        for d in cudaq_allowed_devices:
+            arguments: str = f"--cudaqdevice={d}"
+            print(f"Check if {d} available")
+            result = asyncio.run(cudaq_check_qpu(arguments=arguments))
+            print(result)
+            result = asyncio.run(cudaq_get_metadata(arguments=arguments))
+            print(result)
 
     def test_qpu_flow(self):
         frame = inspect.currentframe()
@@ -57,7 +53,7 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
         function_name = frame.f_code.co_name
         # Get the line number
         line_number = frame.f_lineno
-        arguments: str = "--braketdevice=Ankaa-3"
+        arguments: str = "--cudaqdevice=simulator"
         print(f"Function name: {function_name}, Line number: {line_number}")
         # serializer = HybridQuantumWorkflowSerializer()
         myflow = HybridQuantumWorkflowBase(
@@ -65,8 +61,8 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
             vqpu_ids=[1, 2, 3, 16],
         )
         asyncio.run(
-            launch_aws_braket_qpu_workflow.with_options(
-                task_runner=myflow.gettaskrunner("circuit-braket"),
+            launch_cudaq_qpu_workflow.with_options(
+                task_runner=myflow.gettaskrunner("circuit-cudaq"),
             )(myqpuworkflow=myflow, qpu_id=1, arguments=arguments, walltime=10)
         )
 
@@ -74,5 +70,5 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
 if __name__ == "__main__":
 
     # if necessary, alter the cluster yaml configuration name
-    TestHybridAWSBraketWorkflowBasics.cluster = "ella-qb-1.7.0-pypath"
+    TestHybridQueraWorkflowBasics.cluster = "ella-qb"
     unittest.main()

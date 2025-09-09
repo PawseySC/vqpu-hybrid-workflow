@@ -14,7 +14,7 @@ generic:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -43,7 +43,7 @@ generic:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
-      - "-w ella-n00[1-2]"
+      - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_worker_%J.err'
       - '-o dask_logs/dask_generic_worker_%J.log'
@@ -77,7 +77,7 @@ circuit:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -107,7 +107,7 @@ circuit:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
-      - "-w ella-n00[1-2]"
+      - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_circuit_worker_%J.err'
       - '-o dask_logs/dask_circuit_worker_%J.log'
@@ -141,7 +141,7 @@ vqpu:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -174,7 +174,7 @@ vqpu:
     job_extra: null
     job_extra_directives: 
       - "--gres=gpu:1"
-      - "-w ella-n00[5-7]"
+      - "-w ella-n00[6-8]"
       - "--nodes=1"
       - "--exclusive"
       - "--ntasks=1"
@@ -212,7 +212,7 @@ gpu:
     # shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -243,7 +243,7 @@ gpu:
     #job_extra: null
     job_extra_directives: 
       - "--gres=gpu:1"
-      - "-w ella-n00[2-4]"
+      - "-w ella-n00[3-5]"
       - "--nodes=1"
       - "--exclusive"
       - "--cpus-per-task=32"
@@ -282,7 +282,7 @@ cpu:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -311,7 +311,7 @@ cpu:
     job_extra: null
 
     job_extra_directives: 
-      - "-w ella-n00[1-2]"
+      - "-w ella-n00[2-3]"
       - "--nodes=1"
       - "--cpus-per-task=8"
       - '-e dask_logs/dask_cpu_worker_%J.err'
@@ -330,10 +330,10 @@ cpu:
       interval: "1s" # Milliseconds between checks
       wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
 
-generic-aws:
+circuit-braket:
   cluster_class: "dask_jobqueue.SLURMCluster"
   cluster_kwargs:
-    name: generic-aws
+    name: circuit-braket
 
     # Dask worker options
     cores: 70                 # Total number of cores per job
@@ -346,7 +346,7 @@ generic-aws:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -376,7 +376,7 @@ generic-aws:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
-      - "-w ella-n00[1-2]"
+      - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_aws_worker_%J.err'
       - '-o dask_logs/dask_generic_aws_worker_%J.log'
@@ -394,10 +394,10 @@ generic-aws:
       interval: "1s" # Milliseconds between checks
       wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
 
-generic-quera:
+circuit-quera:
   cluster_class: "dask_jobqueue.SLURMCluster"
   cluster_kwargs:
-    name: generic-quera
+    name: circuit-quera
 
     # Dask worker options
     cores: 70                 # Total number of cores per job
@@ -410,7 +410,7 @@ generic-quera:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    interface: "ibp1s0f1" # one of 'lo', 'enp1s0f0np0', 'ibp1s0f1'
+    interface: "ibp1s0f1" # one of ['lo', 'enp1s0f0np0', 'ibp1s0f1']
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -440,7 +440,7 @@ generic-quera:
     job_extra: null
     # add anything extra #SBATCH additions
     job_extra_directives: 
-      - "-w ella-n00[1-2]"
+      - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_quera_worker_%J.err'
       - '-o dask_logs/dask_generic_quera_worker_%J.log'
