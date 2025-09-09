@@ -52,6 +52,8 @@ generic:
       interval: "1s" # Milliseconds between checks
       wait_count: 1 # Number of consecutive times that a worker should be suggested for removal before we remove it.
 
+
+
 # for running circuits
 circuit:
   cluster_class: "dask_jobqueue.SLURMCluster"
@@ -68,6 +70,29 @@ vqpu:
 
     # copy above entries and alter as needed
 
+# for running circuits with the braket api
+circuit-braket:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: circuit-braket
+
+# for running circuits with the quera bloqade api
+circuit-quera:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: circuit-quera
+
+# for running circuits with the qiskit api
+circuit-qiskit:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: circuit-qiskit
+
+# for running circuits with the cudaq api
+circuit-cudaq:
+  cluster_class: "dask_jobqueue.SLURMCluster"
+  cluster_kwargs:
+    name: circuit-cudaq
 
 #gpu slurm configuration
 gpu:
