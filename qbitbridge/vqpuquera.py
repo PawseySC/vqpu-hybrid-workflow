@@ -50,7 +50,7 @@ from prefect.artifacts import Artifact
 from prefect.context import get_run_context, TaskRunContext
 from prefect.serializers import Serializer, JSONSerializer
 
-# AWS imports: Import QuEra bloqade modules
+# quera imports: Import QuEra bloqade modules
 libcheck = check_python_installation("bloqade")
 if not libcheck:
     raise ImportError("Missing bloqade library, cannot interact with QuEra QPUs")
@@ -71,14 +71,21 @@ def quera_check_credentials(report_keys: bool = False) -> Dict[str, str]:
         RuntimeErorr if ZAPIER_WEBHOOK_KEY not defined
     """
     message: str = ""
-    aws_profile = os.getenv("ZAPIER_WEBHOOK_KEY")
-    if aws_profile is None:
+    access_key = os.getenv("ZAPIER_WEBHOOK_KEY")
+    if access_key is None:
         raise RuntimeError(
             "QuEra ZAPIER_WEBHOOK_KEY not defined. Will be unable to access QuEra. Please export ZAPIER_WEBHOOK_KEY env var"
         )
-    access_key = os.getenv("ZAPIER_WEBHOOK_KEY")
     zapierurl = os.getenv("ZAPIER_WEBHOOK_URL")
+    if zapierurl is None:
+        raise RuntimeError(
+            "QuEra ZAPIER_WEBHOOK_URL not defined. Will be unable to access QuEra. Please export ZAPIER_WEBHOOK_URL env var"
+        )
     vercelurl = os.getenv("VERCEL_API_URL")
+    if vercelurl is None:
+        raise RuntimeError(
+            "QuEra VERCEL_API_URL not defined. Will be unable to access QuEra. Please export VERCEL_API_URL env var"
+        )
     message += "QuEra Credentials ---\n"
     message += f"ENV ZAPIER_WEBHOOK_URL: {zapierurl}\n"
     message += f"ENV VERCEL_API_URL: {vercelurl}\n"
@@ -163,7 +170,7 @@ async def quera_get_metadata(arguments: str | argparse.Namespace) -> QPUMetaData
     retries=5,
     retry_delay_seconds=100,
     timeout_seconds=600,
-    task_run_name="Task-Launch-AWS-QPU-{qpu_id}",
+    task_run_name="Task-Launch-QUERA-QPU-{qpu_id}",
     # result_serializer=HybridQuantumWorkflowSerializer(),
 )
 async def launch_quera_qpu(
@@ -214,10 +221,9 @@ async def run_quera_qpu(
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase) : hybrid workflow class that manages events to run vqpu till shutdown signal generated
         qpu_id (int): The qpu id
-        arguments (str): arguments to pass to the check function that returns if the aws qpu is online
+        arguments (str): arguments to pass to the check function that returns if the quera qpu is online
         walltime (float): Walltime to wait before shutting down qpu circuit submission
-        sampling (float): how often to poll the aws service to see if device is online
-        profile_info (Tuple[str,str]): if passed, set the AWS_PROFILE environment variable and AWS_DEFAULT_REGION
+        sampling (float): how often to poll the quera service to see if device is online
 
     """
     logger = get_run_logger()
@@ -276,7 +282,7 @@ async def shutdown_quera_qpu(
 
 @flow(
     name="Launch vQPU Flow",
-    flow_run_name="launch_aws_qpu_{qpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
+    flow_run_name="launch_quera_qpu_{qpu_id}_flow_on-{date:%Y-%m-%d:%H:%M:%S}",
     description="Launching QuEra QPU access with the appropriate task runner",
     retries=3,
     retry_delay_seconds=10,
@@ -320,7 +326,7 @@ async def launch_quera_qpu_workflow(
     # qpu_data = myqpuworkflow.active_qpus[qpu_id]
     qpu_data = await myqpuworkflow.getqpudata(qpu_id)
     logger.info(
-        f"AWS QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
+        f"QuEra QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
     future = await run_quera_qpu.submit(
         myqpuworkflow=myqpuworkflow,

@@ -35,8 +35,6 @@ if not libcheck:
 import emcee
 import corner
 
-# import dynesty
-
 libcheck = check_python_installation("h5py")
 if not libcheck:
     raise ImportError("Missing h5py library, cannot save data using h5py")
@@ -220,6 +218,10 @@ class LikelihoodFit:
 class LikelihoodModelRuntime:
     """Runtime options for running the fitting"""
 
+    dynestycheck = check_python_installation("dynesty")
+    # if dynestycheck:
+    #     from dynesty import
+
     allowed_sampler_types = ["emcee", "nestle", "dynesty"]
 
     def __init__(
@@ -230,7 +232,7 @@ class LikelihoodModelRuntime:
         nsteps: int = 5000,
         nburnin: np.int64 | None = None,
         init_pos: np.ndarray | None = None,
-        run_model_evaluation_in_dask: bool = False, 
+        run_model_evaluation_in_dask: bool = False,
         analysis_dask_runner: str | None = None,
         compare_plot: bool = True,
         quantiles: List[float] = [16.0, 50.0, 84.0],
@@ -899,7 +901,9 @@ async def multi_model_flow(
     names = [fits[k].name for k in model_info.keys()]
     imax = np.argmax(logZs)
     logger.info(f"Model with largest evidence {names[imax]} with logZ = {logZs[imax]}")
-    logger.info("Bayes factor logK of model with largest evidence relative to other models ... ")
+    logger.info(
+        "Bayes factor logK of model with largest evidence relative to other models ... "
+    )
     for i in range(logZs.size):
         if i == imax:
             continue
