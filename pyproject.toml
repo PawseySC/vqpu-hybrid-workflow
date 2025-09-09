@@ -86,6 +86,12 @@ optional = true
 awscli = "*"
 amazon-braket-sdk = "*"
 
+[tool.poetry.group.cudaq]
+optional = true
+
+[tool.poetry.group.cudaq.dependencies]
+cudaq = "*"
+
 # set the build system 
 [build-system]
 requires = ["poetry-core"]
