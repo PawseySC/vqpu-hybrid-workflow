@@ -15,6 +15,7 @@ include = [
     {path = 'workflow/tests/'},
 ]
 
+
 # set dependencies 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -27,8 +28,6 @@ prefect = "^2.10.0"
 prefect-dask = "^0.2.4"
 dask-jobqueue = "*"
 scikit-image = "*"
-awscli = "*"
-amazon-braket-sdk = "*"
 
 [tool.poetry.group.docs]
 optional = true
@@ -71,6 +70,21 @@ optional = true
 
 [tool.poetry.group.quera.dependencies]
 bloqade = "*"
+
+[tool.poetry.group.qiskit]
+optional = true
+
+[tool.poetry.group.qiskit.dependencies]
+qiskit = "*"
+qiskit_ibm_runtime = "*"
+qiskit_aer = "*"
+
+[tool.poetry.group.braket]
+optional = true
+
+[tool.poetry.group.braket.dependencies]
+awscli = "*"
+amazon-braket-sdk = "*"
 
 # set the build system 
 [build-system]

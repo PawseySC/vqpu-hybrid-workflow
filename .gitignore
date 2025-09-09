@@ -6,8 +6,10 @@ workflow/vqpus/*yaml
 workflow/tests/profile_util/build-cuda
 workflow/tests/profile_util/build-hip
 workflow/tests/dask_logs
-example/flows/events/*txt
-example/flows/plots/*
+examples/flows/dask_logs
+examples/flows/events
+examples/flows/plots
 docs/_build
 docs/_static
 docs/_templates
+.venv/
