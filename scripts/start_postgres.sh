@@ -84,13 +84,13 @@ if [[ $START_POSTGRES -eq 1 ]]
 then
     echo "Starting postgres ... "
     # Need singulaity to bind the postgres scratch area
-    SINGULARITY_BINDPATH+=${SINGULARITY_BINDPATH}:"$POSTGRES_SCRATCH"
+    SINGULARITY_BINDPATH=${SINGULARITY_BINDPATH},"$POSTGRES_SCRATCH:/var"
     export SINGULARITY_BINDPATH
 
 
     if [[ ! -e "${POSTGRES_SCRATCH}/pgdata" ]]; then
         echo "Creating pgdata for the postgres server operation"
-        mkdir -p pgdata
+        mkdir -p ${POSTGRES_SCRATCH}/pgdata
     fi
 
     if [[ -z ${container_image} ]]
@@ -107,6 +107,11 @@ then
     singargs="--bind $POSTGRES_SCRATCH:/var"
 
     # define the appropriate environment variables
-    SINGULARITYENV_POSTGRES_PASSWORD=$POSTGRES_PASS SINGULARITYENV_POSTGRES_DB=$POSTGRES_DB  SINGULARITYENV_PGDATA=$POSTGRES_SCRATCH/pgdata \
+    export SINGULARITYENV_POSTGRES_PASSWORD=$POSTGRES_PASS
+    export SINGULARITYENV_POSTGRES_DB=$POSTGRES_DB
+    export SINGULARITYENV_PGDATA=$POSTGRES_SCRATCH/pgdata
+    SINGULARITYENV_POSTGRES_PASSWORD=$POSTGRES_PASS \
+    SINGULARITYENV_POSTGRES_DB=$POSTGRES_DB \
+    SINGULARITYENV_PGDATA=$POSTGRES_SCRATCH/pgdata \
     singularity run ${singargs} ${container_image} -c max_connections=1000 -c shared_buffers=1024MB
 fi
