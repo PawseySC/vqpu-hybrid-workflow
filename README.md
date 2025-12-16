@@ -18,8 +18,8 @@ This setup is not fixed to Quantum Brilliance and could easily be expanded to in
 
 It consists of: 
 - `qbitbridge/`: A directory containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow. 
+- `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.  
 - a `workflow/` which contains 
-    - `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.  
     - `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming. 
     - `circuits/`: collection of example circuits.
     - `tests/`: python unit test for package 
