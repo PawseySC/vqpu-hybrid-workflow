@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>qbitbridge package &#8212; QBitBridge 0.2.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/nature.css?v=279e0f84" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="qbitbridge" href="modules.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="modules.html" title="qbitbridge"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" accesskey="U">qbitbridge</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">qbitbridge package</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="qbitbridge-package">
+<h1>qbitbridge package<a class="headerlink" href="#qbitbridge-package" title="Link to this heading">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
+</section>
+<section id="qbitbridge-clusters-module">
+<h2>qbitbridge.clusters module<a class="headerlink" href="#qbitbridge-clusters-module" title="Link to this heading">¶</a></h2>
+</section>
+<section id="module-qbitbridge.options">
+<span id="qbitbridge-options-module"></span><h2>qbitbridge.options module<a class="headerlink" href="#module-qbitbridge.options" title="Link to this heading">¶</a></h2>
+<p>options class for handling arguments of workflow. Not yet implemented</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="qbitbridge.options.vQPUWorkflow">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.options.</span></span><span class="sig-name descname"><span class="pre">vQPUWorkflow</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/options.html#vQPUWorkflow"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.options.vQPUWorkflow" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
+<p>Arguments to workflow</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.options.vQPUWorkflow.nqubits">
+<span class="sig-name descname"><span class="pre">nqubits</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#qbitbridge.options.vQPUWorkflow.nqubits" title="Link to this definition">¶</a></dt>
+<dd><p>Number of qubits</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.options.vQPUWorkflow.quantum_kernels_file">
+<span class="sig-name descname"><span class="pre">quantum_kernels_file</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">''</span></em><a class="headerlink" href="#qbitbridge.options.vQPUWorkflow.quantum_kernels_file" title="Link to this definition">¶</a></dt>
+<dd><p>File containing quantum kernel(s) to run</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-qbitbridge.utils">
+<span id="qbitbridge-utils-module"></span><h2>qbitbridge.utils module<a class="headerlink" href="#module-qbitbridge.utils" title="Link to this heading">¶</a></h2>
+<p>Collection of functions and tooling intended for general usage.
+The key functionality to explore here is the EventFile class.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">EventFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">loc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sampling</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">etime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#EventFile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.EventFile" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Simple class to create a file for a given event.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.clean">
+<span class="sig-name descname"><span class="pre">clean</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#EventFile.clean"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.EventFile.clean" title="Link to this definition">¶</a></dt>
+<dd><p>Clean the file if present, unsetting the event</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.event_loc">
+<span class="sig-name descname"><span class="pre">event_loc</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.event_loc" title="Link to this definition">¶</a></dt>
+<dd><p>directory where to store file event locks</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.event_name">
+<span class="sig-name descname"><span class="pre">event_name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.event_name" title="Link to this definition">¶</a></dt>
+<dd><p>The name of the event</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.event_set">
+<span class="sig-name descname"><span class="pre">event_set</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.event_set" title="Link to this definition">¶</a></dt>
+<dd><p>Counter for number of times set</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.event_time">
+<span class="sig-name descname"><span class="pre">event_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.event_time" title="Link to this definition">¶</a></dt>
+<dd><p>Time of event creation</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.fname">
+<span class="sig-name descname"><span class="pre">fname</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.fname" title="Link to this definition">¶</a></dt>
+<dd><p>File name where event will be saved</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.from_dict">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_dict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#EventFile.from_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.EventFile.from_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Create an object from a dictionary</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.identifer">
+<span class="sig-name descname"><span class="pre">identifer</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.identifer" title="Link to this definition">¶</a></dt>
+<dd><p>unique identifer</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.sampling">
+<span class="sig-name descname"><span class="pre">sampling</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></em><a class="headerlink" href="#qbitbridge.utils.EventFile.sampling" title="Link to this definition">¶</a></dt>
+<dd><p>how often to check for event file</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">meta_data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">List</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#EventFile.set"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.EventFile.set" title="Link to this definition">¶</a></dt>
+<dd><p>Set the event by creating a file. If already set,
+read the file and return an exception.
+&#64;todo Might want to add explicit lock to file when writing to it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>RunTimeError saying event has already been set.</strong> – </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dict</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#EventFile.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.EventFile.to_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Converts class to dictionary for serialisation</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="qbitbridge.utils.EventFile.wait">
+<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">wait</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#EventFile.wait"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.EventFile.wait" title="Link to this definition">¶</a></dt>
+<dd><p>Wait till file indicating event set to exist
+and then return. Function should be called with await.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="qbitbridge.utils.SlurmInfo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">SlurmInfo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hostname</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resource</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">job_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">task_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#SlurmInfo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.SlurmInfo" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></p>
+<p>Simple class to store slurm information</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.SlurmInfo.hostname">
+<span class="sig-name descname"><span class="pre">hostname</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.SlurmInfo.hostname" title="Link to this definition">¶</a></dt>
+<dd><p>The hostname of the slurm job</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.SlurmInfo.job_id">
+<span class="sig-name descname"><span class="pre">job_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#qbitbridge.utils.SlurmInfo.job_id" title="Link to this definition">¶</a></dt>
+<dd><p>The job ID of the slurm job</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.SlurmInfo.resource">
+<span class="sig-name descname"><span class="pre">resource</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#qbitbridge.utils.SlurmInfo.resource" title="Link to this definition">¶</a></dt>
+<dd><p>The slurm resource request</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.SlurmInfo.task_id">
+<span class="sig-name descname"><span class="pre">task_id</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#qbitbridge.utils.SlurmInfo.task_id" title="Link to this definition">¶</a></dt>
+<dd><p>The task ID of the slurm job</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="qbitbridge.utils.SlurmInfo.time">
+<span class="sig-name descname"><span class="pre">time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#qbitbridge.utils.SlurmInfo.time" title="Link to this definition">¶</a></dt>
+<dd><p>The time time the job information was gathered</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.async_create_markdown_artifcat">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">async_create_markdown_artifcat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">key</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">markdown</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#async_create_markdown_artifcat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.async_create_markdown_artifcat" title="Link to this definition">¶</a></dt>
+<dd><p>create a markdown artifact in a asynchronous fashion.
+Wrapper allows more complexity to be added.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.check_file_can_be_created">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">check_file_can_be_created</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#check_file_can_be_created"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.check_file_can_be_created" title="Link to this definition">¶</a></dt>
+<dd><p>check if file can be created</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>filename</strong> (<em>str</em>) – filename to check</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool if creatable</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.check_python_installation">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">check_python_installation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">library</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#check_python_installation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.check_python_installation" title="Link to this definition">¶</a></dt>
+<dd><p>Check if library present and otherwise catch ImporError
+and report missing library</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>library</strong> (<em>str</em>) – name of library to check</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool of whether library can be imported</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_argparse_args">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_argparse_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arguments</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parser</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ArgumentParser</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Namespace</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_argparse_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_argparse_args" title="Link to this definition">¶</a></dt>
+<dd><p>Parse a string based on an argparser and also strip out _ from an argument</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>arguments</strong> (<em>str</em>) – string of arguments</p></li>
+<li><p><strong>parser</strong> (<em>argparse.ArgumentParser</em>) – parser that processes list of strings</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The argparser namespace</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_environment_variable">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_environment_variable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">variable</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_environment_variable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_environment_variable" title="Link to this definition">¶</a></dt>
+<dd><p>Get the value of an environment variable if it exists. If it does not
+a None is returned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>variable</strong> (<em>Union</em><em>[</em><em>str</em><em>,</em><em>None</em><em>]</em>) – The variable to lookup. If it starts with <cite>$</cite> it is removed. If <cite>None</cite> is provided <cite>None</cite> is returned.</p></li>
+<li><p><strong>default</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – If the variable lookup is not resolved this is returned. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Value of environment variable if it exists. None if it does not.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Union[str,None]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_flow_runs">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_flow_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">flow_run_filter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">prefect.client.schemas.filters.FlowRunFilter</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sort</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'-start_time'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">prefect.client.schemas.objects.FlowRun</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_flow_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_flow_runs" title="Link to this definition">¶</a></dt>
+<dd><p>Get list of flow runs that satisfy some filter</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_job_info">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_job_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'slurm'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#qbitbridge.utils.SlurmInfo" title="qbitbridge.utils.SlurmInfo"><span class="pre">SlurmInfo</span></a></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_job_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_job_info" title="Link to this definition">¶</a></dt>
+<dd><p>Get the job information for the supplied mode</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – Which mode to poll information for. Defaults to “slurm”.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – Raised if the mode is not supported</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The specified mode</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Union[<a class="reference internal" href="#qbitbridge.utils.SlurmInfo" title="qbitbridge.utils.SlurmInfo">SlurmInfo</a>]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_num_gpus">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_num_gpus</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_num_gpus"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_num_gpus" title="Link to this definition">¶</a></dt>
+<dd><p>Poll node for number of gpus on host</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int number of gpus on a node and the type</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_slurm_info">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_slurm_info</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#qbitbridge.utils.SlurmInfo" title="qbitbridge.utils.SlurmInfo"><span class="pre">SlurmInfo</span></a></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_slurm_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_slurm_info" title="Link to this definition">¶</a></dt>
+<dd><p>Collect key slurm attributes of a job</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Collection of slurm items from the job environment</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#qbitbridge.utils.SlurmInfo" title="qbitbridge.utils.SlurmInfo">SlurmInfo</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.get_task_run_id">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">get_task_run_id</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#get_task_run_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.get_task_run_id" title="Link to this definition">¶</a></dt>
+<dd><p>Get the Task ID of the task calling this function. If there is no context, then the task_run_id is set to a descriptive, non-unique value</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.log_slurm_job_environment">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">log_slurm_job_environment</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logger</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#qbitbridge.utils.SlurmInfo" title="qbitbridge.utils.SlurmInfo"><span class="pre">SlurmInfo</span></a></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#log_slurm_job_environment"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.log_slurm_job_environment" title="Link to this definition">¶</a></dt>
+<dd><p>Log components of the slurm environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Collection of slurm items from the job environment</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#qbitbridge.utils.SlurmInfo" title="qbitbridge.utils.SlurmInfo">SlurmInfo</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.measure_time">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">measure_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#measure_time"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.measure_time" title="Link to this definition">¶</a></dt>
+<dd><p>measure the time taken by a function</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.multinodenumberofgpus">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">multinodenumberofgpus</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#multinodenumberofgpus"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.multinodenumberofgpus" title="Link to this definition">¶</a></dt>
+<dd><p>Get the number of gpus per host</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.run_a_process">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">run_a_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shell_cmd</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_output_to_log</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#run_a_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.run_a_process" title="Link to this definition">¶</a></dt>
+<dd><p>Runs a process given by the shell command.
+If given a logger and asked to append, adds to the logger.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>new proccess spawned by the shell_cmd</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>subprocess</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.run_a_process_bg">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">run_a_process_bg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shell_cmd</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_output_to_log</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sleeplength</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#run_a_process_bg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.run_a_process_bg" title="Link to this definition">¶</a></dt>
+<dd><p>Runs a process given by the shell command.
+If given a logger and asked to append, adds to the logger.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>new proccess spawned by the shell_cmd</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>subprocess</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.run_a_srun_process">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">run_a_srun_process</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shell_cmd</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">srunargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">add_output_to_log</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Popen</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#run_a_srun_process"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.run_a_srun_process" title="Link to this definition">¶</a></dt>
+<dd><p>runs a srun process given by the shell command.
+If given a logger and asked to append, adds to the logger.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>new proccess spawned by the shell_cmd</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>subprocess.Popen</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.save_artifact">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">save_artifact</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'key'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'Data</span> <span class="pre">to</span> <span class="pre">be</span> <span class="pre">shared</span> <span class="pre">between</span> <span class="pre">subflows'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#save_artifact"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.save_artifact" title="Link to this definition">¶</a></dt>
+<dd><p>Use this to save data between workflows and tasks. Best used for small artifacts</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>(</strong><strong>)</strong> (<em>data</em>) – data to be saved</p></li>
+<li><p><strong>key</strong> (<em>str</em>) – key for accessing the data</p></li>
+<li><p><strong>description</strong> (<em>str</em>) – description of the data</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Returns :</dt><dd><p>a markdown artifact to transmit data between workflows</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.upload_image_as_artifact">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">upload_image_as_artifact</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/qbitbridge/utils.html#upload_image_as_artifact"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.upload_image_as_artifact" title="Link to this definition">¶</a></dt>
+<dd><p>Create and submit a markdown artifact tracked by prefect for an
+input image. Currently supporting png formatted images.</p>
+<p>The input image is converted to a base64 encoding, and embedded directly
+within the markdown string. Therefore, be mindful of the image size as this
+is tracked in the postgres database.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>image_path</strong> (<em>Path</em>) – Path to the image to upload</p></li>
+<li><p><strong>key</strong> (<em>str</em>) – A key. Defaults to filename with lower_case.</p></li>
+<li><p><strong>description</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – A description passed to the markdown artifact. Defaults to None.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="qbitbridge.utils.validate_keys">
+<span class="sig-prename descclassname"><span class="pre">qbitbridge.utils.</span></span><span class="sig-name descname"><span class="pre">validate_keys</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">allowed_keys</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/qbitbridge/utils.html#validate_keys"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#qbitbridge.utils.validate_keys" title="Link to this definition">¶</a></dt>
+<dd><p>Ensure dictionary data passed to a function only contains specific keys</p>
+</dd></dl>
+
+</section>
+<section id="qbitbridge-vqpubase-module">
+<h2>qbitbridge.vqpubase module<a class="headerlink" href="#qbitbridge-vqpubase-module" title="Link to this heading">¶</a></h2>
+</section>
+<section id="qbitbridge-vqpuflow-module">
+<h2>qbitbridge.vqpuflow module<a class="headerlink" href="#qbitbridge-vqpuflow-module" title="Link to this heading">¶</a></h2>
+</section>
+<section id="qbitbridge-vqpubraket-module">
+<h2>qbitbridge.vqpubraket module<a class="headerlink" href="#qbitbridge-vqpubraket-module" title="Link to this heading">¶</a></h2>
+</section>
+<section id="qbitbridge-vqpuquera-module">
+<h2>qbitbridge.vqpuquera module<a class="headerlink" href="#qbitbridge-vqpuquera-module" title="Link to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">qbitbridge package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#qbitbridge-clusters-module">qbitbridge.clusters module</a></li>
+<li><a class="reference internal" href="#module-qbitbridge.options">qbitbridge.options module</a><ul>
+<li><a class="reference internal" href="#qbitbridge.options.vQPUWorkflow"><code class="docutils literal notranslate"><span class="pre">vQPUWorkflow</span></code></a><ul>
+<li><a class="reference internal" href="#qbitbridge.options.vQPUWorkflow.nqubits"><code class="docutils literal notranslate"><span class="pre">vQPUWorkflow.nqubits</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.options.vQPUWorkflow.quantum_kernels_file"><code class="docutils literal notranslate"><span class="pre">vQPUWorkflow.quantum_kernels_file</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-qbitbridge.utils">qbitbridge.utils module</a><ul>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile"><code class="docutils literal notranslate"><span class="pre">EventFile</span></code></a><ul>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.clean"><code class="docutils literal notranslate"><span class="pre">EventFile.clean()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.event_loc"><code class="docutils literal notranslate"><span class="pre">EventFile.event_loc</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.event_name"><code class="docutils literal notranslate"><span class="pre">EventFile.event_name</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.event_set"><code class="docutils literal notranslate"><span class="pre">EventFile.event_set</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.event_time"><code class="docutils literal notranslate"><span class="pre">EventFile.event_time</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.fname"><code class="docutils literal notranslate"><span class="pre">EventFile.fname</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.from_dict"><code class="docutils literal notranslate"><span class="pre">EventFile.from_dict()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.identifer"><code class="docutils literal notranslate"><span class="pre">EventFile.identifer</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.sampling"><code class="docutils literal notranslate"><span class="pre">EventFile.sampling</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.set"><code class="docutils literal notranslate"><span class="pre">EventFile.set()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.to_dict"><code class="docutils literal notranslate"><span class="pre">EventFile.to_dict()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.EventFile.wait"><code class="docutils literal notranslate"><span class="pre">EventFile.wait()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#qbitbridge.utils.SlurmInfo"><code class="docutils literal notranslate"><span class="pre">SlurmInfo</span></code></a><ul>
+<li><a class="reference internal" href="#qbitbridge.utils.SlurmInfo.hostname"><code class="docutils literal notranslate"><span class="pre">SlurmInfo.hostname</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.SlurmInfo.job_id"><code class="docutils literal notranslate"><span class="pre">SlurmInfo.job_id</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.SlurmInfo.resource"><code class="docutils literal notranslate"><span class="pre">SlurmInfo.resource</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.SlurmInfo.task_id"><code class="docutils literal notranslate"><span class="pre">SlurmInfo.task_id</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.SlurmInfo.time"><code class="docutils literal notranslate"><span class="pre">SlurmInfo.time</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#qbitbridge.utils.async_create_markdown_artifcat"><code class="docutils literal notranslate"><span class="pre">async_create_markdown_artifcat()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.check_file_can_be_created"><code class="docutils literal notranslate"><span class="pre">check_file_can_be_created()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.check_python_installation"><code class="docutils literal notranslate"><span class="pre">check_python_installation()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_argparse_args"><code class="docutils literal notranslate"><span class="pre">get_argparse_args()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_environment_variable"><code class="docutils literal notranslate"><span class="pre">get_environment_variable()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_flow_runs"><code class="docutils literal notranslate"><span class="pre">get_flow_runs()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_job_info"><code class="docutils literal notranslate"><span class="pre">get_job_info()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_num_gpus"><code class="docutils literal notranslate"><span class="pre">get_num_gpus()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_slurm_info"><code class="docutils literal notranslate"><span class="pre">get_slurm_info()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.get_task_run_id"><code class="docutils literal notranslate"><span class="pre">get_task_run_id()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.log_slurm_job_environment"><code class="docutils literal notranslate"><span class="pre">log_slurm_job_environment()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.measure_time"><code class="docutils literal notranslate"><span class="pre">measure_time()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.multinodenumberofgpus"><code class="docutils literal notranslate"><span class="pre">multinodenumberofgpus()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.run_a_process"><code class="docutils literal notranslate"><span class="pre">run_a_process()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.run_a_process_bg"><code class="docutils literal notranslate"><span class="pre">run_a_process_bg()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.run_a_srun_process"><code class="docutils literal notranslate"><span class="pre">run_a_srun_process()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.save_artifact"><code class="docutils literal notranslate"><span class="pre">save_artifact()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.upload_image_as_artifact"><code class="docutils literal notranslate"><span class="pre">upload_image_as_artifact()</span></code></a></li>
+<li><a class="reference internal" href="#qbitbridge.utils.validate_keys"><code class="docutils literal notranslate"><span class="pre">validate_keys()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#qbitbridge-vqpubase-module">qbitbridge.vqpubase module</a></li>
+<li><a class="reference internal" href="#qbitbridge-vqpuflow-module">qbitbridge.vqpuflow module</a></li>
+<li><a class="reference internal" href="#qbitbridge-vqpubraket-module">qbitbridge.vqpubraket module</a></li>
+<li><a class="reference internal" href="#qbitbridge-vqpuquera-module">qbitbridge.vqpuquera module</a></li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="modules.html"
+                          title="previous chapter">qbitbridge</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/qbitbridge.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="modules.html" title="qbitbridge"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="modules.html" >qbitbridge</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">qbitbridge package</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2025, Pascal Jahan Elahi.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>
