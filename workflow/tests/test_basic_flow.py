@@ -20,6 +20,8 @@ from qbitbridge.vqpuflow import (
     gpu_workflow,
     FlowForSillyTestClass,
     circuits_vqpu_workflow,
+    limit_concurrent_tasks,
+    run_tasks_with_concurrency_limit,
 )
 from qbitbridge.utils import EventFile, get_num_gpus
 from qbitbridge.clusters import get_dask_runners
@@ -323,7 +325,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         )
 
         gpuflow = gpu_workflow.with_options(task_runner=myflow.gettaskrunner("gpu"))
-        ngpus, gputype = getnumgpus()
+        ngpus, gputype = get_num_gpus()
         if gputype == "NVIDIA":
             self.gpuexec = self.gpucudaexec
         elif gputype == "AMD":
@@ -363,6 +365,58 @@ class TestHybridWorkflowBasics(unittest.TestCase):
             )(myqpuworkflow=myflow, vqpu_id=1, walltime=10)
         )
 
+    def test_limit_concurrent(self):
+        """Test flow with limited tasks running concurrently."""
+        @limit_concurrent_tasks(max_active_task=5, sleep_time_submission = 10, sleep_time_active_tasks_poll=20, max_task_submissions=3)
+        @task
+        def process_data(item):
+            x = int(item)
+            # Your processing logic
+            return x * 2
+
+        @flow
+        def limited_flow():
+            items = list(range(5))
+            results = process_data(items)
+            print("Processed results:", results)
+        @task
+        def process_data2(item):
+            x = int(item)
+            # Your processing logic
+            return x * 3
+
+        @task
+        def process_data3(item):
+            x = int(item)
+            # Your processing logic
+            return f"now trying other stuff {x * 4}"
+
+        @flow
+        def limited_flow2():
+            tasks = [process_data2 for i in range(10)] + [process_data3 for i in range(10)]
+            args = list(range(len(tasks)))
+            results = run_tasks_with_concurrency_limit(
+                task_func_wrapper=tasks, 
+                args=args, 
+                max_task_submissions=3,
+                max_active_task=15,
+                sleep_time_submission=4,
+                sleep_time_active_tasks_poll=100,
+            )
+            print("Flow results:", results)
+
+        myflow = HybridQuantumWorkflowBase(
+            cluster=self.cluster,
+            vqpu_ids=[1, 2, 3, 16],
+            vqpu_template_script=self.vqpu_template_script,
+            vqpu_template_yaml=self.vqpu_template_yaml,
+        )
+        task_runner = myflow.gettaskrunner("cpu")
+        limitedflow = limited_flow.with_options(task_runner=task_runner)
+        limitedflow()
+        limitedflow = limited_flow2.with_options(task_runner=task_runner)
+        limitedflow()
+       
 
 if __name__ == "__main__":
 

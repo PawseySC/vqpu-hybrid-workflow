@@ -20,6 +20,8 @@ from typing import (
     Generator,
     Callable,
 )
+import hashlib
+
 from .clusters import get_dask_runners
 from .utils import (
     check_python_installation,
@@ -39,7 +41,8 @@ from .vqpubase import QPUMetaData, HybridQuantumWorkflowBase, SillyTestClass
 
 # from .vqpubase import HybridQuantumWorkflowSerializer
 import asyncio
-from prefect import flow, task
+from functools import wraps
+from prefect import flow, task, Task, Flow
 from prefect.logging import get_run_logger
 from prefect.artifacts import Artifact
 from prefect_dask import DaskTaskRunner
@@ -817,6 +820,7 @@ async def run_gpu(
     process = run_a_process(cmds)
     logger.info("Finished GPU task")
 
+
 @task(
     retries=10,
     retry_delay_seconds=2,
@@ -824,7 +828,7 @@ async def run_gpu(
 )
 def run_get_gpu_info() -> Tuple[int, str]:
     return get_num_gpus()
-    
+
 
 @flow(
     name="Simple CPU flow",
@@ -900,7 +904,7 @@ async def gpu_workflow(
     # submit the task and wait for results
     futures = []
     # get number of gpus available to chunk submission of tasks
-    
+
     future = run_get_gpu_info.submit()
     ngpus, gputype = future.result()
     logger.info(f"Running on {ngpus} {gputype} gpus")
@@ -996,3 +1000,176 @@ def RunSillyFlowswithUpdateDaskTaskRunner(
     newflow = FlowForSillyTestClass.with_options(task_runner=otherrunner)
     newflow(baseobj=obj2)
     future.result()
+
+
+def __get_task_hash(input: str, hash_length: int) -> str:
+    # Create a SHA-256 hash object
+    sha256_hash = hashlib.sha256()
+    # Update the hash object with the input bytes
+    sha256_hash.update(input.encode("utf-8"))
+    # take the first hash_length from the hash
+    return sha256_hash.hexdigest()[:hash_length]
+
+
+def limit_concurrent_tasks(
+    max_task_submissions: int = 4096,
+    max_active_task: int = 1024,
+    sleep_time_submission: float = 10,
+    sleep_time_active_tasks_poll: float = 100,
+    hash_length: int = 8,
+):
+    """
+    Decorator that limits the number of concurrent tasks.
+
+    Args:
+        max_task_submissions (int): Max number of task submissions before pausing
+        max_active_task (int): Max number of active tasks allowed
+        sleep_time_submission (float): Time to sleep after submissions
+        sleep_time_active_tasks_poll (float): Time to sleep between checks of active tasks
+        hash_length (int): Length of hash to use for task identification
+
+    Usage:
+        @task
+        @limit_concurrent_tasks(max_active_task=100)
+        def my_task(arg):
+            return process(arg)
+
+        # Call with list of arguments
+        results = my_task(args_list)
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(args: List[Any]) -> List[Any]:
+            """
+            Wrapper that runs tasks with concurrency limits.
+
+            Args:
+                args (List[Any]): List of arguments to submit as tasks
+
+            Returns:
+                List[Any]: List of results from the tasks
+            """
+            counter = 0
+            active = []
+            futures = {}
+            results = []
+            ntasks = len(args)
+
+            # Submit tasks with concurrency control
+            for arg in args:
+                hexkey = __get_task_hash(f"arg_{counter} {arg}", hash_length)
+                # Submit the task
+                futures[hexkey] = func.submit(arg)
+                active.append(hexkey)
+                counter += 1
+
+                # Pause after max_task_submissions
+                if counter % max_task_submissions == 0:
+                    time.sleep(sleep_time_submission)
+
+                # Wait if too many active tasks
+                while len(active) >= max_active_task:
+                    for key in active:
+                        if futures[key] is not None:
+                            state = futures[key].get_state()
+                            if state.is_final():
+                                active.remove(key)
+                    time.sleep(sleep_time_active_tasks_poll)
+
+            # Collect results in order of the args list
+            counter = 0
+            for arg in args:
+                hexkey = __get_task_hash(f"arg_{counter} {arg}", hash_length)
+                results.append(futures[hexkey].result())
+                counter += 1
+
+            return results
+
+        return wrapper
+
+    return decorator
+
+
+def run_tasks_with_concurrency_limit(
+    task_func_wrapper: Task | List[Task],
+    args: List[str],
+    max_task_submissions: int = 4096,
+    max_active_task: int = 1024,
+    sleep_time_submission: float = 10,
+    sleep_time_active_tasks_poll: float = 100,
+    hash_length: int = 8,
+) -> List[Any]:
+    """
+    Runs a loop submitting tasks to a task function wrapper (e.g., DaskTaskRunner)
+    while controlling the number of active tasks and submission rate. More flexible than decorator
+    as it can have different limits per call and can handle list of task function wrappers.
+
+    Args:
+        task_func_wrapper (Task or List[Task]): The task function wrapper(s) used to submit tasks
+        args (List[str]): List of arguments to submit as tasks
+        max_task_submissions (int): Max number of task submissions before pausing
+        max_active_task (int): Max number of active tasks allowed
+        sleep_time_submission (float): Time to sleep after submissions
+        sleep_time_active_tasks_poll (float): Time to sleep between checks of active tasks
+        hash_length (int): Length of hash to use for task identification
+
+    Returns:
+        List[Any], a List of results from the tasks
+    """
+    counter = 0
+    active = []
+    futures = {}
+    results = []
+    logger = get_run_logger()
+    ntasks = len(args)
+    task_list = False
+    if isinstance(task_func_wrapper, list):
+        if ntasks != len(task_func_wrapper):
+            logger.warning(
+                "Task list does not match arg list length. Running minimum number of either"
+            )
+            if ntasks < len(task_func_wrapper):
+                logger.warning("Truncating task function list to match args length")
+            else:
+                logger.warning("Truncating args list to match task function length")
+            ntasks = np.min([ntasks, len(task_func_wrapper)])
+        task_list = True
+    else:
+        task_func = task_func_wrapper
+    logger.info(f"Submitting {ntasks} tasks to task runner")
+    logger.info(
+        f"Total number of concurrent tasks {np.min([ntasks, max_active_task])}, "
+        f"running in {np.ceil(ntasks/max_active_task)} chunks."
+    )
+    for i in range(ntasks):
+        arg = args[i]
+        if task_list:
+            task_func = task_func_wrapper[i]
+        hexkey = __get_task_hash(f"arg_{i} {arg}", hash_length)
+        futures[hexkey] = task_func.submit(arg)
+        active.append(hexkey)
+        counter += 1
+        if counter % max_task_submissions == 0:
+            logger.info(
+                f"Pausing task submission for {sleep_time_submission} seconds to not overload database"
+            )
+            time.sleep(sleep_time_submission)
+        while len(active) >= max_active_task:
+            for key in active:
+                if futures[key] is not None:
+                    state = futures[key].get_state()
+                    if state.is_final():
+                        active.remove(key)
+            if len(active) < max_active_task:
+                break
+            logger.info(f"Pausing task submission till number active is reduced. ")
+            time.sleep(sleep_time_active_tasks_poll)
+    logger.info("All tasks submitted. Gathering results.")
+    # collect results in order of the args list
+    counter = 0
+    for arg in args:
+        hexkey = __get_task_hash(f"arg_{counter} {arg}", hash_length)
+        results.append(futures[hexkey].result())
+        counter += 1
+    return results
