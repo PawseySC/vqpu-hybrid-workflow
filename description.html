@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Description &#8212; QBitBridge 0.2.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/nature.css?v=279e0f84" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" />
+    <link rel="prev" title="QBitBridge documentation" href="index.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="installation.html" title="Installation"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="QBitBridge documentation"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Description</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="description">
+<span id="id1"></span><h1>Description<a class="headerlink" href="#description" title="Link to this heading">¶</a></h1>
+<a class="reference internal image-reference" href="_images/qbitbridge_logo.png"><img alt="_images/qbitbridge_logo.png" class="align-right" src="_images/qbitbridge_logo.png" style="width: 174.75px; height: 177.0px;" />
+</a>
+<p>This framework several existing tools to run hybrid (v)QPU, GPU, CPU workflows on Quantum Computers and HPC systems. It uses</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://www.prefect.io">Prefect</a> to orchesetrate asynchronous tasks and flows, and track/visualizes flows.</p></li>
+<li><p><a class="reference external" href="https://www.postgresql.org/">Postgres</a> to record the flow</p></li>
+<li><p><a class="reference external" href="https://slurm.schedmd.com/documentation.html">Slurm</a> to reserve HPC resources.</p></li>
+<li><p>Globally visible files to store events</p></li>
+</ul>
+<p>The current setup is designed to integrate with the virtual QPU from Quantum Brilliance,
+a emulator for quantum circuit simulation that runs as a service, accepting circuits sent to a specific port with a
+specific API and format. Currently it has been tested with circuits produced by the Qristal SDK produced by Quantum Brilliance.</p>
+<p>The QPU integration is based on Quantum Brilliance, AWS Braket (WIP) and QuEra (WIP) as well.</p>
+<p>This setup is not fixed to Quantum Brilliance and could easily be expanded to include other vQPUs and QPUs as well.</p>
+<p>It consists of:</p>
+<ul class="simple">
+<li><p><cite>qbitbrige/</cite>: A python module containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow.</p></li>
+<li><p><cite>workflow/</cite>: primary directory that contains all other items needed to run the workflow:</p>
+<ul>
+<li><p><cite>scripts/</cite>: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.</p></li>
+<li><p><cite>clusters/</cite>: collection of example cluster configuration yaml files. Cluster configurations should contain <cite>generic</cite>, <cite>circuit</cite>, <cite>vqpu</cite>, <cite>cpu</cite>, and <cite>gpu</cite>
+configurations for running generic tasks, <cite>circuit</cite> tasks where circuit simluation is done with a <cite>vqpu</cite>, the <cite>vqpu</cite> tasks, and then <cite>cpu</cite> and <cite>gpu</cite>
+oriented workflows. There is also a ‘<cite>generic-aws</cite> setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming.</p></li>
+<li><p><cite>circuits/</cite>: collection of example circuits.</p></li>
+<li><p><cite>tests/</cite>: python unit test for package</p></li>
+<li><p>There are other directories, such as <cite>events</cite> that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem.</p></li>
+</ul>
+</li>
+<li><p><cite>examples/</cite>: example flows.</p></li>
+</ul>
+<section id="main-classes-and-functions">
+<h2>Main classes and functions<a class="headerlink" href="#main-classes-and-functions" title="Link to this heading">¶</a></h2>
+<p>The main classes and basic tasks of the hybrid flow are found in <code class="file docutils literal notranslate"><span class="pre">qbitbridge/utils.py</span></code> and <code class="file docutils literal notranslate"><span class="pre">qbitbridge/vqpubase.py</span></code>
+respectively. The key components of the QBitBridge framework is the introduction of the <cite>EventFile</cite>, <cite>QPUMetaData</cite> and <cite>HybridQuantumWorkflowBase</cite> classes.</p>
+<ul class="simple">
+<li><p><cite>EventFile</cite> class: interface to storing events via a file globally visible to all processes.
+File is created if set and dependent tasks can be set to <cite>await eventfile.wait()</cite> for the file to be
+created and have appropriate information before moving on. Events can also be cleared.</p></li>
+<li><p><cite>QPUMetaData</cite> class contains the metadata associated with a (v)QPU, such as maximum number of qubits,
+connectivity, etc. This can then be compared to the requirements of a circuit to see if the (v)QPU can be used to run the circuit.</p></li>
+<li><p><cite>HybirdQuantumWorkflowBase</cite> class contains parameters and events for running a hybrid workflow.</p></li>
+</ul>
+</section>
+<section id="basic-tasks-and-flows">
+<h2>Basic Tasks and Flows<a class="headerlink" href="#basic-tasks-and-flows" title="Link to this heading">¶</a></h2>
+<p>The basic building block tasks and flows are in <code class="file docutils literal notranslate"><span class="pre">qbitbridge/vqpuflow.py</span></code>. The key vQPU flows are</p>
+<ul class="simple">
+<li><p><cite>&#64;task launch_vqpu</cite>: Launch a virtual QPU service on a given node, get node information and generate artifact that can be accessed by other tasks and flows.</p></li>
+<li><p><cite>&#64;task run_vqpu</cite>: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime.</p></li>
+<li><p><cite>&#64;task shutdown_vqpu</cite>: Shuts down vqpu, gracefully terminating the relevant process.</p></li>
+<li><p><cite>&#64;flow launch_vqpu_workflow</cite>: Calls all these above tasks with appropriate logging.</p></li>
+</ul>
+<p>There are other tasks, such as those associated with sending circuits to vqpus. For a complete view, please refer to the source code.</p>
+<section id="aws-braket">
+<h3>AWS Braket<a class="headerlink" href="#aws-braket" title="Link to this heading">¶</a></h3>
+<p><a class="reference external" href="https://docs.aws.amazon.com/braket/latest/developerguide/what-is-braket.html">AWS Braket</a> provides an interface for launching jobs on AWS cloud-accessible QPU’s.
+The integration for this service is in <code class="file docutils literal notranslate"><span class="pre">qbitbridge/vqpubraket.py</span></code>. This contains the key QPU access tasks and flows:</p>
+<ul class="simple">
+<li><p><cite>&#64;task launch_aws_braket_qpu</cite>: Launch a QPU-access service on a given node, get node information and generate artifact that
+can be accessed by other tasks and flows. Checks to see if credentials are able to access the device.</p></li>
+<li><p><cite>&#64;task run_aws_braket_qpu</cite>: Runs a task that waits to keep flow active so long as there are circuits to be run or
+have not exceeded the walltime and device still available.</p></li>
+<li><p><cite>&#64;task shutdown_aws_braket_qpu</cite>: Shuts down qpu access, gracefully terminating the relevant process.</p></li>
+<li><p><cite>&#64;flow launch_aws_braket_qpu_workflow</cite>: Calls all these above tasks with appropriate logging.</p></li>
+</ul>
+</section>
+<section id="quera-bloqade">
+<h3>QuEra Bloqade<a class="headerlink" href="#quera-bloqade" title="Link to this heading">¶</a></h3>
+<p>There is also a preliminary interface to QuEra QPU’s via <a class="reference external" href="https://bloqade.quera.com/latest/">bloqade</a>. The integration for this service is
+in <code class="file docutils literal notranslate"><span class="pre">qbitbridge/vqpuquera.py</span></code>. This contains the key QPU access tasks and flows simlar to aws.</p>
+<ul class="simple">
+<li><p><cite>&#64;task launch_quera_qpu</cite>: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed
+by other tasks and flows. Checks to see if credentials are able to access the device.</p></li>
+<li><p><cite>&#64;task run_quera_qpu</cite>: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the
+walltime and device still available.</p></li>
+<li><p><cite>&#64;task shutdown_quera_qpu</cite>: Shuts down qpu access, gracefully terminating the relevant process.</p></li>
+<li><p><cite>&#64;flow launch_quera_qpu_workflow</cite>: Calls all these above tasks with appropriate logging.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">Description</a><ul>
+<li><a class="reference internal" href="#main-classes-and-functions">Main classes and functions</a></li>
+<li><a class="reference internal" href="#basic-tasks-and-flows">Basic Tasks and Flows</a><ul>
+<li><a class="reference internal" href="#aws-braket">AWS Braket</a></li>
+<li><a class="reference internal" href="#quera-bloqade">QuEra Bloqade</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  </div>
+  <div>
+    <h4>Previous topic</h4>
+    <p class="topless"><a href="index.html"
+                          title="previous chapter">QBitBridge documentation</a></p>
+  </div>
+  <div>
+    <h4>Next topic</h4>
+    <p class="topless"><a href="installation.html"
+                          title="next chapter">Installation</a></p>
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/description.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="Related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="installation.html" title="Installation"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="QBitBridge documentation"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">QBitBridge 0.2.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Description</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+    &#169; Copyright 2025, Pascal Jahan Elahi.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    </div>
+  </body>
+</html>
