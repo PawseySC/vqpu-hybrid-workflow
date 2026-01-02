@@ -131,26 +131,26 @@ async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[boo
     else:
         args = arguments
     message: str = ""
-    devices = AwsDevice.get_devices(names=args.awsdevice)
+    devices = AwsDevice.get_devices(names=[args.braketdevice])
     avail: bool = True
     if len(devices) == 0:
         availdevices = AwsDevice.get_devices(types=["QPU"])
-        message = f"Device {args.awsdevice} not found in list of AWS hosted devices."
+        message = f"Device {args.braketdevice} not found in list of AWS hosted devices."
         message += f"Available devices :\n {availdevices}"
         raise ValueError(message)
     elif len(devices) > 1:
-        message = f"More than one device found with name similar to {args.awsdevice}. "
+        message = f"More than one device found with name similar to {args.braketdevice}. "
         message += "Please adjust device name for search."
         raise ValueError(message)
-    devices = AwsDevice.get_devices(names=[args.awsdevice], statuses=["ONLINE"])
+    devices = AwsDevice.get_devices(names=[args.braketdevice], statuses=["ONLINE"])
     if len(devices) == 0:
         availdevices = AwsDevice.get_devices(statuses=["ONLINE"])
-        message = f"Device {args.awsdevice} is offline. "
+        message = f"Device {args.braketdevice} is offline. "
         message += "Current devices online are: \n"
         message += f"{availdevices}"
         avail = False
     else:
-        message = f"Device {args.awsdevice} online."
+        message = f"Device {args.braketdevice} online."
     return (avail, message)
 
 
@@ -163,7 +163,7 @@ async def aws_braket_get_metadata(arguments: str | argparse.Namespace) -> QPUMet
         args = aws_braket_parse_args(arguments)
     else:
         args = arguments
-    device = AwsDevice.get_devices(names=args.awsdevice)[0]
+    device = AwsDevice.get_devices(names=[args.braketdevice])[0]
     qubit_count = device.properties.paradigm.qubitCount
     # there are issues with connectivity graph for certain devices and also issue with getting supported gates
     connectivity_graph = None
@@ -231,7 +231,7 @@ async def launch_aws_braket_qpu(
         qpu_id=qpu_id,
         qpu_data=qpu_data,
     )
-    logger.info(f"Running AWS QPU-{qpu_id} {args.awsdevice} ... ")
+    logger.info(f"Running AWS QPU-{qpu_id} {args.braketdevice} ... ")
 
 
 @task(
