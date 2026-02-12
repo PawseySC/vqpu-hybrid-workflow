@@ -7,7 +7,7 @@ QBitBridge documentation
 ========================
 
 .. image:: figs/qbitbridge_logo.png
-  :scale:  75 %
+  :width:  10 %
   :align:  right
 
 QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. 
@@ -19,6 +19,14 @@ This has been developed at the Pawsey Supercomputing Research Centre's Quantum S
 For bug reports or inquiries, please submit an issue on `GitHub <https://github.com/PawseySC/vqpu-hybrid-workflow>`_ 
 or contact: `Pascal Jahan Elahi <mailto:pascal.elahi@pawsey.org.au?subject=QbitBridge Feedback>`_
 
+.. figure:: figs/qbitbridge_small.gif
+   :width: 50%
+   :alt: StreamPlayer
+   :align: center
+
+Acknowledgements
+----------------
+
 We also acknowledge collaborators:
 
 * `Quantum Brilliance <https://quantumbrilliance.com/>`_ who worked on a virtual QPU running on Pawsey supercomputing resources.
@@ -26,9 +34,23 @@ We also acknowledge collaborators:
   that worked with us and supported us with hardware. 
 * Thanks to Alec Thomson and Tim Galvin for insightful conversations on Prefect. 
 
+Recognition
+-----------
+
+.. image:: figs/badges.png
+  :scale:  20 %
+  :align:  right
+
+QBitBridge has been recognised as an innovative project in the quantum computing space, and has been acknowledged in the following ways:
+
+* A finalist and a merit recipient in the `2025 Western Australian Incite Awards <https://www.inciteawards.org.au/about-the-incite-awards/2025-winners/>`_
+* A finalist and a merit recipient in the `2025 Australian Information Industry Association (AIIA) iAwards <https://aiia.com.au/iaward/2025-national-winners-and-merit-recipients/>`_
+
+Contents
+========
+
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
    description
    installation

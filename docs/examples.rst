@@ -9,12 +9,11 @@ We discuss a multi-vqpu example here see :file:`multi_vqpu_cpugpu_workflow.py` i
 This flow uses some basic build-block tasks and flows defined in :file:`qbitbridge/vqpuflows.py`. 
 The Prefect view is of this flow is shown below.
 
-.. figure:: figs/example_multivqpuflow.png
-   :width: 100%
+.. figure:: figs/qbitbridge_full.gif
+   :alt: StreamPlayer
    :align: center
-   :alt: Workflow example
 
-   An example of a multi-vQPU workflow as visualized by the Prefect UI.
+   **Video of QbitBridge in action.** An example of a multi-vQPU workflow as visualized by the Prefect UI.
    
 This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other 
 vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and 
@@ -339,5 +338,12 @@ illustrates the communication managed by QBitBridge, Prefect, and the (v)QPU API
      We also show the events that communicate across flows as blue arrows and communication that occurs between
      flows and the remote vQPU service (which can be also replaced by a real QPU) as red arrows. 
 
+.. figure:: figs/example_multivqpuflow.png
+   :width: 100%
+   :align: center
+   
+   **Prefect View.** An example of a multi-vQPU workflow as visualized by the Prefect UI.
+
 The dynamic nature of the flow means that the exact number of flows and the inter-flow communication 
 will change each time it is run. 
+
