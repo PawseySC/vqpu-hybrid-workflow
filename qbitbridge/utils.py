@@ -3,9 +3,10 @@ Collection of functions and tooling intended for general usage.
 The key functionality to explore here is the EventFile class.
 """
 
-from curses import echo
+#from curses import echo
 import datetime
 import functools
+from getpass import getpass
 import json
 import importlib
 import logging 
@@ -16,7 +17,7 @@ import select
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from socket import gethostname
+from socket import gethostname, socket
 from typing import (
     List,
     Any,
@@ -26,7 +27,7 @@ from typing import (
     Tuple,
     Union,
 )
-from nbconvert import export
+#from nbconvert import export
 from prefect.artifacts import create_markdown_artifact, Artifact
 from prefect.logging import get_run_logger
 from prefect import get_client
@@ -98,19 +99,20 @@ class QBitBridgeLauncher:
     logger = logging.getLogger(__name__)
     """Simple class to store qbitbridge launcher information and start postgres and prefect services"""
     def __init__(self, config: dict):
-        self.logger.setLevel(config.get("log_level", "INFO").upper())
+        self.log_level = config.get("log_level", "INFO").upper()
+        self.logger.setLevel(self.log_level)
         self.logger.info(f"QBitBridgeLauncher initialized")
         self.logger.debug(f"with config: {config}")
         self.postgres = PostgresConfiguration(**config.get("postgres", {}))
         self.prefect = PrefectConfiguration(**config.get("prefect", {}))     
 
-    def _launch_postgres(self)-> None:
+    def _launch_postgres(self)-> subprocess.Popen | None:
         """Launch the postgres service using the configuration"""
         if self.postgres.dry_run:
             self.logger.info("Dry run: launching postgres with the following configuration:")
             self.logger.info(f"{self.postgres}")
         # define postres environment variables
-        os.environ["POSTGRES_PASS"] = self.postgres.password
+        os.environ["POSTGRES_PASSWORD"] = self.postgres.password
         os.environ["POSTGRES_ADDR"] = self.postgres.hostname
         os.environ["POSTGRES_USER"] = self.postgres.user
         os.environ["POSTGRES_DB"] = self.postgres.db
@@ -118,7 +120,7 @@ class QBitBridgeLauncher:
 
         # pass to singularity by defining appropriate environment variables
         if self.postgres.container_engine == "singularity":
-            os.environ["SINGULARITYENV_POSTGRES_PASS"] = self.postgres.password
+            os.environ["SINGULARITYENV_POSTGRES_PASSWORD"] = self.postgres.password
             os.environ["SINGULARITYENV_POSTGRES_DB"] = self.postgres.db
             os.environ["SINGULARITYENV_PGDATA"] = f"{self.postgres.scratch}/pgdata"
             if "SINGULARITY_BINDPATH" not in os.environ:
@@ -126,12 +128,12 @@ class QBitBridgeLauncher:
             else:
                 os.environ["SINGULARITY_BINDPATH"] += f"{self.postgres.scratch}:/var"
 
-        from pathlib import Path
-
-        # Define your directory path
-        dir_path = Path(f"{self.postgres.scratch}/pgdata")
-        # Create the directory safely
-        dir_path.mkdir(parents=True, exist_ok=True)
+        if not self.postgres.dry_run:
+            from pathlib import Path
+            # Define your directory path
+            dir_path = Path(f"{self.postgres.scratch}/pgdata")
+            # Create the directory safely
+            dir_path.mkdir(parents=True, exist_ok=True)
         # check if container image exists
         container_image = Path(self.postgres.container)
         if not container_image.is_file():
@@ -160,20 +162,24 @@ class QBitBridgeLauncher:
             ]
         )
         if not self.postgres.dry_run:
-            subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(cmd)
+            return proc
         else:
             self.logger.info(f"Launching postgres with command: {' '.join(cmd)}")
+            return None
 
-    def _launch_prefect(self) -> None:
+    def _launch_prefect(self) -> subprocess.Popen | None:
         """Launch the prefect service using the configuration"""
         if self.prefect.dry_run:
             self.logger.info("Dry run: launching prefect with the following configuration:")
             self.logger.info(f"{self.prefect}")
-        from pathlib import Path
-        # Define your directory path
-        dir_path = Path(f"{self.prefect.home}")
-        # Create the directory safely
-        dir_path.mkdir(parents=True, exist_ok=True)
+        if not self.prefect.dry_run:
+            from pathlib import Path
+            # Define your directory path
+            dir_path = Path(f"{self.prefect.home}")
+            # Create the directory safely
+            dir_path.mkdir(parents=True, exist_ok=True)
 
         # set the prefect home directory
         os.environ["PREFECT_HOME"] = self.prefect.home
@@ -197,30 +203,73 @@ class QBitBridgeLauncher:
         os.environ["PREFECT_API_DATABASE_CONNECTION_URL"] = (
             f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@{self.postgres.hostname}:5432/{self.postgres.db}"
         )
+        os.environ["PREFECT_API_URL"]=f"http://{self.postgres.hostname}:4200/api"
+        import socket
+        hostname = socket.gethostname()
+        self.logger.info("Prefect launching ... ")
+        self.logger.info(f"To view prefect UI, open an ssh tunnel")
+        self.logger.info(f"ssh -N -f -L {self.prefect.port}:{hostname}:${self.prefect.port} <user>@<remote_host>")
+
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
-            import uvicorn
-
-            uvicorn.run(
-                "prefect.server.api.server:create_app",
-                host=self.prefect.hostname,
-                port=self.prefect.port,
-                timeout_keep_alive=self.prefect.timeout_keep_alive,
-                limit_max_requests=self.prefect.limit_max_requests,
-                timeout_graceful_shutdown=self.prefect.timeout_graceful_shutdown,
-                log_level=self.prefect.log_level.lower(),
-            )
+            import sys
+            cmd = [sys.executable, "-m", "uvicorn", "--factory", "prefect.server.api.server:create_app"]
+            cmd += ["--host", self.prefect.hostname]
+            cmd += ["--port", str(self.prefect.port)]
+            cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
+            cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
+            cmd += ["--timeout-graceful-shutdown", str(self.prefect.timeout_graceful_shutdown)]
+            cmd += ["--log-level", self.log_level.lower()]
+            proc = subprocess.Popen(cmd)
+            # import uvicorn
+            # uvicorn.run(
+            #     "prefect.server.api.server:create_app",
+            #     host=self.prefect.hostname,
+            #     port=self.prefect.port,
+            #     timeout_keep_alive=self.prefect.timeout_keep_alive,
+            #     limit_max_requests=self.prefect.limit_max_requests,
+            #     timeout_graceful_shutdown=self.prefect.timeout_graceful_shutdown,
+            #     log_level=self.log_level.lower(),
+            # )
+            return proc
         else:
             self.logger.info(
                 f"prefect server launched with following : --host {self.prefect.hostname} --port {self.prefect.port} --timeout-keep-alive {self.prefect.timeout_keep_alive} --limit-max-requests {self.prefect.limit_max_requests} --timeout-graceful-shutdown {self.prefect.timeout_graceful_shutdown}"
             )
+            return None 
 
     def launch(self) -> None:
         """Launch the postgres and prefect services using the configuration"""
-        self._launch_postgres()
-        self.logger.info(f"Postgres launched. Waiting for {self.prefect.start_delay} seconds before launching Prefect...")
+        postgres_proc = self._launch_postgres()
         time.sleep(self.prefect.start_delay)
-        self._launch_prefect()
+        # because using container for postgres, we need to wait for it to be ready before launching prefect
+        # also need to grab the postgres pid using psutil
+        import getpass, psutil
+        username = getpass.getuser()
+        # Iterate over all running processes to find first postgres owned by user 
+        postgres_pid = None
+        for proc in psutil.process_iter(['pid', 'name', 'username']):
+            if proc.info['name'] == 'postgres' and proc.info['username'] == username:
+                print(f"Process ID: {proc.info['pid']}, Name: {proc.info['name']}, User: {proc.info['username']}")
+                postgres_pid = proc.info['pid']
+                break
+        prefect_proc = self._launch_prefect()
+        prefect_pid = None
+        if prefect_proc is not None:
+            prefect_pid = prefect_proc.pid
+        self.logger.info("Prefect launched")
+        self.logger.info("QBitBridgeLauncher launch complete")
+        pids = []
+        if postgres_pid is not None:
+            self.logger.info(f"Postgres PID: {postgres_pid}")
+            pids+= [postgres_pid]
+        if prefect_pid is not None:
+            self.logger.info(f"Prefect PID: {prefect_pid}")
+            pids += [prefect_pid]
+        if len(pids) > 0:
+            pids = " ".join(map(str,pids))
+            self.logger.info("To stop the services, use the following commands:")
+            self.logger.info(f"kill {pids}")
 
 
 def load_config(config_path: str, log_level: str = "INFO") -> QBitBridgeLauncher:
