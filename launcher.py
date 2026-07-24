@@ -30,9 +30,11 @@ def main() -> None:
     # --- Load and validate configuration ---
     try:
         logging.basicConfig(level=args.log_level.upper())
-        qbb = load_config(args.config)
+        # qbb = load_config(args.config)
+        # qbb.launch()
+        with load_config(args.config) as qbb:
+            qbb.launch()
 
-        qbb.launch()
     except Exception as e:
         logging.error(f"Failed to start service: {str(e)}")
         # Consider adding a custom error message API endpoint for production
