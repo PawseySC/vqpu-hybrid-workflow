@@ -108,13 +108,14 @@ class QBitBridgeLauncher:
 
     def __init__(self, config: Dict):
         self.log_level = config.get("log_level", "INFO").upper()
+
         self.logger.setLevel(self.log_level)
         self.logger.info(f"QBitBridgeLauncher initialized")
         self.logger.debug(f"with config: {config}")
         import socket
 
         self.hostname = socket.gethostname()
-        self.delay_time: int = 10
+        self.delay_time: int = config.get("delay_time", 10)
         self.postgres = PostgresConfiguration(**config.get("postgres", {}))
         self.prefect = PrefectConfiguration(**config.get("prefect", {}))
         self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
@@ -150,13 +151,6 @@ class QBitBridgeLauncher:
 
     def _launch_postgres(self) -> subprocess.Popen | None:
         """Launch the postgres service using the configuration"""
-        if self.postgres.dry_run:
-            self.logger.info(
-                "Dry run: launching postgres with the following configuration:"
-            )
-            self.logger.info(f"{self.postgres}")
-        else:
-            self.logger.info("Launching POSTGRES ... ")
         # define postres environment variables
         my_env = os.environ.copy()
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
@@ -193,19 +187,6 @@ class QBitBridgeLauncher:
             dir_path.mkdir(parents=True, exist_ok=True)
             dir_path = Path(f"{self.postgres.scratch}/pgrun")
             dir_path.mkdir(parents=True, exist_ok=True)
-        # check if container image exists
-        if not self.postgres.dry_run:
-            container_image = Path(self.postgres.container)
-            if not container_image.is_file():
-                raise FileNotFoundError(
-                    f"Postgres container image not found: {container_image}"
-                )
-        else:
-            from pathlib import Path
-
-            self.logger.info(
-                f"Postgres container image to be used: {self.postgres.container}. Exists? {Path(self.postgres.container).is_file()}."
-            )
         # set the singularity arguments
         # singargs = ["--bind", f"{self.postgres.scratch}:/var"]
         singargs = []
@@ -226,6 +207,13 @@ class QBitBridgeLauncher:
             ]
         )
         if not self.postgres.dry_run:
+            self.logger.info("Launching POSTGRES ... ")
+            # checking container image
+            container_image = Path(self.postgres.container)
+            if not container_image.is_file():
+                raise FileNotFoundError(
+                    f"Postgres container image not found: {container_image}"
+                )
             proc = subprocess.Popen(
                 cmd,
                 env=my_env,
@@ -236,6 +224,10 @@ class QBitBridgeLauncher:
             )
             return proc
         else:
+            self.logger.info(
+                "Dry run: launching POSTGRES with the following configuration:"
+            )
+            self.logger.info(f"{self.postgres}")
             envinfo: str = f"Environment related to POSTGRES\n"
             for k, v in my_env.items():
                 if "POSTGRES" in k:
@@ -248,18 +240,16 @@ class QBitBridgeLauncher:
                 if self.postgres.container_engine.upper() in k:
                     envinfo += f"export {k}={v}\n"
             self.logger.info(envinfo)
-            self.logger.info(f"Launching postgres with command: {' '.join(cmd)}")
+            from pathlib import Path
+
+            self.logger.info(
+                f"POSTGRES container image to be used: {self.postgres.container}. Exists? {Path(self.postgres.container).is_file()}."
+            )
+            self.logger.info(f"Launching POSTGRES with command: {' '.join(cmd)}")
             return None
 
     def _launch_prefect(self) -> subprocess.Popen | None:
         """Launch the prefect service using the configuration"""
-        if self.prefect.dry_run:
-            self.logger.info(
-                "Dry run: launching prefect with the following configuration:"
-            )
-            self.logger.info(f"{self.prefect}")
-        else:
-            self.logger.info("Launching PREFECT ... ")
         if not self.prefect.dry_run:
             from pathlib import Path
 
@@ -295,34 +285,34 @@ class QBitBridgeLauncher:
             self.prefect.sqlalchemy_max_overflow
         )
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:4200/api"
-        self.logger.info("Prefect launching ... ")
-        self.logger.info(f"To view prefect UI, open an ssh tunnel")
-        self.logger.info(
-            f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
-        )
-        self.logger.info(f"Before launching prefect jobs, copy the following")
-        self.logger.info(f"export PREFECT_API_URL=http://{self.hostname}:4200/api")
 
+        import sys
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "--factory",
+            "prefect.server.api.server:create_app",
+        ]
+        cmd += ["--host", self.hostname]
+        cmd += ["--port", str(self.prefect.port)]
+        cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
+        cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
+        cmd += [
+            "--timeout-graceful-shutdown",
+            str(self.prefect.timeout_graceful_shutdown),
+        ]
+        cmd += ["--log-level", self.log_level.lower()]
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
-            import sys
-
-            cmd = [
-                sys.executable,
-                "-m",
-                "uvicorn",
-                "--factory",
-                "prefect.server.api.server:create_app",
-            ]
-            cmd += ["--host", self.hostname]
-            cmd += ["--port", str(self.prefect.port)]
-            cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
-            cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
-            cmd += [
-                "--timeout-graceful-shutdown",
-                str(self.prefect.timeout_graceful_shutdown),
-            ]
-            cmd += ["--log-level", self.log_level.lower()]
+            self.logger.info("Launching PREFECT ... ")
+            self.logger.info(f"To view prefect UI, open an ssh tunnel")
+            self.logger.info(
+                f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
+            )
+            self.logger.info(f"Before launching prefect jobs, copy the following")
+            self.logger.info(f"export PREFECT_API_URL=http://{self.hostname}:4200/api")
             proc = subprocess.Popen(
                 cmd,
                 env=my_env,
@@ -331,27 +321,23 @@ class QBitBridgeLauncher:
                 text=True,
                 bufsize=1,  # Line buffered
             )
-
-            # import uvicorn
-            # uvicorn.run(
-            #     "prefect.server.api.server:create_app",
-            #     #factory="prefect.server.api.server:create_app",
-            #     host=self.hostname,
-            #     port=self.prefect.port,
-            #     timeout_keep_alive=self.prefect.timeout_keep_alive,
-            #     limit_max_requests=self.prefect.limit_max_requests,
-            #     timeout_graceful_shutdown=self.prefect.timeout_graceful_shutdown,
-            #     log_level=self.log_level.lower(),
-            # )
             return proc
         else:
             self.logger.info(
-                f"prefect server launched with following : --host {self.hostname} --port {self.prefect.port} --timeout-keep-alive {self.prefect.timeout_keep_alive} --limit-max-requests {self.prefect.limit_max_requests} --timeout-graceful-shutdown {self.prefect.timeout_graceful_shutdown}"
+                "Dry run: launching PREFECT with the following configuration:"
             )
+            self.logger.info(f"{self.prefect}")
+            envinfo: str = f"Environment related to PREFECT\n"
+            for k, v in my_env.items():
+                if "PREFECT" in k:
+                    envinfo += f"export {k}={v}\n"
+            self.logger.info(envinfo)
+            self.logger.info(f"Launching PREFECT with command: {' '.join(cmd)}")
             return None
 
     def launch(self) -> None:
         """Launch the postgres and prefect services using the configuration"""
+        # launch postgres
         pname = "POSTGRES"
         self.procs[pname] = self._launch_postgres()
         if not self.postgres.dry_run:
@@ -377,8 +363,13 @@ class QBitBridgeLauncher:
                     self.pids[pname] = proc.info["pid"]
                     break
             self.logger.info(f"{pname} launched with {self.pids[pname]}")
-        pname = "PREFECT"
+
+        # pause between services
+        self.logger.info(f"Waiting {self.delay_time} before continuing launch of other services")
         time.sleep(self.delay_time)
+
+        # launch prefect
+        pname = "PREFECT"
         self.procs[pname] = self._launch_prefect()
         if not self.prefect.dry_run:
             self._add_logging(pname)
