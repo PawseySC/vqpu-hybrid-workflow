@@ -123,28 +123,28 @@ The configuration sets the POSTGRES database settings and PREFECT server setting
 The configuration consists has the following settings
 
 * `postgres`
-  - `user`: define the user name, default "postgres"
-  -  `password`: defined the password, default "qbitbridge_test"
-  -  `db`: define the database, default "orion"
-  -  `port`: port number, default 5432
-  -  `max_connections`: define the max number of connections, default 1000
-  -  `shared_buffers`: define the shared buffer size, default "1024MB"
-  -  `scratch`: define the scratch space, default "./postgres_scratch"
-  -  `container`: define the container image, default "postgres_latest.sif"
-  -  `container_engine`: define the container engine, default "singularity". Currently qbitbridge code to use singularity
-  -  `dry_run`: bool if just running a dry run, default false
-  -  `delay_time`: amount of time to allow postgres to launch by delaying launch of follow-up services, default 20
+    - `user`: define the user name, default "postgres"
+    -  `password`: defined the password, default "qbitbridge_test"
+    -  `db`: define the database, default "orion"
+    -  `port`: port number, default 5432
+    -  `max_connections`: define the max number of connections, default 1000
+    -  `shared_buffers`: define the shared buffer size, default "1024MB"
+    -  `scratch`: define the scratch space, default "./postgres_scratch"
+    -  `container`: define the container image, default "postgres_latest.sif"
+    -  `container_engine`: define the container engine, default "singularity". Currently qbitbridge code to use singularity
+    -  `dry_run`: bool if just running a dry run, default false
+    -  `delay_time`: amount of time to allow postgres to launch by delaying launch of follow-up services, default 20
 * `prefect`
-   - `home`: prefect home dir, default "./prefect2/"
-   - `web_concurrency`: concurrency, default 16
-   - `sqlalchemy_pool_size`: sql pool size, default 5
-   - `sqlalchemy_max_overflow`: sql overflow, default 10
-   - `port`: port number, 4200
-   - `timeout_keep_alive`: time in seconds to keep alive, default 10
-   - `limit_max_requests`: max requests, default 4096
-   - `timeout_graceful_shutdown`: graceful shutdown time, default 7200
-  -  `dry_run`: bool if just running a dry run, default false
-  -  `delay_time`: amount of time to allow prefect to launch by delaying launch of follow-up services, default 20
+    - `home`: prefect home dir, default "./prefect2/"
+    - `web_concurrency`: concurrency, default 16
+    - `sqlalchemy_pool_size`: sql pool size, default 5
+    - `sqlalchemy_max_overflow`: sql overflow, default 10
+    - `port`: port number, 4200
+    - `timeout_keep_alive`: time in seconds to keep alive, default 10
+    - `limit_max_requests`: max requests, default 4096
+    - `timeout_graceful_shutdown`: graceful shutdown time, default 7200
+    -  `dry_run`: bool if just running a dry run, default false
+    -  `delay_time`: amount of time to allow prefect to launch by delaying launch of follow-up services, default 20
 * `log_level`: logging level, default info. 
 * `delay_time`:  amount of time to wait in between services, default 10
 

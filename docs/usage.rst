@@ -58,8 +58,8 @@ The configuration consists has the following settings
    - ``timeout_keep_alive``: time in seconds to keep alive, default 10
    - ``limit_max_requests``: max requests, default 4096
    - ``timeout_graceful_shutdown``: graceful shutdown time, default 7200
-  -  ``dry_run``: bool if just running a dry run, default false
-  -  ``delay_time``: amount of time to allow prefect to launch by delaying launch of follow-up services, default 20
+   -  ``dry_run``: bool if just running a dry run, default false
+   -  ``delay_time``: amount of time to allow prefect to launch by delaying launch of follow-up services, default 20
 * ``log_level``: logging level, default info. 
 * ``delay_time``:  amount of time to wait in between services, default 10
 
