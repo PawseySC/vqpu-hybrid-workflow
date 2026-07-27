@@ -108,6 +108,47 @@ We strongly recommend use of python virtual environments and that this virtual e
 
 The workflows will be best run with a prefect server running using `uvicorn` and a postgres database. The bundle includes two scripts designed to launch these services. By default, there is an assumption that both of these services run on the same host but that does not need to be the case. 
 
+### Using Launcher 
+
+The key services, Postgres and Prefect, can be started using [launcher.py](launcher.py) with a yaml config file. 
+An example is found in [examples.yaml](examples/launcher_config/example.yaml). Launch using 
+
+```bash
+   python launcher.py --config=examples/launcher_config/example.yaml
+```
+
+The configuration sets the POSTGRES database settings and PREFECT server settings 
+(which mirror the scripts `start_postgres.sh` and `start_prefect.sh` discussed below)
+
+The configuration consists has the following settings
+
+* `postgres`
+  - `user`: define the user name, default "postgres"
+  -  `password`: defined the password, default "qbitbridge_test"
+  -  `db`: define the database, default "orion"
+  -  `port`: port number, default 5432
+  -  `max_connections`: define the max number of connections, default 1000
+  -  `shared_buffers`: define the shared buffer size, default "1024MB"
+  -  `scratch`: define the scratch space, default "./postgres_scratch"
+  -  `container`: define the container image, default "postgres_latest.sif"
+  -  `container_engine`: define the container engine, default "singularity". Currently qbitbridge code to use singularity
+  -  `dry_run`: bool if just running a dry run, default false
+  -  `delay_time`: amount of time to allow postgres to launch by delaying launch of follow-up services, default 20
+* `prefect`
+   - `home`: prefect home dir, default "./prefect2/"
+   - `web_concurrency`: concurrency, default 16
+   - `sqlalchemy_pool_size`: sql pool size, default 5
+   - `sqlalchemy_max_overflow`: sql overflow, default 10
+   - `port`: port number, 4200
+   - `timeout_keep_alive`: time in seconds to keep alive, default 10
+   - `limit_max_requests`: max requests, default 4096
+   - `timeout_graceful_shutdown`: graceful shutdown time, default 7200
+  -  `dry_run`: bool if just running a dry run, default false
+  -  `delay_time`: amount of time to allow prefect to launch by delaying launch of follow-up services, default 20
+* `log_level`: logging level, default info. 
+* `delay_time`:  amount of time to wait in between services, default 10
+
+
 ### Running Postgres 
 This can be started with [start_postgres.sh](workflow/scripts/start_postgres.sh). This will launch the postgres database using the [Singularity](https://docs.sylabs.io/guides/latest/user-guide/) container engine. This script makes use of several key POSTGRES environment variables (like `POSTGRES_ADDR`). This will pull the latest postgres container image from docker hub to locally store it. This script could be altered to use other container engines as well. 
 
