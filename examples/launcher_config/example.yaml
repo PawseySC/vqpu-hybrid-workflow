@@ -1,0 +1,24 @@
+prefect:
+    home: "./prefect2/"
+    web_concurrency: 16
+    sqlalchemy_pool_size: 5
+    sqlalchemy_max_overflow: 10
+    port: 4200
+    timeout_keep_alive: 10
+    limit_max_requests: 4096
+    timeout_graceful_shutdown: 7200
+    dry_run: true
+    delay_time:  10
+postgres:
+    user: "postgres"
+    password: "qbitbridge_test"
+    db: "orion"
+    max_connections: 1000
+    shared_buffers: "1024MB"
+    scratch: "./postgres_scratch"
+    container: "postgres_latest.sif"
+    container_engine: "singularity"
+    dry_run: true
+    delay_time: 10
+log_level: "INFO"
+delay_time: 10
