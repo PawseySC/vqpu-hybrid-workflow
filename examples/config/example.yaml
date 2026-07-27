@@ -8,7 +8,7 @@ prefect:
     limit_max_requests: 4096
     timeout_graceful_shutdown: 7200
     dry_run: true
-    delay_time  10
+    delay_time:  10
 postgres:
     user: "postgres"
     password: "qbitbridge_test"
