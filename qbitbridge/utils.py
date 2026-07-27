@@ -67,7 +67,7 @@ class PrefectConfiguration(NamedTuple):
     """The timeout for the prefect server"""
     dry_run: bool = False
     """If True, do not actually launch the prefect server, just print the command"""
-    start_delay: int = 10
+    delay_time: int = 20
     """The delay in seconds to wait before starting the prefect server after starting postgres"""
 
 
@@ -98,13 +98,15 @@ class PostgresConfiguration(NamedTuple):
     """The container engine arguments used to run the postgres container"""
     dry_run: bool = False
     """If True, do not actually launch the postgres container, just print the command"""
+    delay_time: int = 20
+    """The delay in seconds to wait before starting the prefect server after starting postgres"""
 
 
 class QBitBridgeLauncher:
     logger = logging.getLogger(__name__)
     """Simple class to store qbitbridge launcher information and start postgres and prefect services"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: Dict):
         self.log_level = config.get("log_level", "INFO").upper()
         self.logger.setLevel(self.log_level)
         self.logger.info(f"QBitBridgeLauncher initialized")
@@ -112,17 +114,39 @@ class QBitBridgeLauncher:
         import socket
 
         self.hostname = socket.gethostname()
+        self.delay_time: int = 10
         self.postgres = PostgresConfiguration(**config.get("postgres", {}))
         self.prefect = PrefectConfiguration(**config.get("prefect", {}))
-        self.procs = {"POSTGRES": None, "PREFECT": None}
-        self.pids = {"POSTGRES": None, "PREFECT": None}
-        self.logging_threads = {"POSTGRES": None, "PREFECT": None}
+        self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
+        self.pids: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
+        self.logging_threads: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.shutdown()
+
+    def _stream_logger(self, pipe, log_func, describ: str = "") -> None:
+        """Reads lines from a pipe and logs them using the provided log function."""
+        for line in iter(pipe.readline, ""):
+            log_func(describ + " " + line.rstrip())
+        pipe.close()
+
+    def _add_logging(self, proc_name: str) -> None:
+        if not self.postgres.dry_run:
+            self.logging_threads[proc_name] = {
+                "out": threading.Thread(
+                    target=self._stream_logger,
+                    args=(self.procs[proc_name].stdout, self.logger.info, proc_name),
+                ),
+                "warning": threading.Thread(
+                    target=self._stream_logger,
+                    args=(self.procs[proc_name].stderr, self.logger.info, proc_name),
+                ),
+            }
+            for k, v in self.logging_threads[proc_name].items():
+                v.start()
 
     def _launch_postgres(self) -> subprocess.Popen | None:
         """Launch the postgres service using the configuration"""
@@ -131,6 +155,8 @@ class QBitBridgeLauncher:
                 "Dry run: launching postgres with the following configuration:"
             )
             self.logger.info(f"{self.postgres}")
+        else:
+            self.logger.info("Launching POSTGRES ... ")
         # define postres environment variables
         my_env = os.environ.copy()
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
@@ -200,14 +226,13 @@ class QBitBridgeLauncher:
             ]
         )
         if not self.postgres.dry_run:
-            self.logger.info(f"what the? {cmd}")
             proc = subprocess.Popen(
                 cmd,
                 env=my_env,
-                # stdout=subprocess.PIPE,
-                # stderr=subprocess.PIPE,
-                # text=True,
-                # bufsize=1,  # Line buffered
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,  # Line buffered
             )
             return proc
         else:
@@ -233,6 +258,8 @@ class QBitBridgeLauncher:
                 "Dry run: launching prefect with the following configuration:"
             )
             self.logger.info(f"{self.prefect}")
+        else:
+            self.logger.info("Launching PREFECT ... ")
         if not self.prefect.dry_run:
             from pathlib import Path
 
@@ -261,6 +288,11 @@ class QBitBridgeLauncher:
         my_env["PREFECT_SERVER_API_HOST"] = self.hostname
         my_env["PREFECT_API_DATABASE_CONNECTION_URL"] = (
             f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@{self.hostname}:{self.postgres.port}/{self.postgres.db}"
+        )
+        my_env["WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
+        my_env["PREFECT_SQLALCHEMY_POOL_SIZE"] = str(self.prefect.sqlalchemy_pool_size)
+        my_env["PREFECT_SQLALCHEMY_MAX_OVERFLOW"] = str(
+            self.prefect.sqlalchemy_max_overflow
         )
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:4200/api"
         self.logger.info("Prefect launching ... ")
@@ -318,33 +350,16 @@ class QBitBridgeLauncher:
             )
             return None
 
-    def _stream_logger(self, pipe, log_func, describ: str = "") -> None:
-        """Reads lines from a pipe and logs them using the provided log function."""
-        for line in iter(pipe.readline, ""):
-            log_func(describ + " " + line.rstrip())
-        pipe.close()
-
-    def _add_logging(self, proc_name: str) -> None:
-        if not self.postgres.dry_run:
-            self.logging_threads[proc_name] = {
-                "out": threading.Thread(
-                    target=self._stream_logger,
-                    args=(self.procs[proc_name].stdout, self.logger.info, proc_name),
-                ),
-                "err": threading.Thread(
-                    target=self._stream_logger,
-                    args=(self.procs[proc_name].stderr, self.logger.error, proc_name),
-                ),
-            }
-            for k, v in self.logging_threads[proc_name].items():
-                v.start()
-
     def launch(self) -> None:
         """Launch the postgres and prefect services using the configuration"""
         pname = "POSTGRES"
         self.procs[pname] = self._launch_postgres()
         if not self.postgres.dry_run:
-            # self._add_logging(pname)
+            self._add_logging(pname)
+            self.logger.info(
+                f"Delay of {self.postgres.delay_time}s to ensure {pname} launched"
+            )
+            time.sleep(self.postgres.delay_time)
             # because using container for postgres, we need to wait for it to be ready before launching prefect
             # also need to grab the postgres pid using psutil
             import getpass, psutil
@@ -356,23 +371,26 @@ class QBitBridgeLauncher:
                     proc.info["name"] == "postgres"
                     and proc.info["username"] == username
                 ):
-                    print(
-                        f"Process ID: {proc.info['pid']}, Name: {proc.info['name']}, User: {proc.info['username']}"
+                    self.logger.debug(
+                        f"POSTGRES Process ID: {proc.info['pid']}, Name: {proc.info['name']}, User: {proc.info['username']}"
                     )
                     self.pids[pname] = proc.info["pid"]
                     break
             self.logger.info(f"{pname} launched with {self.pids[pname]}")
-
-        time.sleep(self.prefect.start_delay)
         pname = "PREFECT"
+        time.sleep(self.delay_time)
         self.procs[pname] = self._launch_prefect()
         if not self.prefect.dry_run:
             self._add_logging(pname)
+            self.logger.info(
+                f"Delay of {self.prefect.delay_time}s to ensure {pname} launched"
+            )
+            time.sleep(self.prefect.delay_time)
             # because prefect is not launched in a container, just need the process id
             if self.procs[pname] is not None:
                 self.pids[pname] = self.procs["PREFECT"].pid
             self.logger.info(f"{pname} launched")
-
+        time.sleep(self.delay_time)
         self.logger.info("QBitBridgeLauncher launch complete")
         running_pids = []
         for k, v in self.pids.items():
@@ -380,28 +398,20 @@ class QBitBridgeLauncher:
                 running_pids.append(v)
         if len(running_pids) > 0:
             self.logger.info("To stop the services, use the following commands:")
-            self.logger.info(f"kill {' '.join(running_pids)}")
+            self.logger.info(f"kill {running_pids}")
+            # self.logger.info(f"kill {' '.join(running_pids)}")
 
     def shutdown(self) -> None:
-        """Shutdown logging threads"""
+        """Shutdown process and logging threads"""
         self.logger.info("QBitBridgeLauncher shutting down ... ")
-        for k in self.pids.keys():
+        import signal
+
+        for k in ["PREFECT", "POSTGRES"]:
             pid = self.pids[k]
             if pid is not None:
-                try:
-                    # Sending signal 0 checks for existence without affecting the process
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    self.logger.error(f"Process {pid} does not exist.")
-                except PermissionError:
-                    self.logger.error(
-                        f"Process {pid} exists, but you don't have permission to kill it."
-                    )
-                if self.procs[k] is not None:
-                    for k2, v in self.logging_threads[k].items():
-                        if v is not None:
-                            v.join()
-                # self.procs[k].wait()
+                os.kill(pid, signal.SIGTERM)
+                for k2, v in self.logging_threads[k].items():
+                    v.join()
         self.logger.info("QBitBridgeLauncher shutdown")
 
 
