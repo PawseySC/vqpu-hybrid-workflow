@@ -18,7 +18,6 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
     Generator,
     Callable,
 )
@@ -35,6 +34,7 @@ from .utils import (
     get_flow_runs,
     upload_image_as_artifact,
     SlurmInfo,
+    PBSInfo,
     EventFile,
 )
 from .vqpubase import (

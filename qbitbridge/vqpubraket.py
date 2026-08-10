@@ -18,7 +18,6 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
     Generator,
     Callable,
 )
@@ -35,6 +34,7 @@ from .utils import (
     get_flow_runs,
     upload_image_as_artifact,
     SlurmInfo,
+    PBSInfo,
     EventFile,
 )
 from .vqpubase import (
@@ -118,7 +118,9 @@ def aws_braket_parse_args(arguments: str) -> argparse.Namespace:
     return get_argparse_args(arguments=arguments, parser=parser)
 
 
-async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[bool, str]:
+async def aws_braket_check_qpu(
+    arguments: str | argparse.Namespace,
+) -> Tuple[bool, str]:
     """Wrapper to check if aws qpu is available.
     Args:
         args (str) : arguments to parse
@@ -139,7 +141,9 @@ async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[boo
         message += f"Available devices :\n {availdevices}"
         raise ValueError(message)
     elif len(devices) > 1:
-        message = f"More than one device found with name similar to {args.braketdevice}. "
+        message = (
+            f"More than one device found with name similar to {args.braketdevice}. "
+        )
         message += "Please adjust device name for search."
         raise ValueError(message)
     devices = AwsDevice.get_devices(names=[args.braketdevice], statuses=["ONLINE"])
@@ -154,7 +158,9 @@ async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[boo
     return (avail, message)
 
 
-async def aws_braket_get_metadata(arguments: str | argparse.Namespace) -> QPUMetaData:
+async def aws_braket_get_metadata(
+    arguments: str | argparse.Namespace,
+) -> QPUMetaData:
     """Return the metadata about the QPU
     Args:
         arguments (str|argparse.Namespace): arguments that contain the name of the device

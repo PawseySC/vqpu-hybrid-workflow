@@ -7,12 +7,15 @@ operations.
 import os
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, List, Union, Tuple
+from typing import Any, Dict, List, Tuple
 import copy
 
 import yaml
 from prefect_dask import DaskTaskRunner
 from dask_jobqueue import SLURMCluster
+from dask_jobqueue import PBSCluster
+
+_SUPPORTED_CLUSTER_TYPES: frozenset[str] = frozenset({"SLURMCluster", "PBSCluster"})
 
 
 def list_packaged_clusters(yaml_files_dir: str = "./") -> List[str]:
@@ -33,16 +36,17 @@ def list_packaged_clusters(yaml_files_dir: str = "./") -> List[str]:
     return clusters
 
 
-def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
-    """Given a cluster name, obtain the appropriate SLURM configuration
-    file appropriate for use with SLURMCluster.
+def get_cluster_spec(cluster: str | Path, clustype: str = "slurm") -> Dict[Any, Any]:
+    """Given a cluster name, obtain the appropriate SLURM or PBS configuration
+    file appropriate for use with SLURMCluster or PBSCluster.
 
     This cluster spec is expected to be consistent with the cluster_class
     and cluster_kwargs parameters that are used by dask_jobqueue based
     specifications.
 
     Args:
-        cluster (Union[str,Path]): Name of cluster or path to a configuration to look up for processing
+        cluster (str|Path): Name of cluster or path to a configuration to look up for processing
+        clustype (str): cluster type, must be _SUPPORTED_CLUSTER_TYPES
 
     Raises:
         ValueError: Raised when cluster is not in KNOWN_CLUSTERS and has not corresponding YAML file.
@@ -51,8 +55,12 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
         dict[Any, Any]: Dictionary of know options/parameters for dask_jobqueue.SLURMCluster
     """
 
-    KNOWN_CLUSTERS = ("ella", "setonix")
     yaml_file = None
+    import glob
+
+    _KNOWN_CLUSTERS = glob.glob(
+        f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/clusters/*.yaml"
+    )
 
     if Path(cluster).exists():
         yaml_file = cluster
@@ -61,7 +69,7 @@ def get_cluster_spec(cluster: Union[str, Path]) -> Dict[Any, Any]:
 
     if yaml_file is None or not Path(yaml_file).exists():
         raise ValueError(
-            f"{cluster=} is not known, or its YAML file could not be loaded. Known clusters are {KNOWN_CLUSTERS}"
+            f"{cluster} is not known, or its YAML file could not be loaded."
         )
 
     with open(yaml_file, "r") as in_file:
@@ -98,8 +106,25 @@ def get_dask_runners(
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
         task_runners[specname] = DaskTaskRunner(**cluster_config)
-        task_runners["jobscript"][specname] = SLURMCluster(
-            **cluster_config["cluster_kwargs"]
-        ).job_script()
+        # load the appropriate job script
+        cc = str(cluster_config["cluster_class"]).replace("dask_jobqueue.", "")
+        if cc not in _SUPPORTED_CLUSTER_TYPES:
+            raise ValueError(
+                f"{cluster} contains spec for an unknown/unsupported cluster class {cc}. Supported types dask_jobqueue.{_SUPPORTED_CLUSTER_TYPES}"
+            )
+
+        if "SLURMCluster" in cc:
+            task_runners["jobscript"][specname] = SLURMCluster(
+                **cluster_config["cluster_kwargs"]
+            ).job_script()
+        elif "PBSCluster" in cc:
+            task_runners["jobscript"][specname] = PBSCluster(
+                **cluster_config["cluster_kwargs"]
+            ).job_script()
         task_runners["specs"][specname] = copy.deepcopy(cluster_config)
+        task_runners["jobscript"][specname] = (
+            f"Cluster class:{cc}\n-- Script --\n"
+            + task_runners["jobscript"][specname]
+            + "\n-- End Script --\n"
+        )
     return task_runners
