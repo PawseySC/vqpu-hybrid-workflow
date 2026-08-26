@@ -1,36 +1,7 @@
 import argparse
 import logging
 
-from qbitbridge.utils import (
-    load_config,
-    probe_cluster_scheduler,
-    _SUPPORTED_SCHEDULERS,
-)
-
-
-def log_cluster_interfaces() -> None:
-    """Probe the cluster for the job scheduler that manages it and log
-    which cluster interfaces are available.
-
-    The probe is performed on the node that the qbitbridge services are
-    launched from (see main). For each supported scheduler (SLURM,
-    PBSworks, Kubernetes) the detected state, the dask cluster class that
-    would be used for it, and the availability of the python interface are
-    reported using the logging package.
-    """
-    scheduler = probe_cluster_scheduler()
-    if scheduler is None:
-        raise RuntimeError(
-            f"No supported cluster job scheduler detected. Supported {_SUPPORTED_SCHEDULERS}. Exiting"
-        )
-    logging.info(
-        f"Cluster interface {scheduler.scheduler} found "
-        f"(dask cluster class: {scheduler.dask_cluster_class}, "
-        f"python interface available: {scheduler.python_interface_available})"
-    )
-    for evidence in scheduler.evidence:
-        logging.debug(f"  {scheduler.scheduler} evidence: {evidence}")
-
+from qbitbridge.utils import load_config
 
 def main() -> None:
     """
@@ -70,7 +41,6 @@ def main() -> None:
         else:
             qbb = load_config(args.config)
             qbb.launch()
-
     except Exception as e:
         logging.error(f"Failed to start service. Exception: {str(e)}")
         raise

@@ -164,6 +164,7 @@ class QBitBridgeLauncher:
         self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.pids: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.logging_threads: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
+        self.scheduler : SchedulerInfo | None = None
 
     def __enter__(self):
         return self
@@ -174,7 +175,7 @@ class QBitBridgeLauncher:
     def _stream_logger(self, pipe, log_func, describ: str = "") -> None:
         """Reads lines from a pipe and logs them using the provided log function."""
         for line in iter(pipe.readline, ""):
-            log_func(describ + " " + line.rstrip())
+            log_func(describ + " | " + line.rstrip())
         pipe.close()
 
     def _add_logging(self, proc_name: str) -> None:
@@ -437,6 +438,20 @@ class QBitBridgeLauncher:
             self.logger.info(f"kill {running_pids}")
             # self.logger.info(f"kill {' '.join(running_pids)}")
 
+        # get scheduler
+        self.scheduler = probe_cluster_scheduler()
+        if self.scheduler is None:
+            raise RuntimeError(
+                f"No supported cluster job scheduler detected. Supported {_SUPPORTED_SCHEDULERS}. Exiting"
+            )
+        self.logger.info(
+            f"SCHEDULER | Cluster interface {self.scheduler.scheduler} found "
+            f"(dask cluster class: {self.scheduler.dask_cluster_class}, "
+            f"python interface available: {self.scheduler.python_interface_available})"
+        )
+        self.logger.debug(f"Evidence: {self.scheduler.evidence}")
+
+
     def shutdown(self) -> None:
         """Shutdown process and logging threads"""
         self.logger.info("QBitBridgeLauncher shutting down ... ")
@@ -678,7 +693,7 @@ def probe_cluster_scheduler() -> SchedulerInfo:
     """Probe the local environment for evidence that the cluster has a specific scheduler
 
     Returns:
-        SchedulerProbe : schedulerprobe containing evidence for a particular scheduler running on the system
+        SchedulerInfo : schedulerprobe containing evidence for a particular scheduler running on the system
     """
     probing: Dict[str, Callable] = {
         "SLURMCluster": _probe_slurm,
@@ -782,7 +797,7 @@ def get_argparse_args(
 
 
 def log_job_environment(
-    logger: logging.Logger, scheduler: SchedulerProbe
+    logger: logging.Logger, scheduler: SchedulerInfo
 ) -> SlurmInfo | PBSInfo:
     if scheduler.scheduler == "slurm":
         return log_slurm_job_environment(logger)
