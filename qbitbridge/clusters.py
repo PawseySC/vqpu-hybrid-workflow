@@ -15,6 +15,9 @@ from prefect_dask import DaskTaskRunner
 from dask_jobqueue import SLURMCluster
 from dask_jobqueue import PBSCluster
 
+# from dask_kubernetes.classic import KubeCluster
+from .utils import probe_cluster_scheduler, SchedulerInfo
+
 _SUPPORTED_CLUSTER_TYPES: frozenset[str] = frozenset({"SLURMCluster", "PBSCluster"})
 
 
@@ -112,7 +115,11 @@ def get_dask_runners(
             raise ValueError(
                 f"{cluster} contains spec for an unknown/unsupported cluster class {cc}. Supported types dask_jobqueue.{_SUPPORTED_CLUSTER_TYPES}"
             )
-
+        sched: SchedulerInfo = probe_cluster_scheduler()
+        if cc != sched.scheduler:
+            raise ValueError(
+                f"Loaded cluster class {cc} does not match the scheduler {sched.scheduler} for cluster {cluster}!"
+            )
         if "SLURMCluster" in cc:
             task_runners["jobscript"][specname] = SLURMCluster(
                 **cluster_config["cluster_kwargs"]
@@ -121,6 +128,11 @@ def get_dask_runners(
             task_runners["jobscript"][specname] = PBSCluster(
                 **cluster_config["cluster_kwargs"]
             ).job_script()
+        # elif "KubeCluster" in cc:
+        #     task_runners["jobscript"][specname] = KubeCluster(
+        #         **cluster_config["cluster_kwargs"]
+        #     ).job_script()
+
         task_runners["specs"][specname] = copy.deepcopy(cluster_config)
         task_runners["jobscript"][specname] = (
             f"Cluster class:{cc}\n-- Script --\n"

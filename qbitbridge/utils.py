@@ -1,6 +1,6 @@
 """
-Collection of functions and tooling intended for general usage.
-The key functionality to explore here is the EventFile class.
+@file utils.py
+@brief Collection of functions and tooling intended for general usage. The key functionality to explore here is the EventFile class.
 """
 
 # from curses import echo
@@ -26,6 +26,7 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
+    Callable,
 )
 
 # from nbconvert import export
@@ -40,10 +41,50 @@ import argparse
 import base64
 from uuid import UUID
 
-SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
 _SUPPORTED_IMAGE_TYPES: frozenset[str] = frozenset(
     {".jpg", ".jpeg", ".png", ".gif", ".svg"}
 )
+
+_SUPPORTED_SCHEDULERS: frozenset[str] = frozenset(
+    {"SLURMCluster", "PBSCluster", "KuberCluster"}
+)
+
+_DASK_CLUSTER_CLASSES = {
+    "SLURMCluster": "dask_jobqueue.SLURMCluster",
+    "PBSCluster": "dask_jobqueue.PBSCluster",
+    "KuberCluster": "dask_kubernetes.classic.KubeCluster",
+}
+_DASK_SCHEDULER_MODULE = {
+    "SLURMCluster": "dask_jobqueue",
+    "PBSCluster": "dask_jobqueue",
+    "KuberCluster": "dask_kubernetes.classic",
+}
+
+
+def _command_exists(cmd: str) -> bool:
+    """Check whether a command is available on the PATH.
+
+    Args:
+        cmd (str): name of the command to look for
+
+    Returns:
+        bool: True if the command is found on the PATH
+    """
+    from shutil import which
+
+    return which(cmd) is not None
+
+
+def _path_exists(path: str) -> bool:
+    """Check whether a filesystem path exists.
+
+    Args:
+        path (str): path to check
+
+    Returns:
+        bool: True if the path exists
+    """
+    return os.path.exists(path)
 
 
 class PrefectConfiguration(NamedTuple):
@@ -520,7 +561,7 @@ class SlurmInfo(NamedTuple):
     """The slurm resource request"""
     job_id: str | None = None
     """The job ID of the slurm job"""
-    task_id: str | None  = None
+    task_id: str | None = None
     """The task ID of the slurm job"""
     time: str | None = None
     """The time time the job information was gathered"""
@@ -539,6 +580,128 @@ class PBSInfo(NamedTuple):
     """The task ID of the slurm job"""
     time: str | None = None
     """The time time the job information was gathered"""
+
+
+class SchedulerInfo(NamedTuple):
+    """Simple class to store the result of probing for a cluster scheduler"""
+
+    scheduler: str
+    """Name of the scheduler that was probed (one of SUPPORTED_SCHEDULERS)"""
+    detected: bool
+    """Whether evidence for the scheduler was found on this cluster"""
+    evidence: List[str]
+    """Human readable strings describing the evidence found"""
+    dask_cluster_class: str
+    """The dask cluster class string to use for this scheduler"""
+    python_interface_available: bool
+    """Whether the python packages needed to talk to this scheduler are importable"""
+
+
+def _probe_slurm() -> Tuple[bool, List]:
+    """Probe the local environment for evidence that the cluster is
+    managed by SLURM.
+
+    Returns:
+        bool : Whether evidence for SLURM was found
+        evidence : the evidence proving SLURM available.
+    """
+    evidence = []
+
+    for var in ("SLURM_JOB_ID", "SLURM_PROCID", "SLURM_NTASKS", "SLURM_NODELIST"):
+        if os.environ.get(var):
+            evidence.append(f"environment variable {var} is set")
+
+    for cmd in ("sbatch", "srun", "sinfo"):
+        if _command_exists(cmd):
+            evidence.append(f"command {cmd} is available on the PATH")
+
+    for path in ("/var/spool/slurmctld", "/etc/slurm/slurm.conf"):
+        if _path_exists(path):
+            evidence.append(f"path {path} exists")
+    return (len(evidence) > 0), evidence
+
+
+def _probe_pbs() -> Tuple[bool, List]:
+    """Probe the local environment for evidence that the cluster is
+    managed by PBSworks (or a PBS/Torque/Unicorn compatible scheduler).
+
+    Returns:
+        bool : Whether evidence for PBS was found
+        evidence : the evidence proving PBS available.
+    """
+    evidence = []
+
+    for var in ("PBS_JOBID", "PBS_NODEFILE", "PBS_NP", "PBS_QUEUE", "PBS_SERVER"):
+        if os.environ.get(var):
+            evidence.append(f"environment variable {var} is set")
+
+    # generic PBS commands as well as PBSworks specific commands
+    for cmd in ("qsub", "qstat", "pbsnodes", "showq", "showcfg", "showbnodes"):
+        if _command_exists(cmd):
+            evidence.append(f"command {cmd} is available on the PATH")
+
+    for path in ("/var/spool/pbs", "/var/spool/torque"):
+        if _path_exists(path):
+            evidence.append(f"path {path} exists")
+    return (len(evidence) > 0), evidence
+
+
+def _probe_kubernetes() -> Tuple[bool, List]:
+    """Probe the local environment for evidence that the cluster is
+    managed by Kubernetes.
+
+    Returns:
+        bool : Whether evidence for Kubernetes was found
+        evidence : the evidence proving Kubernetes available.
+    """
+    evidence = []
+
+    for var in (
+        "KUBERNETES_SERVICE_HOST",
+        "KUBERNETES_SERVICE_PORT",
+        "KUBERNETES_PORT",
+    ):
+        if os.environ.get(var):
+            evidence.append(f"environment variable {var} is set")
+
+    for cmd in ("kubectl",):
+        if _command_exists(cmd):
+            evidence.append(f"command {cmd} is available on the PATH")
+
+    for path in ("/var/run/secrets/kubernetes.io/serviceaccount",):
+        if _path_exists(path):
+            evidence.append(f"path {path} exists")
+    return (len(evidence) > 0), evidence
+
+
+def probe_cluster_scheduler() -> SchedulerInfo:
+    """Probe the local environment for evidence that the cluster has a specific scheduler
+
+    Returns:
+        SchedulerProbe : schedulerprobe containing evidence for a particular scheduler running on the system
+    """
+    probing: Dict[str, Callable] = {
+        "SLURMCluster": _probe_slurm,
+        "PBSCluster": _probe_pbs,
+        "KubeCluster": _probe_kubernetes,
+    }
+    # check all the known allowed schedulers
+    for k, v in probing.items():
+        found, evidence = v()
+        if found:
+            return SchedulerInfo(
+                scheduler=k,
+                detected=len(evidence) > 0,
+                evidence=evidence,
+                dask_cluster_class=_DASK_CLUSTER_CLASSES[k],
+                python_interface_available=check_python_installation(
+                    _DASK_SCHEDULER_MODULE[k]
+                ),
+            )
+    # if nothing is found raise exception
+    raise RuntimeError(
+        f"No viable cluster schedulers detected. Allowed schedulers are {_SUPPORTED_SCHEDULERS}."
+    )
 
 
 def get_slurm_info() -> SlurmInfo:
@@ -616,6 +779,15 @@ def get_argparse_args(
     args_list = [a.replace("__", " ") for a in args_list]
     # Parse the arguments from our string
     return parser.parse_args(args_list)
+
+
+def log_job_environment(
+    logger: logging.Logger, scheduler: SchedulerProbe
+) -> SlurmInfo | PBSInfo:
+    if scheduler.scheduler == "slurm":
+        return log_slurm_job_environment(logger)
+    elif scheduler.scheduler == "pbs":
+        return log_pbs_job_environment(logger)
 
 
 def log_slurm_job_environment(logger) -> SlurmInfo:
@@ -777,7 +949,7 @@ async def async_create_markdown_artifcat(key, markdown, description) -> None:
 
 async def save_artifact(
     data: Any, key: str = "key", description: str = "Data to be shared between subflows"
-):
+) -> None:
     """Use this to save data between workflows and tasks. Best used for small artifacts
 
     Args:
@@ -815,8 +987,8 @@ async def upload_image_as_artifact(
     image_type = image_path.suffix
     assert image_path.exists(), f"{image_path} does not exist"
     assert (
-        image_type in SUPPORTED_IMAGE_TYPES
-    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
+        image_type in _SUPPORTED_IMAGE_TYPES
+    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {_SUPPORTED_IMAGE_TYPES}"
 
     with open(image_path, "rb") as open_image:
         logger.info(f"Encoding {image_path} in base64")
@@ -1015,6 +1187,7 @@ class EventFile:
 
 
 # Decorators
+
 
 def validate_keys(allowed_keys):
     """Ensure dictionary data passed to a function only contains specific keys"""
