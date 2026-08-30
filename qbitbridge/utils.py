@@ -92,6 +92,8 @@ class PrefectConfiguration(NamedTuple):
 
     home: str
     """Path to the prefect home directory"""
+    version: int = 3
+    """The major version of prefect"""
     # hostname: str = "0.0.0.0"
     # """The hostname of the prefect server"""
     web_concurrency: int = 16
@@ -112,6 +114,10 @@ class PrefectConfiguration(NamedTuple):
     """If True, do not actually launch the prefect server, just print the command"""
     delay_time: int = 20
     """The delay in seconds to wait before starting the prefect server after starting postgres"""
+    database_reset : bool = False
+    """Whether to reset the database before launching"""
+    profile : str | None = None
+    """Wehther to create a profile. If name provided create new profile and use"""
 
 
 class PostgresConfiguration(NamedTuple):
@@ -119,8 +125,10 @@ class PostgresConfiguration(NamedTuple):
 
     # hostname: str
     # """The hostname running the postgres database"""
-    scratch: str
+    scratch: str 
     """The scratch directory for the postgres database"""
+    version: int = 18
+    """The major version of postgres"""
     user: str = "postgres"
     """The user for the postgres database"""
     db: str = "orion"
@@ -164,7 +172,7 @@ class QBitBridgeLauncher:
         self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.pids: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.logging_threads: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
-        self.scheduler : SchedulerInfo | None = None
+        self.scheduler: SchedulerInfo | None = None
 
     def __enter__(self):
         return self
@@ -178,25 +186,27 @@ class QBitBridgeLauncher:
             log_func(describ + " | " + line.rstrip())
         pipe.close()
 
-    def _add_logging(self, proc_name: str) -> None:
-        if not self.postgres.dry_run:
-            self.logging_threads[proc_name] = {
-                "out": threading.Thread(
-                    target=self._stream_logger,
-                    args=(self.procs[proc_name].stdout, self.logger.info, proc_name),
-                ),
-                "warning": threading.Thread(
-                    target=self._stream_logger,
-                    args=(self.procs[proc_name].stderr, self.logger.info, proc_name),
-                ),
-            }
-            for k, v in self.logging_threads[proc_name].items():
-                v.start()
+    def _add_logging(self, proc_name: str, proc : subprocess.Popen | None = None) -> None:
+        if proc is None:
+            proc = self.procs[proc_name]
+        self.logging_threads[proc_name] = {
+            "out": threading.Thread(
+                target=self._stream_logger,
+                args=(proc.stdout, self.logger.info, proc_name),
+            ),
+            "warning": threading.Thread(
+                target=self._stream_logger,
+                args=(proc.stderr, self.logger.info, proc_name),
+            ),
+        }
+        for k, v in self.logging_threads[proc_name].items():
+            v.start()
 
     def _launch_postgres(self) -> subprocess.Popen | None:
         """Launch the postgres service using the configuration"""
         # define postres environment variables
-        my_env = os.environ.copy()
+        base_env = os.environ.copy()
+        my_env = dict()
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
         my_env["POSTGRES_ADDR"] = self.hostname
         my_env["POSTGRES_USER"] = self.postgres.user
@@ -208,29 +218,34 @@ class QBitBridgeLauncher:
             my_env["SINGULARITYENV_POSTGRES_PASSWORD"] = self.postgres.password
             my_env["SINGULARITYENV_POSTGRES_DB"] = self.postgres.db
             # my_env["SINGULARITYENV_PGDATA"] = f"{self.postgres.scratch}/pgdata"
-            if "SINGULARITY_BINDPATH" not in my_env:
-                my_env["SINGULARITY_BINDPATH"] = (
-                    f",{self.postgres.scratch}/pgdata/:/var/lib/postgresql/data"
-                )
-                my_env[
-                    "SINGULARITY_BINDPATH"
-                ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
+            if "SINGULARITY_BINDPATH" not in base_env:
+                my_env["SINGULARITY_BINDPATH"] = ""
             else:
+                my_env["SINGULARITY_BINDPATH"] = base_env["SINGULARITY_BINDPATH"]
+            my_env[
+                "SINGULARITY_BINDPATH"
+            ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
+            if self.postgres.version < 18:
                 my_env[
                     "SINGULARITY_BINDPATH"
                 ] += f",{self.postgres.scratch}/pgdata/:/var/lib/postgresql/data"
+            else:
                 my_env[
                     "SINGULARITY_BINDPATH"
-                ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
+                ] += f",{self.postgres.scratch}/{self.postgres.version}/:/var/lib/postgresql/{self.postgres.version}"
 
         from pathlib import Path
 
         if not self.postgres.dry_run:
             # Define your directory path
-            dir_path = Path(f"{self.postgres.scratch}/pgdata")
-            dir_path.mkdir(parents=True, exist_ok=True)
             dir_path = Path(f"{self.postgres.scratch}/pgrun")
             dir_path.mkdir(parents=True, exist_ok=True)
+            if self.postgres.version < 18:
+                dir_path = Path(f"{self.postgres.scratch}/pgdata")
+                dir_path.mkdir(parents=True, exist_ok=True)
+            else:
+                dir_path = Path(f"{self.postgres.scratch}/{self.postgres.version}")
+                dir_path.mkdir(parents=True, exist_ok=True)
         # set the singularity arguments
         # singargs = ["--bind", f"{self.postgres.scratch}:/var"]
         singargs = []
@@ -252,12 +267,15 @@ class QBitBridgeLauncher:
         )
         if not self.postgres.dry_run:
             self.logger.info("Launching POSTGRES ... ")
+            self.logger.debug(f"With command \n {cmd}")
+            self.logger.debug(f"With env \n {my_env}")
             # checking container image
             container_image = Path(self.postgres.container)
             if not container_image.is_file():
                 raise FileNotFoundError(
                     f"Postgres container image not found: {container_image}"
                 )
+            my_env.update(base_env)
             proc = subprocess.Popen(
                 cmd,
                 env=my_env,
@@ -301,7 +319,43 @@ class QBitBridgeLauncher:
             dir_path = Path(f"{self.prefect.home}")
             # Create the directory safely
             dir_path.mkdir(parents=True, exist_ok=True)
-        my_env = os.environ.copy()
+        base_env = os.environ.copy()
+        my_env = dict()
+
+        if self.prefect.profile is not None:
+            self.logger.info(f"Creating PREFECT profile {self.prefect.profile}")
+            cmd =[
+                "prefect",
+                "profile",
+                "create",
+                self.prefect.profile,
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                env=base_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,  # Line buffered
+            )
+            self._add_logging("PREFECT_CREATE_PROFILE", proc)
+            proc.wait()
+            cmd =[
+                "prefect",
+                "profile",
+                "use",
+                self.prefect.profile,
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                env=base_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,  # Line buffered
+            )
+            self._add_logging("PREFECT_USE_PROFILE", proc)
+            proc.wait()
 
         # set the prefect home directory
         my_env["PREFECT_HOME"] = self.prefect.home
@@ -329,10 +383,41 @@ class QBitBridgeLauncher:
             self.prefect.sqlalchemy_max_overflow
         )
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:4200/api"
+        my_env.update(base_env)
 
+        if self.prefect.database_reset and not self.prefect.dry_run:
+            self.logger.info("Resetting PREFECT Database ... ")
+            cmd = [
+                "prefect", 
+                "server", 
+                "database", 
+                "reset", 
+                "-y"
+            ]
+            proc = subprocess.Popen(
+                cmd,
+                env=my_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,  # Line buffered
+            )
+            self._add_logging("PREFECT_DATABASE", proc)
+            proc.wait()
         import sys
+        cmd = list()
+        # if self.prefect.version == 3:
+        #     cmd += [
+        #         sys.executable,
+        #         "-m",
+        #         "uvicorn",
+        #         "--factory",
+        #         "prefect.server.api.server:create_app",
+        #     ]
+        # else:
+        #     cmd += ["prefect", "server", "start"] 
 
-        cmd = [
+        cmd += [
             sys.executable,
             "-m",
             "uvicorn",
@@ -347,7 +432,19 @@ class QBitBridgeLauncher:
             "--timeout-graceful-shutdown",
             str(self.prefect.timeout_graceful_shutdown),
         ]
+        # if self.prefect.version == 3:
+        #     cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
+        #     cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
+        #     cmd += [
+        #         "--timeout-graceful-shutdown",
+        #         str(self.prefect.timeout_graceful_shutdown),
+        #     ]
+        # else:
+        #     cmd += ["--keep-alive-timeout", str(self.prefect.timeout_keep_alive)]
+        #     #cmd += ["--workers", str(self.prefect.limit_max_requests)]
+        #     cmd += ["--workers", "1"]
         cmd += ["--log-level", self.log_level.lower()]
+
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
             self.logger.info("Launching PREFECT ... ")
@@ -436,7 +533,6 @@ class QBitBridgeLauncher:
         if len(running_pids) > 0:
             self.logger.info("To stop the services, use the following commands:")
             self.logger.info(f"kill {running_pids}")
-            # self.logger.info(f"kill {' '.join(running_pids)}")
 
         # get scheduler
         self.scheduler = probe_cluster_scheduler()
@@ -450,7 +546,7 @@ class QBitBridgeLauncher:
             f"python interface available: {self.scheduler.python_interface_available})"
         )
         self.logger.debug(f"Evidence: {self.scheduler.evidence}")
-
+        return 
 
     def shutdown(self) -> None:
         """Shutdown process and logging threads"""
