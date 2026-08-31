@@ -290,10 +290,9 @@ class QBitBridgeLauncher:
                 raise FileNotFoundError(
                     f"Postgres container image not found: {container_image}"
                 )
-            my_env.update(base_env)
             proc = subprocess.Popen(
                 cmd,
-                env=my_env,
+                env=my_env | base_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -318,11 +317,10 @@ class QBitBridgeLauncher:
                     envinfo += f"export {k}={v}\n"
             self.logger.info(envinfo)
             from pathlib import Path
-
             self.logger.info(
                 f"POSTGRES container image to be used: {self.postgres.container}. Exists? {Path(self.postgres.container).is_file()}."
             )
-            self.logger.info(f"Launching POSTGRES with command: {' '.join(cmd)}")
+            self.logger.info(f"Launching POSTGRES {version} with command: {' '.join(cmd)}")
             return None
 
     def _launch_prefect(self) -> subprocess.Popen | None:
@@ -409,17 +407,17 @@ class QBitBridgeLauncher:
         )
         # set the prefect port
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:{self.prefect.port}/api"
-        my_env["PREFECT_SERVER_API_HOST"] = self.hostname
+        my_env["PREFECT_SERVER_API_HOST"] = "127.0.0.1" #self.hostname
         my_env["PREFECT_API_DATABASE_CONNECTION_URL"] = (
             f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@{self.hostname}:{self.postgres.port}/{self.postgres.db}"
         )
+        #postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB
         my_env["WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
         my_env["PREFECT_SQLALCHEMY_POOL_SIZE"] = str(self.prefect.sqlalchemy_pool_size)
         my_env["PREFECT_SQLALCHEMY_MAX_OVERFLOW"] = str(
             self.prefect.sqlalchemy_max_overflow
         )
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:4200/api"
-        my_env.update(base_env)
 
         if self.prefect.database_reset and not self.prefect.dry_run:
             self.logger.info("Resetting PREFECT Database ... ")
@@ -432,7 +430,7 @@ class QBitBridgeLauncher:
             ]
             proc = subprocess.Popen(
                 cmd,
-                env=my_env,
+                env=my_env | base_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -492,7 +490,7 @@ class QBitBridgeLauncher:
             self.logger.info(f"export PREFECT_API_URL=http://{self.hostname}:4200/api")
             proc = subprocess.Popen(
                 cmd,
-                env=my_env,
+                env=my_env | base_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -509,7 +507,12 @@ class QBitBridgeLauncher:
                 if "PREFECT" in k:
                     envinfo += f"export {k}={v}\n"
             self.logger.info(envinfo)
-            self.logger.info(f"Launching PREFECT with command: {' '.join(cmd)}")
+            envinfo = f"Environment related to POSTGRES\b"
+            for k, v in my_env.items():
+                if "POSTGRES" in k:
+                    envinfo += f"export {k}={v}\n"
+            self.logger.info(envinfo)
+            self.logger.info(f"Launching PREFECT {version} with command: {' '.join(cmd)}")
             return None
 
     def launch(self) -> None:
