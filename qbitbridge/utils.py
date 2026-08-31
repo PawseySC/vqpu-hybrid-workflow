@@ -11,6 +11,7 @@ import json
 import importlib
 import logging
 import os
+import numpy as np
 import secrets
 import subprocess
 import select
@@ -92,8 +93,8 @@ class PrefectConfiguration(NamedTuple):
 
     home: str
     """Path to the prefect home directory"""
-    version: int = 3
-    """The major version of prefect"""
+    # version: int = 3
+    # """The major version of prefect"""
     # hostname: str = "0.0.0.0"
     # """The hostname of the prefect server"""
     web_concurrency: int = 16
@@ -127,8 +128,8 @@ class PostgresConfiguration(NamedTuple):
     # """The hostname running the postgres database"""
     scratch: str 
     """The scratch directory for the postgres database"""
-    version: int = 18
-    """The major version of postgres"""
+    # version: int = 18
+    # """The major version of postgres"""
     user: str = "postgres"
     """The user for the postgres database"""
     db: str = "orion"
@@ -169,6 +170,7 @@ class QBitBridgeLauncher:
         self.delay_time: int = config.get("delay_time", 10)
         self.postgres = PostgresConfiguration(**config.get("postgres", {}))
         self.prefect = PrefectConfiguration(**config.get("prefect", {}))
+        self.versions : Dict[str, int] = {"POSTGRES": -1, "PREFECT": -1}
         self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.pids: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.logging_threads: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
@@ -206,12 +208,26 @@ class QBitBridgeLauncher:
         """Launch the postgres service using the configuration"""
         # define postres environment variables
         base_env = os.environ.copy()
-        my_env = dict()
+        my_env = {}
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
         my_env["POSTGRES_ADDR"] = self.hostname
         my_env["POSTGRES_USER"] = self.postgres.user
         my_env["POSTGRES_DB"] = self.postgres.db
         my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
+
+        # determine postgres version
+        cmd = [
+            self.postgres.container_engine, 
+            "run",
+            self.postgres.container,
+            "--version",
+        ]
+        proc = subprocess.run(
+                        cmd,
+                        capture_output=True, text=True
+                        )
+        self.versions["POSTGRES"] = int(proc.stdout.split("(PostgreSQL) ")[1].split(" ")[0].split(".")[0])
+        version = self.versions["POSTGRES"]
 
         # pass to singularity by defining appropriate environment variables
         if self.postgres.container_engine == "singularity":
@@ -225,14 +241,14 @@ class QBitBridgeLauncher:
             my_env[
                 "SINGULARITY_BINDPATH"
             ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
-            if self.postgres.version < 18:
+            if version < 18:
                 my_env[
                     "SINGULARITY_BINDPATH"
                 ] += f",{self.postgres.scratch}/pgdata/:/var/lib/postgresql/data"
             else:
                 my_env[
                     "SINGULARITY_BINDPATH"
-                ] += f",{self.postgres.scratch}/{self.postgres.version}/:/var/lib/postgresql/{self.postgres.version}"
+                ] += f",{self.postgres.scratch}/{version}/:/var/lib/postgresql/{version}"
 
         from pathlib import Path
 
@@ -240,14 +256,13 @@ class QBitBridgeLauncher:
             # Define your directory path
             dir_path = Path(f"{self.postgres.scratch}/pgrun")
             dir_path.mkdir(parents=True, exist_ok=True)
-            if self.postgres.version < 18:
+            if version < 18:
                 dir_path = Path(f"{self.postgres.scratch}/pgdata")
                 dir_path.mkdir(parents=True, exist_ok=True)
             else:
-                dir_path = Path(f"{self.postgres.scratch}/{self.postgres.version}")
+                dir_path = Path(f"{self.postgres.scratch}/{version}")
                 dir_path.mkdir(parents=True, exist_ok=True)
         # set the singularity arguments
-        # singargs = ["--bind", f"{self.postgres.scratch}:/var"]
         singargs = []
         if self.postgres.container_engine_args is not None:
             singargs += self.postgres.container_engine_args.split()
@@ -266,7 +281,7 @@ class QBitBridgeLauncher:
             ]
         )
         if not self.postgres.dry_run:
-            self.logger.info("Launching POSTGRES ... ")
+            self.logger.info(f"Launching POSTGRES {version}... ")
             self.logger.debug(f"With command \n {cmd}")
             self.logger.debug(f"With env \n {my_env}")
             # checking container image
@@ -319,6 +334,19 @@ class QBitBridgeLauncher:
             dir_path = Path(f"{self.prefect.home}")
             # Create the directory safely
             dir_path.mkdir(parents=True, exist_ok=True)
+
+        # determine prefect version
+        cmd = [
+            "prefect",
+            "--version",
+        ]
+        proc = subprocess.run(
+                        cmd,
+                        capture_output=True, text=True
+                        )
+        self.versions["PREFECT"] = int(proc.stdout.split(".")[0])
+        version = self.versions["PREFECT"]
+
         base_env = os.environ.copy()
         my_env = dict()
 
@@ -357,10 +385,18 @@ class QBitBridgeLauncher:
             self._add_logging("PREFECT_USE_PROFILE", proc)
             proc.wait()
 
+        # set postgres environment
+        my_env["POSTGRES_PASSWORD"] = self.postgres.password
+        my_env["POSTGRES_ADDR"] = self.hostname
+        my_env["POSTGRES_USER"] = self.postgres.user
+        my_env["POSTGRES_DB"] = self.postgres.db
+        my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
+
         # set the prefect home directory
         my_env["PREFECT_HOME"] = self.prefect.home
         # set the prefect host
         my_env["PREFECT_ORION_HOST"] = self.hostname
+
         # set the prefect web concurrency
         my_env["PREFECT_ORION_WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
         # set the sqlalchemy pool size
@@ -447,7 +483,7 @@ class QBitBridgeLauncher:
 
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
-            self.logger.info("Launching PREFECT ... ")
+            self.logger.info(f"Launching PREFECT {version}... ")
             self.logger.info(f"To view prefect UI, open an ssh tunnel")
             self.logger.info(
                 f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
