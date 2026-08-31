@@ -168,10 +168,24 @@ class QBitBridgeLauncher:
 
         self.hostname = socket.gethostname()
         self.delay_time: int = config.get("delay_time", 10)
+        self.script_name : str | None = config.get("script_name", None)
+        self.output_script : Any = None 
+        if self.script_name is not None:
+            file_path = Path(self.script_name)
+            if not file_path.is_file():
+                self.output_script = open(self.script_name, "w")
+                self.output_script.write("#!/bin/bash\n")
+            else:
+                raise ValueError(f"launcher cannot produce bash script at {self.script_name} as file already exists.")
         self.postgres = PostgresConfiguration(**config.get("postgres", {}))
         self.prefect = PrefectConfiguration(**config.get("prefect", {}))
+        if (not self.postgres.dry_run and self.output_script) or (not self.prefect.dry_run and self.output_script):
+            raise ValueError(f"Requested script being produced but either postgres or prefect are not set to dry run. Set both to dry run")
+        if self.output_script is not None:
+            self.logger.info(f"Launcher running dry runs and producing bash script {self.script_name}")
         self.versions : Dict[str, int] = {"POSTGRES": -1, "PREFECT": -1}
         self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
+        self.envs: Dict[str, Dict[str,str] | None] = {"POSTGRES": None, "PREFECT": None}
         self.pids: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.logging_threads: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.scheduler: SchedulerInfo | None = None
@@ -203,6 +217,10 @@ class QBitBridgeLauncher:
         }
         for k, v in self.logging_threads[proc_name].items():
             v.start()
+
+    def _add_to_script(self, line : str) -> None:
+        if self.output_script is not None:
+            self.output_script.write(line+"\n")
 
     def _launch_postgres(self) -> subprocess.Popen | None:
         """Launch the postgres service using the configuration"""
@@ -280,7 +298,7 @@ class QBitBridgeLauncher:
                 f"{self.postgres.port}",
             ]
         )
-        if not self.postgres.dry_run:
+        if not self.postgres.dry_run and self.output_script is None:
             self.logger.info(f"Launching POSTGRES {version}... ")
             self.logger.debug(f"With command \n {cmd}")
             self.logger.debug(f"With env \n {my_env}")
@@ -298,29 +316,45 @@ class QBitBridgeLauncher:
                 text=True,
                 bufsize=1,  # Line buffered
             )
+            self.envs["POSTGRES"] = my_env
             return proc
         else:
+            line : str 
+            envinfo : str
+            line = "Dry run: launching POSTGRES with the following configuration:"
             self.logger.info(
-                "Dry run: launching POSTGRES with the following configuration:"
+                line
             )
-            self.logger.info(f"{self.postgres}")
-            envinfo: str = f"Environment related to POSTGRES\n"
+            self._add_to_script(f"echo \"Launching POSTGRES with the following configuration:\"")
+            line = f"{self.postgres}"
+            self.logger.info(line)
+            self._add_to_script(f"echo \"{line}\"")
+            line = f"Environment related to POSTGRES"
+            self._add_to_script(f"echo \"{line}\"")
+            envinfo=""
             for k, v in my_env.items():
                 if "POSTGRES" in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
-            envinfo: str = (
-                f"Environment related to container engine {self.postgres.container_engine.upper()}\n"
-            )
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line+"\n"+envinfo)
+            line=f"Environment related to container engine {self.postgres.container_engine.upper()}"
+            self._add_to_script(f"echo \"{line}\"")
+            envinfo=""
             for k, v in my_env.items():
                 if self.postgres.container_engine.upper() in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line+"\n"+envinfo)
             from pathlib import Path
             self.logger.info(
                 f"POSTGRES container image to be used: {self.postgres.container}. Exists? {Path(self.postgres.container).is_file()}."
             )
-            self.logger.info(f"Launching POSTGRES {version} with command: {' '.join(cmd)}")
+            line=f"Launching POSTGRES {version} with command: {' '.join(cmd)}"
+            self.logger.info(line)
+            self._add_to_script(f"echo \"{line}\"")
+            line=f"{' '.join(cmd)}"
+            self._add_to_script(f"{line} &")
+            self._add_to_script(f"sleep {self.postgres.delay_time}")
             return None
 
     def _launch_prefect(self) -> subprocess.Popen | None:
@@ -334,7 +368,7 @@ class QBitBridgeLauncher:
             dir_path.mkdir(parents=True, exist_ok=True)
 
         # determine prefect version
-        cmd = [
+        cmd : list = [
             "prefect",
             "--version",
         ]
@@ -356,32 +390,40 @@ class QBitBridgeLauncher:
                 "create",
                 self.prefect.profile,
             ]
-            proc = subprocess.Popen(
-                cmd,
-                env=base_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,  # Line buffered
-            )
-            self._add_logging("PREFECT_CREATE_PROFILE", proc)
-            proc.wait()
+            if self.output_script is None:
+                proc = subprocess.Popen(
+                    cmd,
+                    env=base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                self._add_logging("PREFECT_CREATE_PROFILE", proc)
+                proc.wait()
+            else:
+                line : str = f"{' '.join(cmd)}"
+                self._add_to_script(line)
             cmd =[
                 "prefect",
                 "profile",
                 "use",
                 self.prefect.profile,
             ]
-            proc = subprocess.Popen(
-                cmd,
-                env=base_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,  # Line buffered
-            )
-            self._add_logging("PREFECT_USE_PROFILE", proc)
-            proc.wait()
+            if self.output_script is None:
+                proc = subprocess.Popen(
+                    cmd,
+                    env=base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                self._add_logging("PREFECT_USE_PROFILE", proc)
+                proc.wait()
+            else:
+                line : str = f"{' '.join(cmd)}"
+                self._add_to_script(line)
 
         # set postgres environment
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
@@ -428,18 +470,23 @@ class QBitBridgeLauncher:
                 "reset", 
                 "-y"
             ]
-            proc = subprocess.Popen(
-                cmd,
-                env=my_env | base_env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,  # Line buffered
-            )
-            self._add_logging("PREFECT_DATABASE", proc)
-            proc.wait()
+            if self.output_script is None:
+                proc = subprocess.Popen(
+                    cmd,
+                    env=my_env | base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                self._add_logging("PREFECT_DATABASE", proc)
+                proc.wait()
+            else:
+                line : str = f"{' '.join(cmd)}"
+                self._add_to_script(line)
+
         import sys
-        cmd = list()
+        cmd = []
         # if self.prefect.version == 3:
         #     cmd += [
         #         sys.executable,
@@ -453,6 +500,7 @@ class QBitBridgeLauncher:
 
         cmd += [
             sys.executable,
+            "-vvv",
             "-m",
             "uvicorn",
             "--factory",
@@ -481,13 +529,21 @@ class QBitBridgeLauncher:
 
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
-            self.logger.info(f"Launching PREFECT {version}... ")
-            self.logger.info(f"To view prefect UI, open an ssh tunnel")
+            line : str
+            line=f"Launching PREFECT {version}... "
+            self.logger.info(line)
+            line=f"To view prefect UI, open an ssh tunnel"
+            self.logger.info(line)
+            line=f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
             self.logger.info(
-                f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
+                line
             )
-            self.logger.info(f"Before launching prefect jobs, copy the following")
-            self.logger.info(f"export PREFECT_API_URL=http://{self.hostname}:4200/api")
+
+            line=f"Before launching prefect jobs, copy the following"
+            self.logger.info(line)
+            line=f"export PREFECT_API_URL=http://{self.hostname}:4200/api"
+            self.logger.info(line)
+
             proc = subprocess.Popen(
                 cmd,
                 env=my_env | base_env,
@@ -496,27 +552,62 @@ class QBitBridgeLauncher:
                 text=True,
                 bufsize=1,  # Line buffered
             )
+            self.envs["PREFECT"] = my_env
             return proc
         else:
+            line : str
+            envinfo : str
             self.logger.info(
                 "Dry run: launching PREFECT with the following configuration:"
             )
+            self._add_to_script(f"echo \"Launching PREFECT with the following configuration:\"")
             self.logger.info(f"{self.prefect}")
-            envinfo: str = f"Environment related to PREFECT\n"
+            self._add_to_script(f"echo \"{self.prefect}\"")
+            line = f"Environment related to PREFECT"
+            self._add_to_script(f"echo \"{line}\"")
+            envinfo=""
             for k, v in my_env.items():
                 if "PREFECT" in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
-            envinfo = f"Environment related to POSTGRES\b"
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line+"\n"+envinfo)
+            line = f"Environment related to POSTGRES"
+            self._add_to_script(f"echo \"{line}\"")
+            envinfo=""
             for k, v in my_env.items():
                 if "POSTGRES" in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
-            self.logger.info(f"Launching PREFECT {version} with command: {' '.join(cmd)}")
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line+"\n"+envinfo)
+            line=f"Launching PREFECT {version} with command: {' '.join(cmd)}"
+            self.logger.info(line)
+            self._add_to_script(f"echo \"{line}\"")
+            line=f"{' '.join(cmd)}"
+            self._add_to_script(f"{line} &")
+            self._add_to_script(f"sleep {self.prefect.delay_time}")
             return None
+
+    def _scheduler(self):
+        """Get scheduler info"""
+        # first get scheduler
+        # get scheduler
+        self.scheduler = probe_cluster_scheduler()
+        if self.scheduler is None:
+            raise RuntimeError(
+                f"No supported cluster job scheduler detected. Supported {_SUPPORTED_SCHEDULERS}. Exiting"
+            )
+        self.logger.info(
+            f"SCHEDULER | Cluster interface {self.scheduler.scheduler} found "
+            f"(dask cluster class: {self.scheduler.dask_cluster_class}, "
+            f"python interface available: {self.scheduler.python_interface_available})"
+        )
+        self.logger.debug(f"Evidence: {self.scheduler.evidence}")
 
     def launch(self) -> None:
         """Launch the postgres and prefect services using the configuration"""
+        # get scheduler
+        self._scheduler()
+
         # launch postgres
         pname = "POSTGRES"
         self.procs[pname] = self._launch_postgres()
@@ -543,12 +634,11 @@ class QBitBridgeLauncher:
                     self.pids[pname] = proc.info["pid"]
                     break
             self.logger.info(f"{pname} launched with {self.pids[pname]}")
-
-        # pause between services
-        self.logger.info(
-            f"Waiting {self.delay_time} before continuing launch of other services"
-        )
-        time.sleep(self.delay_time)
+            # pause between services
+            self.logger.info(
+                f"Waiting {self.delay_time} before continuing launch of other services"
+            )
+            time.sleep(self.delay_time)
 
         # launch prefect
         pname = "PREFECT"
@@ -563,7 +653,11 @@ class QBitBridgeLauncher:
             if self.procs[pname] is not None:
                 self.pids[pname] = self.procs["PREFECT"].pid
             self.logger.info(f"{pname} launched")
-        time.sleep(self.delay_time)
+            self.logger.info(
+                f"Waiting {self.delay_time} before continuing launch of other services"
+            )
+            time.sleep(self.delay_time)
+
         self.logger.info("QBitBridgeLauncher launch complete")
         running_pids = []
         for k, v in self.pids.items():
@@ -573,18 +667,6 @@ class QBitBridgeLauncher:
             self.logger.info("To stop the services, use the following commands:")
             self.logger.info(f"kill {running_pids}")
 
-        # get scheduler
-        self.scheduler = probe_cluster_scheduler()
-        if self.scheduler is None:
-            raise RuntimeError(
-                f"No supported cluster job scheduler detected. Supported {_SUPPORTED_SCHEDULERS}. Exiting"
-            )
-        self.logger.info(
-            f"SCHEDULER | Cluster interface {self.scheduler.scheduler} found "
-            f"(dask cluster class: {self.scheduler.dask_cluster_class}, "
-            f"python interface available: {self.scheduler.python_interface_available})"
-        )
-        self.logger.debug(f"Evidence: {self.scheduler.evidence}")
         return 
 
     def shutdown(self) -> None:
