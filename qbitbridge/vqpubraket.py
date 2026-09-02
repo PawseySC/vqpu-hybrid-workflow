@@ -36,6 +36,8 @@ from .utils import (
     SlurmInfo,
     PBSInfo,
     EventFile,
+    submit_compat,
+    result_from_future_compat,
 )
 from .vqpubase import (
     QPUMetaData,
@@ -356,12 +358,14 @@ async def launch_aws_braket_qpu_workflow(
     profile_info = (creds["profile"], creds["region"])
 
     # now launch
-    future = await launch_aws_braket_qpu.submit(
+    #  future = await launch_aws_braket_qpu.submit(
+    future = await submit_compat(launch_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # now run it
     # qpu_data = myqpuworkflow.active_qpus[qpu_id]
@@ -369,17 +373,21 @@ async def launch_aws_braket_qpu_workflow(
     logger.info(
         f"AWS QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
-    future = await run_aws_braket_qpu.submit(
+    # future = await run_aws_braket_qpu.submit(
+    future = await submit_compat(run_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
         sampling=sampling,
         walltime=walltime,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # once the run has finished, shut it down
-    future = await shutdown_aws_braket_qpu.submit(
+    # future = await shutdown_aws_braket_qpu.submit(
+    future = await submit_compat(shutdown_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)

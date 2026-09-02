@@ -18,12 +18,11 @@ from qbitbridge.vqpuqiskit import (
     qiskit_check_qpu,
     qiskit_get_metadata,
     launch_qiskit_qpu_workflow,
-    qiskit_allowed_devices
 )
 
 from qbitbridge.utils import EventFile
 from qbitbridge.clusters import get_dask_runners
-from qiskit_runtime import QiskitRuntimeService
+from qiskit_ibm_runtime import QiskitRuntimeService
 
 # from circuits.braket_circuits import noisy_circuit
 import asyncio

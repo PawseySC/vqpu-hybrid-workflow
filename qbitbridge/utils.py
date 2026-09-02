@@ -41,6 +41,9 @@ import asyncio
 import argparse
 import base64
 from uuid import UUID
+from prefect import __version__ as _prefect_version
+
+_PREFECT_VERSION = int(_prefect_version.split(".")[0])
 
 _SUPPORTED_IMAGE_TYPES: frozenset[str] = frozenset(
     {".jpg", ".jpeg", ".png", ".gif", ".svg"}
@@ -119,6 +122,8 @@ class PrefectConfiguration(NamedTuple):
     """Whether to reset the database before launching"""
     profile : str | None = None
     """Wehther to create a profile. If name provided create new profile and use"""
+    workers : int = 1
+    """number of workers created by uvicorn launch of prefect"""
 
 
 class PostgresConfiguration(NamedTuple):
@@ -152,6 +157,8 @@ class PostgresConfiguration(NamedTuple):
     """If True, do not actually launch the postgres container, just print the command"""
     delay_time: int = 20
     """The delay in seconds to wait before starting the prefect server after starting postgres"""
+    healthcheck: str = "pg_isready"
+    """health check command"""
 
 
 class QBitBridgeLauncher:
@@ -270,7 +277,7 @@ class QBitBridgeLauncher:
 
         from pathlib import Path
 
-        if not self.postgres.dry_run:
+        if not self.postgres.dry_run and self.output_script is None:
             # Define your directory path
             dir_path = Path(f"{self.postgres.scratch}/pgrun")
             dir_path.mkdir(parents=True, exist_ok=True)
@@ -280,6 +287,13 @@ class QBitBridgeLauncher:
             else:
                 dir_path = Path(f"{self.postgres.scratch}/{version}")
                 dir_path.mkdir(parents=True, exist_ok=True)
+        else:
+            self._add_to_script(f"mkdir -p {self.postgres.scratch}/pgrun")
+            if version < 18:
+                self._add_to_script(f"mkdir -p {self.postgres.scratch}/pgdata")
+            else:
+                self._add_to_script(f"mkdir -p {self.postgres.scratch}/{version}")
+
         # set the singularity arguments
         singargs = []
         if self.postgres.container_engine_args is not None:
@@ -314,9 +328,32 @@ class QBitBridgeLauncher:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1,  # Line buffered
+                bufsize=1,
             )
             self.envs["POSTGRES"] = my_env
+            # health check to see if running 
+            notrunning : bool = True
+            cmdwait : list = [
+                f"{self.postgres.container_engine}",
+                "exec",
+                f"{self.postgres.container}",
+                f"{self.postgres.healthcheck}",
+                "-U", 
+                f"{self.postgres.user}"
+                ]
+            while notrunning:
+                time.sleep(self.postgres.delay_time)
+                procwait = subprocess.Popen(
+                    cmdwait,
+                    env=my_env | base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,
+                )
+                stdout, stderr = procwait.communicate()
+                notrunning = not ("accepting connections" in stdout)
+                self.logger.debug(f"Checking POSTGRES health {stdout}")
             return proc
         else:
             line : str 
@@ -434,7 +471,7 @@ class QBitBridgeLauncher:
 
         # set the prefect home directory
         my_env["PREFECT_HOME"] = self.prefect.home
-        # set the prefect host
+        # set the prefect host. 
         my_env["PREFECT_ORION_HOST"] = self.hostname
 
         # set the prefect web concurrency
@@ -449,9 +486,10 @@ class QBitBridgeLauncher:
         )
         # set the prefect port
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:{self.prefect.port}/api"
-        my_env["PREFECT_SERVER_API_HOST"] = "127.0.0.1" #self.hostname
+        # since launching on same system as postgres, use 0.0.0.0
+        my_env["PREFECT_SERVER_API_HOST"] = "0.0.0.0" #self.hostname
         my_env["PREFECT_API_DATABASE_CONNECTION_URL"] = (
-            f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@{self.hostname}:{self.postgres.port}/{self.postgres.db}"
+            f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@0.0.0.0:{self.postgres.port}/{self.postgres.db}"
         )
         #postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB
         my_env["WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
@@ -487,26 +525,20 @@ class QBitBridgeLauncher:
 
         import sys
         cmd = []
-        # if self.prefect.version == 3:
-        #     cmd += [
-        #         sys.executable,
-        #         "-m",
-        #         "uvicorn",
-        #         "--factory",
-        #         "prefect.server.api.server:create_app",
-        #     ]
-        # else:
-        #     cmd += ["prefect", "server", "start"] 
-
         cmd += [
             sys.executable,
+        ]
+        if self.log_level == "DEBUG":
+            cmd += [
             "-vvv",
+            ]
+        cmd +=[
             "-m",
             "uvicorn",
             "--factory",
             "prefect.server.api.server:create_app",
         ]
-        cmd += ["--host", self.hostname]
+        cmd += ["--host", "0.0.0.0"]
         cmd += ["--port", str(self.prefect.port)]
         cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
         cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
@@ -514,23 +546,15 @@ class QBitBridgeLauncher:
             "--timeout-graceful-shutdown",
             str(self.prefect.timeout_graceful_shutdown),
         ]
-        # if self.prefect.version == 3:
-        #     cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
-        #     cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
-        #     cmd += [
-        #         "--timeout-graceful-shutdown",
-        #         str(self.prefect.timeout_graceful_shutdown),
-        #     ]
-        # else:
-        #     cmd += ["--keep-alive-timeout", str(self.prefect.timeout_keep_alive)]
-        #     #cmd += ["--workers", str(self.prefect.limit_max_requests)]
-        #     cmd += ["--workers", "1"]
+        cmd += ["--workers", str(self.prefect.workers)]
         cmd += ["--log-level", self.log_level.lower()]
 
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
             line : str
             line=f"Launching PREFECT {version}... "
+            self.logger.debug(f"With command \n {cmd}")
+            self.logger.debug(f"With env \n {my_env}")
             self.logger.info(line)
             line=f"To view prefect UI, open an ssh tunnel"
             self.logger.info(line)
@@ -613,14 +637,9 @@ class QBitBridgeLauncher:
         self.procs[pname] = self._launch_postgres()
         if not self.postgres.dry_run:
             self._add_logging(pname)
-            self.logger.info(
-                f"Delay of {self.postgres.delay_time}s to ensure {pname} launched"
-            )
-            time.sleep(self.postgres.delay_time)
             # because using container for postgres, we need to wait for it to be ready before launching prefect
             # also need to grab the postgres pid using psutil
             import getpass, psutil
-
             username = getpass.getuser()
             # Iterate over all running processes to find first postgres owned by user
             for proc in psutil.process_iter(["pid", "name", "username"]):
@@ -1456,3 +1475,37 @@ def measure_time(func):
         return result
 
     return wrapper
+
+
+async def submit_compat(task, *args, **kwargs):
+    """submit a aysnc task and insure interopability with prefect 2/3. 
+    
+    There is a change from Prefect 2->3 such that in 3, even async tasks return immediatedly 
+    and do not need to be awaited
+    """
+    import inspect
+    submitted = task.submit(*args, **kwargs)
+    # Prefect 2, async tasks need to be awaited. Prefect 3 always returns immediately
+    if inspect.isawaitable(submitted):
+        submitted = await submitted
+
+    return submitted
+
+async def result_from_future_compat(future):
+    """get the result from a future produced by an async task and insure interopability with prefect 2/3. 
+    
+    """
+    import inspect
+    result = future.result()
+    # Prefect 2, async tasks need to be awaited. Prefect 3 always returns immediately
+    if inspect.isawaitable(result):
+        result = await result
+
+    return result
+
+def get_state_compat(future):
+    if _PREFECT_VERSION < 3: 
+        return future.get_state()
+    else:
+        return future.state
+

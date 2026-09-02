@@ -20,6 +20,8 @@ from .utils import (
     save_artifact,
     upload_image_as_artifact,
     check_file_can_be_created,
+    submit_compat,
+    result_from_future_compat,
 )
 from prefect.artifacts import Artifact
 import asyncio
@@ -673,7 +675,8 @@ async def model_analysis_wrapper(
     if chain_filename is not None:
         chain_filename = f"{fitdir}/{chain_filename}"
 
-    future = await model_report_fit.submit(
+    # future = await model_report_fit.submit(
+    future = await submit_compat(model_report_fit,
         name=model.name,
         flat_samples=flat_samples,
         labels=model.param_labels,
@@ -681,7 +684,8 @@ async def model_analysis_wrapper(
         log_evidence=log_evidence,
         fit_filename=fit_filename,
     )
-    fit_values = await future.result()
+    # fit_values = await future.result()
+    fit_values = await result_from_future_compat(future)
 
     # make plot directory
     plotdir = f"{outputdir}/plots/"
@@ -821,6 +825,7 @@ async def model_fit_and_analyse_workflow(
             fit_filename=fit_run_args.fit_filename,
             chain_filename=fit_run_args.chain_filename,
         )
+        
     else:
         analysis_flow = model_analysis_workflow.with_options(
             task_runner=myflow.gettaskrunner(analysis_dask_runner)
@@ -890,10 +895,12 @@ async def multi_model_flow(
     logger.info("Retriving models ... ")
     futures = dict()
     for k in model_info.keys():
-        futures[k] = await model_retrieve_fit.submit(name=model_info[k].name)
+        # futures[k] = await model_retrieve_fit.submit(name=model_info[k].name)
+        futures[k] = await submit_compat(model_retrieve_fit, name=model_info[k].name)
     fits = dict()
     for k in model_info.keys():
-        fits[k] = await futures[k].result()
+        # fits[k] = await futures[k].result()
+        fits[k] = await result_from_future_compat(futures[k])
     for k in model_info.keys():
         logger.info(fits[k])
     logger.info("Comparing models ... ")
