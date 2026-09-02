@@ -380,7 +380,8 @@ async def launch_cudaq_qpu_workflow(
 
     # now launch
     # future = await launch_cudaq_qpu.submit(
-    future = await submit_compat(launch_cudaq_qpu,
+    future = await submit_compat(
+        launch_cudaq_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
@@ -395,7 +396,8 @@ async def launch_cudaq_qpu_workflow(
         f"CUDAQ QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
     # future = await run_cudaq_qpu.submit(
-    future = await submit_compat(run_cudaq_qpu,
+    future = await submit_compat(
+        run_cudaq_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
@@ -407,6 +409,8 @@ async def launch_cudaq_qpu_workflow(
 
     # once the run has finished, shut it down
     # future = await shutdown_cudaq_qpu.submit(myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
-    future = await submit_compat(shutdown_cudaq_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
+    future = await submit_compat(
+        shutdown_cudaq_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
+    )
     # await future.result()
     await result_from_future_compat(future)

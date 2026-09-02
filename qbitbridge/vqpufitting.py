@@ -676,7 +676,8 @@ async def model_analysis_wrapper(
         chain_filename = f"{fitdir}/{chain_filename}"
 
     # future = await model_report_fit.submit(
-    future = await submit_compat(model_report_fit,
+    future = await submit_compat(
+        model_report_fit,
         name=model.name,
         flat_samples=flat_samples,
         labels=model.param_labels,
@@ -825,7 +826,7 @@ async def model_fit_and_analyse_workflow(
             fit_filename=fit_run_args.fit_filename,
             chain_filename=fit_run_args.chain_filename,
         )
-        
+
     else:
         analysis_flow = model_analysis_workflow.with_options(
             task_runner=myflow.gettaskrunner(analysis_dask_runner)

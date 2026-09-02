@@ -359,7 +359,8 @@ async def launch_aws_braket_qpu_workflow(
 
     # now launch
     #  future = await launch_aws_braket_qpu.submit(
-    future = await submit_compat(launch_aws_braket_qpu,
+    future = await submit_compat(
+        launch_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
@@ -374,7 +375,8 @@ async def launch_aws_braket_qpu_workflow(
         f"AWS QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
     # future = await run_aws_braket_qpu.submit(
-    future = await submit_compat(run_aws_braket_qpu,
+    future = await submit_compat(
+        run_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
@@ -386,8 +388,8 @@ async def launch_aws_braket_qpu_workflow(
 
     # once the run has finished, shut it down
     # future = await shutdown_aws_braket_qpu.submit(
-    future = await submit_compat(shutdown_aws_braket_qpu,
-        myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
+    future = await submit_compat(
+        shutdown_aws_braket_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
     )
     # await future.result()
     await result_from_future_compat(future)

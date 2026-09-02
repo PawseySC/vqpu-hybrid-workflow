@@ -196,7 +196,8 @@ async def launch_vqpu_workflow(
     #     vqpu_backend=vqpu_backend,
     # )
     # using submit_compat to wrap prefect 3 into awaiting
-    future = await submit_compat(launch_vqpu,
+    future = await submit_compat(
+        launch_vqpu,
         myqpuworkflow=myqpuworkflow,
         vqpu_id=vqpu_id,
         arguments=arguments,
@@ -209,8 +210,8 @@ async def launch_vqpu_workflow(
     logger.info(
         f"vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... "
     )
-    future = await submit_compat(run_vqpu,
-        myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id, walltime=walltime
+    future = await submit_compat(
+        run_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id, walltime=walltime
     )
     # await future.result()
     await result_from_future_compat(future)
@@ -218,8 +219,11 @@ async def launch_vqpu_workflow(
     # once the run has finished, shut it down
     # future = await shutdown_vqpu.submit(myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
     # await future.result()
-    future = await submit_compat(shutdown_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
+    future = await submit_compat(
+        shutdown_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id
+    )
     await result_from_future_compat(future)
+
 
 async def postprocessing_histo_plot(
     data: Dict[str, int],
@@ -405,7 +409,8 @@ async def run_circuit(
     """
     if backend_sel == None and vqpu_id != None and remote != None:
         # future = await run_circuit_vqpu.submit(
-        future = await submit_compat(run_circuit_vqpu,
+        future = await submit_compat(
+            run_circuit_vqpu,
             myqpuworkflow=myqpuworkflow,
             circuitfunc=circuitfunc,
             arguments=arguments,
@@ -415,7 +420,8 @@ async def run_circuit(
         )
     elif backend_sel == None and vqpu_id == None and remote != None:
         # future = await run_circuit_remote.submit(
-        future = await submit_compat(run_circuit_remote,
+        future = await submit_compat(
+            run_circuit_remote,
             myqpuworkflow=myqpuworkflow,
             circuitfunc=circuitfunc,
             arguments=arguments,
@@ -424,7 +430,8 @@ async def run_circuit(
         )
     elif backend_sel != None and vqpu_id == None and remote == None:
         # future = await run_circuit_sim.submit(
-        future = await submit_compat(run_circuit_sim,
+        future = await submit_compat(
+            run_circuit_sim,
             myqpuworkflow=myqpuworkflow,
             circuitfunc=circuitfunc,
             arguments=arguments,
@@ -881,13 +888,15 @@ async def cpu_workflow(
     for exec, args in zip(execs, arguments):
         logger.info(f"Running {exec} with {args}")
         futures.append(
-            # older prefect2 had to await a task. prefect 3 does not. Created a wrapper 
-            # that handles this submission so that it is always awaitable 
-            #await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
-            await submit_compat(run_cpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
+            # older prefect2 had to await a task. prefect 3 does not. Created a wrapper
+            # that handles this submission so that it is always awaitable
+            # await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
+            await submit_compat(
+                run_cpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
+            )
         )
     for f in futures:
-        #await f.result()
+        # await f.result()
         await result_from_future_compat(f)
 
     logger.info("Finished CPU flow")
@@ -939,8 +948,8 @@ async def gpu_workflow(
             logger.info(f"Running {exec} with {args}")
             futures.append(
                 # await run_gpu.submit(
-                await submit_compat(run_gpu,
-                    myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
+                await submit_compat(
+                    run_gpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
                 )
             )
         for f in futures:
