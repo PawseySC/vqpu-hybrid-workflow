@@ -53,6 +53,27 @@ _SUPPORTED_SCHEDULERS: frozenset[str] = frozenset(
     {"SLURMCluster", "PBSCluster", "KuberCluster"}
 )
 
+_SCHEDULER_SUBMIT_JOB = {
+    "SLURMCluster": "sbatch --parsable",
+    "PBSCluster": "qsub",
+    "KuberCluster": "",
+}
+_SCHEDULER_POLL_JOB_INFO = {
+    "SLURMCluster": "sacct -j $JOBID -X -n -o State",
+    "PBSCluster": "qstat $JOBID -x -f | grep \"job_state\" | awk '{print $3}'",
+    "KuberCluster": "",
+}
+_SCHEDULER_JOB_EXITSTATUS = {
+    "SLURMCluster": "sacct -j $JOBID -X -n -o ExitCode | sed \"s/:/ /g\" | awk \'{print $1}\'",
+    "PBSCluster": "qstat $JOBID -x -f | grep \"Exit_status\" | awk '{print $3}'",
+    "KuberCluster": "",
+}
+_SCHEDULER_JOB_COMPLETED = {
+    "SLURMCluster": " COMPLETED",
+    "PBSCluster": "F",
+    "KuberCluster": "",
+}
+
 _DASK_CLUSTER_CLASSES = {
     "SLURMCluster": "dask_jobqueue.SLURMCluster",
     "PBSCluster": "dask_jobqueue.PBSCluster",
@@ -242,9 +263,7 @@ class QBitBridgeLauncher:
         if self.output_script is not None:
             self.output_script.write(line + "\n")
 
-    def _launch_postgres(self) -> subprocess.Popen | None:
-        """Launch the postgres service using the configuration"""
-        # define postres environment variables
+    def _get_env_postgres(self):
         base_env = os.environ.copy()
         my_env = {}
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
@@ -252,21 +271,8 @@ class QBitBridgeLauncher:
         my_env["POSTGRES_USER"] = self.postgres.user
         my_env["POSTGRES_DB"] = self.postgres.db
         my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
-
-        # determine postgres version
-        cmd = [
-            self.postgres.container_engine,
-            "run",
-            self.postgres.container,
-            "--version",
-        ]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        self.versions["POSTGRES"] = int(
-            proc.stdout.split("(PostgreSQL) ")[1].split(" ")[0].split(".")[0]
-        )
-        version = self.versions["POSTGRES"]
-
         # pass to singularity by defining appropriate environment variables
+        version = self.versions["POSTGRES"]
         if self.postgres.container_engine == "singularity":
             my_env["SINGULARITYENV_POSTGRES_PASSWORD"] = self.postgres.password
             my_env["SINGULARITYENV_POSTGRES_DB"] = self.postgres.db
@@ -288,7 +294,50 @@ class QBitBridgeLauncher:
                 ] += (
                     f",{self.postgres.scratch}/{version}/:/var/lib/postgresql/{version}"
                 )
+        return my_env, base_env
 
+    def _health_check_postgres(self):
+        # health check to see if running
+        my_env, base_env = self._get_env_postgres()
+        notrunning: bool = True
+        cmdwait: list = [
+            f"{self.postgres.container_engine}",
+            "exec",
+            f"{self.postgres.container}",
+            f"{self.postgres.healthcheck}",
+            "-U",
+            f"{self.postgres.user}",
+        ]
+        while notrunning:
+            time.sleep(self.postgres.delay_time)
+            procwait = subprocess.Popen(
+                cmdwait,
+                env=my_env | base_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            stdout, stderr = procwait.communicate()
+            notrunning = not ("accepting connections" in stdout)
+            self.logger.debug(f"Checking POSTGRES health {stdout}")
+
+    def _launch_postgres(self) -> subprocess.Popen | None:
+        """Launch the postgres service using the configuration"""
+        # define postres environment variables
+        # determine postgres version
+        cmd = [
+            self.postgres.container_engine,
+            "run",
+            self.postgres.container,
+            "--version",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        self.versions["POSTGRES"] = int(
+            proc.stdout.split("(PostgreSQL) ")[1].split(" ")[0].split(".")[0]
+        )
+        my_env, base_env = self._get_env_postgres()
+        version = self.versions["POSTGRES"]
         from pathlib import Path
 
         if not self.postgres.dry_run and self.output_script is None:
@@ -345,29 +394,7 @@ class QBitBridgeLauncher:
                 bufsize=1,
             )
             self.envs["POSTGRES"] = my_env
-            # health check to see if running
-            notrunning: bool = True
-            cmdwait: list = [
-                f"{self.postgres.container_engine}",
-                "exec",
-                f"{self.postgres.container}",
-                f"{self.postgres.healthcheck}",
-                "-U",
-                f"{self.postgres.user}",
-            ]
-            while notrunning:
-                time.sleep(self.postgres.delay_time)
-                procwait = subprocess.Popen(
-                    cmdwait,
-                    env=my_env | base_env,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    bufsize=1,
-                )
-                stdout, stderr = procwait.communicate()
-                notrunning = not ("accepting connections" in stdout)
-                self.logger.debug(f"Checking POSTGRES health {stdout}")
+            self._health_check_postgres()
             return proc
         else:
             line: str
