@@ -17,7 +17,6 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
     Generator,
     Callable,
 )
@@ -36,6 +35,8 @@ from .utils import (
     upload_image_as_artifact,
     SlurmInfo,
     EventFile,
+    submit_compat,
+    result_from_future_compat,
 )
 from .vqpubase import (
     QPUMetaData,
@@ -354,12 +355,15 @@ async def launch_qiskit_qpu_workflow(
     logger.info(creds["message"])
 
     # now launch
-    future = await launch_qiskit_qpu.submit(
+    # future = await launch_qiskit_qpu.submit(
+    future = await submit_compat(
+        launch_qiskit_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # now run it
     # qpu_data = myqpuworkflow.active_qpus[qpu_id]
@@ -367,17 +371,22 @@ async def launch_qiskit_qpu_workflow(
     logger.info(
         f"QISKIT QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
-    future = await run_qiskit_qpu.submit(
+    # future = await run_qiskit_qpu.submit(
+    future = await submit_compat(
+        run_qiskit_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
         sampling=sampling,
         walltime=walltime,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # once the run has finished, shut it down
-    future = await shutdown_qiskit_qpu.submit(
-        myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
+    # future = await shutdown_qiskit_qpu.submit(
+    future = await submit_compat(
+        shutdown_qiskit_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)

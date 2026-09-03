@@ -1,6 +1,6 @@
 """
-Collection of functions and tooling intended for general usage.
-The key functionality to explore here is the EventFile class.
+@file utils.py
+@brief Collection of functions and tooling intended for general usage. The key functionality to explore here is the EventFile class.
 """
 
 # from curses import echo
@@ -11,6 +11,7 @@ import json
 import importlib
 import logging
 import os
+import numpy as np
 import secrets
 import subprocess
 import select
@@ -26,7 +27,7 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
+    Callable,
 )
 
 # from nbconvert import export
@@ -40,8 +41,75 @@ import asyncio
 import argparse
 import base64
 from uuid import UUID
+from prefect import __version__ as _prefect_version
 
-SUPPORTED_IMAGE_TYPES = [".jpg", ".jpeg", ".png", ".gif", ".svg"]
+_PREFECT_VERSION = int(_prefect_version.split(".")[0])
+
+_SUPPORTED_IMAGE_TYPES: frozenset[str] = frozenset(
+    {".jpg", ".jpeg", ".png", ".gif", ".svg"}
+)
+
+_SUPPORTED_SCHEDULERS: frozenset[str] = frozenset(
+    {"SLURMCluster", "PBSCluster", "KuberCluster"}
+)
+
+_SCHEDULER_SUBMIT_JOB = {
+    "SLURMCluster": "sbatch --parsable",
+    "PBSCluster": "qsub",
+    "KuberCluster": "",
+}
+_SCHEDULER_POLL_JOB_INFO = {
+    "SLURMCluster": "sacct -j $JOBID -X -n -o State",
+    "PBSCluster": "qstat $JOBID -x -f | grep \"job_state\" | awk '{print $3}'",
+    "KuberCluster": "",
+}
+_SCHEDULER_JOB_EXITSTATUS = {
+    "SLURMCluster": "sacct -j $JOBID -X -n -o ExitCode | sed \"s/:/ /g\" | awk \'{print $1}\'",
+    "PBSCluster": "qstat $JOBID -x -f | grep \"Exit_status\" | awk '{print $3}'",
+    "KuberCluster": "",
+}
+_SCHEDULER_JOB_COMPLETED = {
+    "SLURMCluster": " COMPLETED",
+    "PBSCluster": "F",
+    "KuberCluster": "",
+}
+
+_DASK_CLUSTER_CLASSES = {
+    "SLURMCluster": "dask_jobqueue.SLURMCluster",
+    "PBSCluster": "dask_jobqueue.PBSCluster",
+    "KuberCluster": "dask_kubernetes.classic.KubeCluster",
+}
+_DASK_SCHEDULER_MODULE = {
+    "SLURMCluster": "dask_jobqueue",
+    "PBSCluster": "dask_jobqueue",
+    "KuberCluster": "dask_kubernetes.classic",
+}
+
+
+def _command_exists(cmd: str) -> bool:
+    """Check whether a command is available on the PATH.
+
+    Args:
+        cmd (str): name of the command to look for
+
+    Returns:
+        bool: True if the command is found on the PATH
+    """
+    from shutil import which
+
+    return which(cmd) is not None
+
+
+def _path_exists(path: str) -> bool:
+    """Check whether a filesystem path exists.
+
+    Args:
+        path (str): path to check
+
+    Returns:
+        bool: True if the path exists
+    """
+    return os.path.exists(path)
 
 
 class PrefectConfiguration(NamedTuple):
@@ -49,6 +117,8 @@ class PrefectConfiguration(NamedTuple):
 
     home: str
     """Path to the prefect home directory"""
+    # version: int = 3
+    # """The major version of prefect"""
     # hostname: str = "0.0.0.0"
     # """The hostname of the prefect server"""
     web_concurrency: int = 16
@@ -69,6 +139,12 @@ class PrefectConfiguration(NamedTuple):
     """If True, do not actually launch the prefect server, just print the command"""
     delay_time: int = 20
     """The delay in seconds to wait before starting the prefect server after starting postgres"""
+    database_reset: bool = False
+    """Whether to reset the database before launching"""
+    profile: str | None = None
+    """Wehther to create a profile. If name provided create new profile and use"""
+    workers: int = 1
+    """number of workers created by uvicorn launch of prefect"""
 
 
 class PostgresConfiguration(NamedTuple):
@@ -78,6 +154,8 @@ class PostgresConfiguration(NamedTuple):
     # """The hostname running the postgres database"""
     scratch: str
     """The scratch directory for the postgres database"""
+    # version: int = 18
+    # """The major version of postgres"""
     user: str = "postgres"
     """The user for the postgres database"""
     db: str = "orion"
@@ -100,6 +178,8 @@ class PostgresConfiguration(NamedTuple):
     """If True, do not actually launch the postgres container, just print the command"""
     delay_time: int = 20
     """The delay in seconds to wait before starting the prefect server after starting postgres"""
+    healthcheck: str = "pg_isready"
+    """health check command"""
 
 
 class QBitBridgeLauncher:
@@ -116,11 +196,38 @@ class QBitBridgeLauncher:
 
         self.hostname = socket.gethostname()
         self.delay_time: int = config.get("delay_time", 10)
+        self.script_name: str | None = config.get("script_name", None)
+        self.output_script: Any = None
+        if self.script_name is not None:
+            file_path = Path(self.script_name)
+            if not file_path.is_file():
+                self.output_script = open(self.script_name, "w")
+                self.output_script.write("#!/bin/bash\n")
+            else:
+                raise ValueError(
+                    f"launcher cannot produce bash script at {self.script_name} as file already exists."
+                )
         self.postgres = PostgresConfiguration(**config.get("postgres", {}))
         self.prefect = PrefectConfiguration(**config.get("prefect", {}))
+        if (not self.postgres.dry_run and self.output_script) or (
+            not self.prefect.dry_run and self.output_script
+        ):
+            raise ValueError(
+                f"Requested script being produced but either postgres or prefect are not set to dry run. Set both to dry run"
+            )
+        if self.output_script is not None:
+            self.logger.info(
+                f"Launcher running dry runs and producing bash script {self.script_name}"
+            )
+        self.versions: Dict[str, int] = {"POSTGRES": -1, "PREFECT": -1}
         self.procs: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
+        self.envs: Dict[str, Dict[str, str] | None] = {
+            "POSTGRES": None,
+            "PREFECT": None,
+        }
         self.pids: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
         self.logging_threads: Dict[str, Any] = {"POSTGRES": None, "PREFECT": None}
+        self.scheduler: SchedulerInfo | None = None
 
     def __enter__(self):
         return self
@@ -131,64 +238,126 @@ class QBitBridgeLauncher:
     def _stream_logger(self, pipe, log_func, describ: str = "") -> None:
         """Reads lines from a pipe and logs them using the provided log function."""
         for line in iter(pipe.readline, ""):
-            log_func(describ + " " + line.rstrip())
+            log_func(describ + " | " + line.rstrip())
         pipe.close()
 
-    def _add_logging(self, proc_name: str) -> None:
-        if not self.postgres.dry_run:
-            self.logging_threads[proc_name] = {
-                "out": threading.Thread(
-                    target=self._stream_logger,
-                    args=(self.procs[proc_name].stdout, self.logger.info, proc_name),
-                ),
-                "warning": threading.Thread(
-                    target=self._stream_logger,
-                    args=(self.procs[proc_name].stderr, self.logger.info, proc_name),
-                ),
-            }
-            for k, v in self.logging_threads[proc_name].items():
-                v.start()
+    def _add_logging(
+        self, proc_name: str, proc: subprocess.Popen | None = None
+    ) -> None:
+        if proc is None:
+            proc = self.procs[proc_name]
+        self.logging_threads[proc_name] = {
+            "out": threading.Thread(
+                target=self._stream_logger,
+                args=(proc.stdout, self.logger.info, proc_name),
+            ),
+            "warning": threading.Thread(
+                target=self._stream_logger,
+                args=(proc.stderr, self.logger.info, proc_name),
+            ),
+        }
+        for k, v in self.logging_threads[proc_name].items():
+            v.start()
 
-    def _launch_postgres(self) -> subprocess.Popen | None:
-        """Launch the postgres service using the configuration"""
-        # define postres environment variables
-        my_env = os.environ.copy()
+    def _add_to_script(self, line: str) -> None:
+        if self.output_script is not None:
+            self.output_script.write(line + "\n")
+
+    def _get_env_postgres(self):
+        base_env = os.environ.copy()
+        my_env = {}
         my_env["POSTGRES_PASSWORD"] = self.postgres.password
         my_env["POSTGRES_ADDR"] = self.hostname
         my_env["POSTGRES_USER"] = self.postgres.user
         my_env["POSTGRES_DB"] = self.postgres.db
         my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
-
         # pass to singularity by defining appropriate environment variables
+        version = self.versions["POSTGRES"]
         if self.postgres.container_engine == "singularity":
             my_env["SINGULARITYENV_POSTGRES_PASSWORD"] = self.postgres.password
             my_env["SINGULARITYENV_POSTGRES_DB"] = self.postgres.db
             # my_env["SINGULARITYENV_PGDATA"] = f"{self.postgres.scratch}/pgdata"
-            if "SINGULARITY_BINDPATH" not in my_env:
-                my_env["SINGULARITY_BINDPATH"] = (
-                    f",{self.postgres.scratch}/pgdata/:/var/lib/postgresql/data"
-                )
-                my_env[
-                    "SINGULARITY_BINDPATH"
-                ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
+            if "SINGULARITY_BINDPATH" not in base_env:
+                my_env["SINGULARITY_BINDPATH"] = ""
             else:
+                my_env["SINGULARITY_BINDPATH"] = base_env["SINGULARITY_BINDPATH"]
+            my_env[
+                "SINGULARITY_BINDPATH"
+            ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
+            if version < 18:
                 my_env[
                     "SINGULARITY_BINDPATH"
                 ] += f",{self.postgres.scratch}/pgdata/:/var/lib/postgresql/data"
+            else:
                 my_env[
                     "SINGULARITY_BINDPATH"
-                ] += f",{self.postgres.scratch}/pgrun/:/var/run/postgresql/"
+                ] += (
+                    f",{self.postgres.scratch}/{version}/:/var/lib/postgresql/{version}"
+                )
+        return my_env, base_env
 
+    def _health_check_postgres(self):
+        # health check to see if running
+        my_env, base_env = self._get_env_postgres()
+        notrunning: bool = True
+        cmdwait: list = [
+            f"{self.postgres.container_engine}",
+            "exec",
+            f"{self.postgres.container}",
+            f"{self.postgres.healthcheck}",
+            "-U",
+            f"{self.postgres.user}",
+        ]
+        while notrunning:
+            time.sleep(self.postgres.delay_time)
+            procwait = subprocess.Popen(
+                cmdwait,
+                env=my_env | base_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            stdout, stderr = procwait.communicate()
+            notrunning = not ("accepting connections" in stdout)
+            self.logger.debug(f"Checking POSTGRES health {stdout}")
+
+    def _launch_postgres(self) -> subprocess.Popen | None:
+        """Launch the postgres service using the configuration"""
+        # define postres environment variables
+        # determine postgres version
+        cmd = [
+            self.postgres.container_engine,
+            "run",
+            self.postgres.container,
+            "--version",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        self.versions["POSTGRES"] = int(
+            proc.stdout.split("(PostgreSQL) ")[1].split(" ")[0].split(".")[0]
+        )
+        my_env, base_env = self._get_env_postgres()
+        version = self.versions["POSTGRES"]
         from pathlib import Path
 
-        if not self.postgres.dry_run:
+        if not self.postgres.dry_run and self.output_script is None:
             # Define your directory path
-            dir_path = Path(f"{self.postgres.scratch}/pgdata")
-            dir_path.mkdir(parents=True, exist_ok=True)
             dir_path = Path(f"{self.postgres.scratch}/pgrun")
             dir_path.mkdir(parents=True, exist_ok=True)
+            if version < 18:
+                dir_path = Path(f"{self.postgres.scratch}/pgdata")
+                dir_path.mkdir(parents=True, exist_ok=True)
+            else:
+                dir_path = Path(f"{self.postgres.scratch}/{version}")
+                dir_path.mkdir(parents=True, exist_ok=True)
+        else:
+            self._add_to_script(f"mkdir -p {self.postgres.scratch}/pgrun")
+            if version < 18:
+                self._add_to_script(f"mkdir -p {self.postgres.scratch}/pgdata")
+            else:
+                self._add_to_script(f"mkdir -p {self.postgres.scratch}/{version}")
+
         # set the singularity arguments
-        # singargs = ["--bind", f"{self.postgres.scratch}:/var"]
         singargs = []
         if self.postgres.container_engine_args is not None:
             singargs += self.postgres.container_engine_args.split()
@@ -206,8 +375,10 @@ class QBitBridgeLauncher:
                 f"{self.postgres.port}",
             ]
         )
-        if not self.postgres.dry_run:
-            self.logger.info("Launching POSTGRES ... ")
+        if not self.postgres.dry_run and self.output_script is None:
+            self.logger.info(f"Launching POSTGRES {version}... ")
+            self.logger.debug(f"With command \n {cmd}")
+            self.logger.debug(f"With env \n {my_env}")
             # checking container image
             container_image = Path(self.postgres.container)
             if not container_image.is_file():
@@ -216,36 +387,53 @@ class QBitBridgeLauncher:
                 )
             proc = subprocess.Popen(
                 cmd,
-                env=my_env,
+                env=my_env | base_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=1,  # Line buffered
+                bufsize=1,
             )
+            self.envs["POSTGRES"] = my_env
+            self._health_check_postgres()
             return proc
         else:
-            self.logger.info(
-                "Dry run: launching POSTGRES with the following configuration:"
+            line: str
+            envinfo: str
+            line = "Dry run: launching POSTGRES with the following configuration:"
+            self.logger.info(line)
+            self._add_to_script(
+                f'echo "Launching POSTGRES with the following configuration:"'
             )
-            self.logger.info(f"{self.postgres}")
-            envinfo: str = f"Environment related to POSTGRES\n"
+            line = f"{self.postgres}"
+            self.logger.info(line)
+            self._add_to_script(f'echo "{line}"')
+            line = f"Environment related to POSTGRES"
+            self._add_to_script(f'echo "{line}"')
+            envinfo = ""
             for k, v in my_env.items():
                 if "POSTGRES" in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
-            envinfo: str = (
-                f"Environment related to container engine {self.postgres.container_engine.upper()}\n"
-            )
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line + "\n" + envinfo)
+            line = f"Environment related to container engine {self.postgres.container_engine.upper()}"
+            self._add_to_script(f'echo "{line}"')
+            envinfo = ""
             for k, v in my_env.items():
                 if self.postgres.container_engine.upper() in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line + "\n" + envinfo)
             from pathlib import Path
 
             self.logger.info(
                 f"POSTGRES container image to be used: {self.postgres.container}. Exists? {Path(self.postgres.container).is_file()}."
             )
-            self.logger.info(f"Launching POSTGRES with command: {' '.join(cmd)}")
+            line = f"Launching POSTGRES {version} with command: {' '.join(cmd)}"
+            self.logger.info(line)
+            self._add_to_script(f'echo "{line}"')
+            line = f"{' '.join(cmd)}"
+            self._add_to_script(f"{line} &")
+            self._add_to_script(f"sleep {self.postgres.delay_time}")
             return None
 
     def _launch_prefect(self) -> subprocess.Popen | None:
@@ -257,12 +445,74 @@ class QBitBridgeLauncher:
             dir_path = Path(f"{self.prefect.home}")
             # Create the directory safely
             dir_path.mkdir(parents=True, exist_ok=True)
-        my_env = os.environ.copy()
+
+        # determine prefect version
+        cmd: list = [
+            "prefect",
+            "--version",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+        self.versions["PREFECT"] = int(proc.stdout.split(".")[0])
+        version = self.versions["PREFECT"]
+
+        base_env = os.environ.copy()
+        my_env = dict()
+
+        if self.prefect.profile is not None:
+            self.logger.info(f"Creating PREFECT profile {self.prefect.profile}")
+            cmd = [
+                "prefect",
+                "profile",
+                "create",
+                self.prefect.profile,
+            ]
+            if self.output_script is None:
+                proc = subprocess.Popen(
+                    cmd,
+                    env=base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                self._add_logging("PREFECT_CREATE_PROFILE", proc)
+                proc.wait()
+            else:
+                line: str = f"{' '.join(cmd)}"
+                self._add_to_script(line)
+            cmd = [
+                "prefect",
+                "profile",
+                "use",
+                self.prefect.profile,
+            ]
+            if self.output_script is None:
+                proc = subprocess.Popen(
+                    cmd,
+                    env=base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                self._add_logging("PREFECT_USE_PROFILE", proc)
+                proc.wait()
+            else:
+                line: str = f"{' '.join(cmd)}"
+                self._add_to_script(line)
+
+        # set postgres environment
+        my_env["POSTGRES_PASSWORD"] = self.postgres.password
+        my_env["POSTGRES_ADDR"] = self.hostname
+        my_env["POSTGRES_USER"] = self.postgres.user
+        my_env["POSTGRES_DB"] = self.postgres.db
+        my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
 
         # set the prefect home directory
         my_env["PREFECT_HOME"] = self.prefect.home
-        # set the prefect host
+        # set the prefect host.
         my_env["PREFECT_ORION_HOST"] = self.hostname
+
         # set the prefect web concurrency
         my_env["PREFECT_ORION_WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
         # set the sqlalchemy pool size
@@ -275,10 +525,12 @@ class QBitBridgeLauncher:
         )
         # set the prefect port
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:{self.prefect.port}/api"
-        my_env["PREFECT_SERVER_API_HOST"] = self.hostname
+        # since launching on same system as postgres, use 0.0.0.0
+        my_env["PREFECT_SERVER_API_HOST"] = "0.0.0.0"  # self.hostname
         my_env["PREFECT_API_DATABASE_CONNECTION_URL"] = (
-            f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@{self.hostname}:{self.postgres.port}/{self.postgres.db}"
+            f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@0.0.0.0:{self.postgres.port}/{self.postgres.db}"
         )
+        # postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB
         my_env["WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
         my_env["PREFECT_SQLALCHEMY_POOL_SIZE"] = str(self.prefect.sqlalchemy_pool_size)
         my_env["PREFECT_SQLALCHEMY_MAX_OVERFLOW"] = str(
@@ -286,16 +538,41 @@ class QBitBridgeLauncher:
         )
         my_env["PREFECT_API_URL"] = f"http://{self.hostname}:4200/api"
 
+        if self.prefect.database_reset and not self.prefect.dry_run:
+            self.logger.info("Resetting PREFECT Database ... ")
+            cmd = ["prefect", "server", "database", "reset", "-y"]
+            if self.output_script is None:
+                proc = subprocess.Popen(
+                    cmd,
+                    env=my_env | base_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=1,  # Line buffered
+                )
+                self._add_logging("PREFECT_DATABASE", proc)
+                proc.wait()
+            else:
+                line: str = f"{' '.join(cmd)}"
+                self._add_to_script(line)
+
         import sys
 
-        cmd = [
+        cmd = []
+        cmd += [
             sys.executable,
+        ]
+        if self.log_level == "DEBUG":
+            cmd += [
+                "-vvv",
+            ]
+        cmd += [
             "-m",
             "uvicorn",
             "--factory",
             "prefect.server.api.server:create_app",
         ]
-        cmd += ["--host", self.hostname]
+        cmd += ["--host", "0.0.0.0"]
         cmd += ["--port", str(self.prefect.port)]
         cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
         cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
@@ -303,49 +580,97 @@ class QBitBridgeLauncher:
             "--timeout-graceful-shutdown",
             str(self.prefect.timeout_graceful_shutdown),
         ]
+        cmd += ["--workers", str(self.prefect.workers)]
         cmd += ["--log-level", self.log_level.lower()]
+
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
-            self.logger.info("Launching PREFECT ... ")
-            self.logger.info(f"To view prefect UI, open an ssh tunnel")
-            self.logger.info(
-                f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
-            )
-            self.logger.info(f"Before launching prefect jobs, copy the following")
-            self.logger.info(f"export PREFECT_API_URL=http://{self.hostname}:4200/api")
+            line: str
+            line = f"Launching PREFECT {version}... "
+            self.logger.debug(f"With command \n {cmd}")
+            self.logger.debug(f"With env \n {my_env}")
+            self.logger.info(line)
+            line = f"To view prefect UI, open an ssh tunnel"
+            self.logger.info(line)
+            line = f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
+            self.logger.info(line)
+
+            line = f"Before launching prefect jobs, copy the following"
+            self.logger.info(line)
+            line = f"export PREFECT_API_URL=http://{self.hostname}:4200/api"
+            self.logger.info(line)
+
             proc = subprocess.Popen(
                 cmd,
-                env=my_env,
+                env=my_env | base_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,  # Line buffered
             )
+            self.envs["PREFECT"] = my_env
             return proc
         else:
+            line: str
+            envinfo: str
             self.logger.info(
                 "Dry run: launching PREFECT with the following configuration:"
             )
+            self._add_to_script(
+                f'echo "Launching PREFECT with the following configuration:"'
+            )
             self.logger.info(f"{self.prefect}")
-            envinfo: str = f"Environment related to PREFECT\n"
+            self._add_to_script(f'echo "{self.prefect}"')
+            line = f"Environment related to PREFECT"
+            self._add_to_script(f'echo "{line}"')
+            envinfo = ""
             for k, v in my_env.items():
                 if "PREFECT" in k:
                     envinfo += f"export {k}={v}\n"
-            self.logger.info(envinfo)
-            self.logger.info(f"Launching PREFECT with command: {' '.join(cmd)}")
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line + "\n" + envinfo)
+            line = f"Environment related to POSTGRES"
+            self._add_to_script(f'echo "{line}"')
+            envinfo = ""
+            for k, v in my_env.items():
+                if "POSTGRES" in k:
+                    envinfo += f"export {k}={v}\n"
+                    self._add_to_script(f"export {k}={v}")
+            self.logger.info(line + "\n" + envinfo)
+            line = f"Launching PREFECT {version} with command: {' '.join(cmd)}"
+            self.logger.info(line)
+            self._add_to_script(f'echo "{line}"')
+            line = f"{' '.join(cmd)}"
+            self._add_to_script(f"{line} &")
+            self._add_to_script(f"sleep {self.prefect.delay_time}")
             return None
+
+    def _scheduler(self):
+        """Get scheduler info"""
+        # first get scheduler
+        # get scheduler
+        self.scheduler = probe_cluster_scheduler()
+        if self.scheduler is None:
+            raise RuntimeError(
+                f"No supported cluster job scheduler detected. Supported {_SUPPORTED_SCHEDULERS}. Exiting"
+            )
+        self.logger.info(
+            f"SCHEDULER | Cluster interface {self.scheduler.scheduler} found "
+            f"(dask cluster class: {self.scheduler.dask_cluster_class}, "
+            f"python interface available: {self.scheduler.python_interface_available})"
+        )
+        self.logger.debug(f"Evidence: {self.scheduler.evidence}")
 
     def launch(self) -> None:
         """Launch the postgres and prefect services using the configuration"""
+        # get scheduler
+        self._scheduler()
+
         # launch postgres
         pname = "POSTGRES"
         self.procs[pname] = self._launch_postgres()
         if not self.postgres.dry_run:
             self._add_logging(pname)
-            self.logger.info(
-                f"Delay of {self.postgres.delay_time}s to ensure {pname} launched"
-            )
-            time.sleep(self.postgres.delay_time)
             # because using container for postgres, we need to wait for it to be ready before launching prefect
             # also need to grab the postgres pid using psutil
             import getpass, psutil
@@ -363,10 +688,11 @@ class QBitBridgeLauncher:
                     self.pids[pname] = proc.info["pid"]
                     break
             self.logger.info(f"{pname} launched with {self.pids[pname]}")
-
-        # pause between services
-        self.logger.info(f"Waiting {self.delay_time} before continuing launch of other services")
-        time.sleep(self.delay_time)
+            # pause between services
+            self.logger.info(
+                f"Waiting {self.delay_time} before continuing launch of other services"
+            )
+            time.sleep(self.delay_time)
 
         # launch prefect
         pname = "PREFECT"
@@ -381,7 +707,11 @@ class QBitBridgeLauncher:
             if self.procs[pname] is not None:
                 self.pids[pname] = self.procs["PREFECT"].pid
             self.logger.info(f"{pname} launched")
-        time.sleep(self.delay_time)
+            self.logger.info(
+                f"Waiting {self.delay_time} before continuing launch of other services"
+            )
+            time.sleep(self.delay_time)
+
         self.logger.info("QBitBridgeLauncher launch complete")
         running_pids = []
         for k, v in self.pids.items():
@@ -390,7 +720,8 @@ class QBitBridgeLauncher:
         if len(running_pids) > 0:
             self.logger.info("To stop the services, use the following commands:")
             self.logger.info(f"kill {running_pids}")
-            # self.logger.info(f"kill {' '.join(running_pids)}")
+
+        return
 
     def shutdown(self) -> None:
         """Shutdown process and logging threads"""
@@ -484,17 +815,17 @@ def _printtostr(thingtoprint: Any) -> str:
 
 
 def get_environment_variable(
-    variable: Union[str, None], default: Optional[str] = None
-) -> Union[str, None]:
+    variable: str | None = None, default: str | None = None
+) -> str | None:
     """Get the value of an environment variable if it exists. If it does not
     a None is returned.
 
     Args:
-        variable (Union[str,None]): The variable to lookup. If it starts with `$` it is removed. If `None` is provided `None` is returned.
+        variable (str|None): The variable to lookup. If it starts with `$` it is removed. If `None` is provided `None` is returned.
         default (Optional[str], optional): If the variable lookup is not resolved this is returned. Defaults to None.
 
     Returns:
-        Union[str,None]: Value of environment variable if it exists. None if it does not.
+        str|None: Value of environment variable if it exists. None if it does not.
     """
     if variable is None:
         return None
@@ -512,14 +843,151 @@ class SlurmInfo(NamedTuple):
 
     hostname: str
     """The hostname of the slurm job"""
-    resource: str = None
+    resource: str | None = None
     """The slurm resource request"""
-    job_id: Optional[str] = None
+    job_id: str | None = None
     """The job ID of the slurm job"""
-    task_id: Optional[str] = None
+    task_id: str | None = None
     """The task ID of the slurm job"""
-    time: Optional[str] = None
+    time: str | None = None
     """The time time the job information was gathered"""
+
+
+class PBSInfo(NamedTuple):
+    """Simple class to store pbs information"""
+
+    hostname: str
+    """The hostname of the slurm job"""
+    resource: str | None = None
+    """The slurm resource request"""
+    job_id: str | None = None
+    """The job ID of the slurm job"""
+    task_id: str | None = None
+    """The task ID of the slurm job"""
+    time: str | None = None
+    """The time time the job information was gathered"""
+
+
+class SchedulerInfo(NamedTuple):
+    """Simple class to store the result of probing for a cluster scheduler"""
+
+    scheduler: str
+    """Name of the scheduler that was probed (one of SUPPORTED_SCHEDULERS)"""
+    detected: bool
+    """Whether evidence for the scheduler was found on this cluster"""
+    evidence: List[str]
+    """Human readable strings describing the evidence found"""
+    dask_cluster_class: str
+    """The dask cluster class string to use for this scheduler"""
+    python_interface_available: bool
+    """Whether the python packages needed to talk to this scheduler are importable"""
+
+
+def _probe_slurm() -> Tuple[bool, List]:
+    """Probe the local environment for evidence that the cluster is
+    managed by SLURM.
+
+    Returns:
+        bool : Whether evidence for SLURM was found
+        evidence : the evidence proving SLURM available.
+    """
+    evidence = []
+
+    for var in ("SLURM_JOB_ID", "SLURM_PROCID", "SLURM_NTASKS", "SLURM_NODELIST"):
+        if os.environ.get(var):
+            evidence.append(f"environment variable {var} is set")
+
+    for cmd in ("sbatch", "srun", "sinfo"):
+        if _command_exists(cmd):
+            evidence.append(f"command {cmd} is available on the PATH")
+
+    for path in ("/var/spool/slurmctld", "/etc/slurm/slurm.conf"):
+        if _path_exists(path):
+            evidence.append(f"path {path} exists")
+    return (len(evidence) > 0), evidence
+
+
+def _probe_pbs() -> Tuple[bool, List]:
+    """Probe the local environment for evidence that the cluster is
+    managed by PBSworks (or a PBS/Torque/Unicorn compatible scheduler).
+
+    Returns:
+        bool : Whether evidence for PBS was found
+        evidence : the evidence proving PBS available.
+    """
+    evidence = []
+
+    for var in ("PBS_JOBID", "PBS_NODEFILE", "PBS_NP", "PBS_QUEUE", "PBS_SERVER"):
+        if os.environ.get(var):
+            evidence.append(f"environment variable {var} is set")
+
+    # generic PBS commands as well as PBSworks specific commands
+    for cmd in ("qsub", "qstat", "pbsnodes", "showq", "showcfg", "showbnodes"):
+        if _command_exists(cmd):
+            evidence.append(f"command {cmd} is available on the PATH")
+
+    for path in ("/var/spool/pbs", "/var/spool/torque"):
+        if _path_exists(path):
+            evidence.append(f"path {path} exists")
+    return (len(evidence) > 0), evidence
+
+
+def _probe_kubernetes() -> Tuple[bool, List]:
+    """Probe the local environment for evidence that the cluster is
+    managed by Kubernetes.
+
+    Returns:
+        bool : Whether evidence for Kubernetes was found
+        evidence : the evidence proving Kubernetes available.
+    """
+    evidence = []
+
+    for var in (
+        "KUBERNETES_SERVICE_HOST",
+        "KUBERNETES_SERVICE_PORT",
+        "KUBERNETES_PORT",
+    ):
+        if os.environ.get(var):
+            evidence.append(f"environment variable {var} is set")
+
+    for cmd in ("kubectl",):
+        if _command_exists(cmd):
+            evidence.append(f"command {cmd} is available on the PATH")
+
+    for path in ("/var/run/secrets/kubernetes.io/serviceaccount",):
+        if _path_exists(path):
+            evidence.append(f"path {path} exists")
+    return (len(evidence) > 0), evidence
+
+
+def probe_cluster_scheduler() -> SchedulerInfo:
+    """Probe the local environment for evidence that the cluster has a specific scheduler
+
+    Returns:
+        SchedulerInfo : schedulerprobe containing evidence for a particular scheduler running on the system
+    """
+    probing: Dict[str, Callable] = {
+        "SLURMCluster": _probe_slurm,
+        "PBSCluster": _probe_pbs,
+        "KubeCluster": _probe_kubernetes,
+    }
+    # check all the known allowed schedulers
+    for k, v in probing.items():
+        found, evidence = v()
+        if found:
+            return SchedulerInfo(
+                scheduler=k,
+                detected=len(evidence) > 0,
+                evidence=evidence,
+                dask_cluster_class=_DASK_CLUSTER_CLASSES[k],
+                python_interface_available=check_python_installation(
+                    _DASK_SCHEDULER_MODULE[k]
+                ),
+            )
+    # if nothing is found raise exception
+    raise RuntimeError(
+        f"No viable cluster schedulers detected. Allowed schedulers are {_SUPPORTED_SCHEDULERS}."
+    )
 
 
 def get_slurm_info() -> SlurmInfo:
@@ -537,7 +1005,22 @@ def get_slurm_info() -> SlurmInfo:
     return SlurmInfo(hostname=hostname, job_id=job_id, task_id=task_id, time=now)
 
 
-def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
+def get_pbs_info() -> PBSInfo:
+    """Collect key PBS attributes of a job
+
+    Returns:
+        SlurmInfo: Collection of slurm items from the job environment
+    """
+
+    hostname = gethostname()
+    job_id = get_environment_variable("PBS_JOBID")
+    task_id = get_environment_variable("PBS_ARRAY_INDEX")
+    now = str(datetime.datetime.now())
+
+    return PBSInfo(hostname=hostname, job_id=job_id, task_id=task_id, time=now)
+
+
+def get_job_info(mode: str = "slurm") -> SlurmInfo | PBSInfo:
     """Get the job information for the supplied mode
 
     Args:
@@ -547,15 +1030,17 @@ def get_job_info(mode: str = "slurm") -> Union[SlurmInfo]:
         ValueError: Raised if the mode is not supported
 
     Returns:
-        Union[SlurmInfo]: The specified mode
+        SlurmInfo|PBSInfo: The specified mode
     """
     # TODO: Add other modes? Return a default?
-    modes = ("slurm",)
+    modes = ("slurm", "pbs")
 
     if mode.lower() == "slurm":
         job_info = get_slurm_info()
+    elif mode.lower() == "pbs":
+        job_info = get_pbs_info()
     else:
-        raise ValueError(f"{mode=} not supported. Supported {modes=} ")
+        raise ValueError(f"{mode} not supported. Supported {modes} ")
 
     return job_info
 
@@ -582,6 +1067,15 @@ def get_argparse_args(
     return parser.parse_args(args_list)
 
 
+def log_job_environment(
+    logger: logging.Logger, scheduler: SchedulerInfo
+) -> SlurmInfo | PBSInfo:
+    if scheduler.scheduler == "slurm":
+        return log_slurm_job_environment(logger)
+    elif scheduler.scheduler == "pbs":
+        return log_pbs_job_environment(logger)
+
+
 def log_slurm_job_environment(logger) -> SlurmInfo:
     """Log components of the slurm environment.
 
@@ -591,18 +1085,34 @@ def log_slurm_job_environment(logger) -> SlurmInfo:
     # TODO: Expand this to allow potentially other job queue systems
     slurm_info = get_slurm_info()
 
-    logger.info(f"Running on {slurm_info.hostname=}")
+    logger.info(f"Running on {slurm_info.hostname}")
     logger.info(f"Slurm job id is {slurm_info.job_id}")
     logger.info(f"Slurm task id is {slurm_info.task_id}")
 
     return slurm_info
 
 
+def log_pbs_job_environment(logger) -> PBSInfo:
+    """Log components of the pbs environment.
+
+    Returns:
+        PBSInfo: Collection of slurm items from the job environment
+    """
+    # TODO: Expand this to allow potentially other job queue systems
+    pbs_info = get_pbs_info()
+
+    logger.info(f"Running on {pbs_info.hostname}")
+    logger.info(f"Slurm job id is {pbs_info.job_id}")
+    logger.info(f"Slurm task id is {pbs_info.task_id}")
+
+    return pbs_info
+
+
 def run_a_srun_process(
     shell_cmd: list,
     srunargs: list = [],
     add_output_to_log: bool = False,
-    logger=None,
+    logger: logging.Logger | None = None,
 ) -> subprocess.Popen:
     """runs a srun process given by the shell command.
     If given a logger and asked to append, adds to the logger.
@@ -652,7 +1162,7 @@ def run_a_process_bg(
     shell_cmd: list,
     add_output_to_log: bool = False,
     sleeplength: float = 5,
-    logger=None,
+    logger: logging.Logger | None = None,
 ) -> None:
     """Runs a process given by the shell command.
     If given a logger and asked to append, adds to the logger.
@@ -670,11 +1180,11 @@ def run_a_process_bg(
     for fd in ret[0]:
         if fd == process.stdout.fileno():
             output = process.stdout.readline()
-            if output:
+            if output and logger is not None:
                 logger.info(f"{output.strip()}")
         elif fd == process.stderr.fileno():
             error_output = process.stderr.readline()
-            if error_output:
+            if error_output and logger is not None:
                 logger.info(f"{error_output.strip()}")
 
 
@@ -725,7 +1235,7 @@ async def async_create_markdown_artifcat(key, markdown, description) -> None:
 
 async def save_artifact(
     data: Any, key: str = "key", description: str = "Data to be shared between subflows"
-):
+) -> None:
     """Use this to save data between workflows and tasks. Best used for small artifacts
 
     Args:
@@ -763,8 +1273,8 @@ async def upload_image_as_artifact(
     image_type = image_path.suffix
     assert image_path.exists(), f"{image_path} does not exist"
     assert (
-        image_type in SUPPORTED_IMAGE_TYPES
-    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {SUPPORTED_IMAGE_TYPES}"
+        image_type in _SUPPORTED_IMAGE_TYPES
+    ), f"{image_path} has type {image_type}, and is not supported. Supported types are {_SUPPORTED_IMAGE_TYPES}"
 
     with open(image_path, "rb") as open_image:
         logger.info(f"Encoding {image_path} in base64")
@@ -1000,3 +1510,38 @@ def measure_time(func):
         return result
 
     return wrapper
+
+
+async def submit_compat(task, *args, **kwargs):
+    """submit a aysnc task and insure interopability with prefect 2/3.
+
+    There is a change from Prefect 2->3 such that in 3, even async tasks return immediatedly
+    and do not need to be awaited
+    """
+    import inspect
+
+    submitted = task.submit(*args, **kwargs)
+    # Prefect 2, async tasks need to be awaited. Prefect 3 always returns immediately
+    if inspect.isawaitable(submitted):
+        submitted = await submitted
+
+    return submitted
+
+
+async def result_from_future_compat(future):
+    """get the result from a future produced by an async task and insure interopability with prefect 2/3."""
+    import inspect
+
+    result = future.result()
+    # Prefect 2, async tasks need to be awaited. Prefect 3 always returns immediately
+    if inspect.isawaitable(result):
+        result = await result
+
+    return result
+
+
+def get_state_compat(future):
+    if _PREFECT_VERSION < 3:
+        return future.get_state()
+    else:
+        return future.state

@@ -18,7 +18,6 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
     Generator,
     Callable,
 )
@@ -35,7 +34,10 @@ from .utils import (
     get_flow_runs,
     upload_image_as_artifact,
     SlurmInfo,
+    PBSInfo,
     EventFile,
+    submit_compat,
+    result_from_future_compat,
 )
 from .vqpubase import (
     QPUMetaData,
@@ -118,7 +120,9 @@ def aws_braket_parse_args(arguments: str) -> argparse.Namespace:
     return get_argparse_args(arguments=arguments, parser=parser)
 
 
-async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[bool, str]:
+async def aws_braket_check_qpu(
+    arguments: str | argparse.Namespace,
+) -> Tuple[bool, str]:
     """Wrapper to check if aws qpu is available.
     Args:
         args (str) : arguments to parse
@@ -139,7 +143,9 @@ async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[boo
         message += f"Available devices :\n {availdevices}"
         raise ValueError(message)
     elif len(devices) > 1:
-        message = f"More than one device found with name similar to {args.braketdevice}. "
+        message = (
+            f"More than one device found with name similar to {args.braketdevice}. "
+        )
         message += "Please adjust device name for search."
         raise ValueError(message)
     devices = AwsDevice.get_devices(names=[args.braketdevice], statuses=["ONLINE"])
@@ -154,7 +160,9 @@ async def aws_braket_check_qpu(arguments: str | argparse.Namespace) -> Tuple[boo
     return (avail, message)
 
 
-async def aws_braket_get_metadata(arguments: str | argparse.Namespace) -> QPUMetaData:
+async def aws_braket_get_metadata(
+    arguments: str | argparse.Namespace,
+) -> QPUMetaData:
     """Return the metadata about the QPU
     Args:
         arguments (str|argparse.Namespace): arguments that contain the name of the device
@@ -350,12 +358,15 @@ async def launch_aws_braket_qpu_workflow(
     profile_info = (creds["profile"], creds["region"])
 
     # now launch
-    future = await launch_aws_braket_qpu.submit(
+    #  future = await launch_aws_braket_qpu.submit(
+    future = await submit_compat(
+        launch_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # now run it
     # qpu_data = myqpuworkflow.active_qpus[qpu_id]
@@ -363,17 +374,22 @@ async def launch_aws_braket_qpu_workflow(
     logger.info(
         f"AWS QPU-{qpu_id} {qpu_data.name} online and will keep running till circuits complete, offline or hit walltime ... "
     )
-    future = await run_aws_braket_qpu.submit(
+    # future = await run_aws_braket_qpu.submit(
+    future = await submit_compat(
+        run_aws_braket_qpu,
         myqpuworkflow=myqpuworkflow,
         qpu_id=qpu_id,
         arguments=arguments,
         sampling=sampling,
         walltime=walltime,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # once the run has finished, shut it down
-    future = await shutdown_aws_braket_qpu.submit(
-        myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
+    # future = await shutdown_aws_braket_qpu.submit(
+    future = await submit_compat(
+        shutdown_aws_braket_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)

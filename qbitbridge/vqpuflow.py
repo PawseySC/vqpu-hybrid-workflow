@@ -16,7 +16,6 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
     Generator,
     Callable,
 )
@@ -36,6 +35,9 @@ from .utils import (
     SlurmInfo,
     EventFile,
     get_num_gpus,
+    submit_compat,
+    result_from_future_compat,
+    get_state_compat,
 )
 from .vqpubase import QPUMetaData, HybridQuantumWorkflowBase, SillyTestClass
 
@@ -186,26 +188,41 @@ async def launch_vqpu_workflow(
 
     # now launch
     logger.info(f"Launching vQPU-{vqpu_id}")
-    future = await launch_vqpu.submit(
+    # old prefect 2 where async task must be awaited
+    # future = await launch_vqpu.submit(
+    #     myqpuworkflow=myqpuworkflow,
+    #     vqpu_id=vqpu_id,
+    #     arguments=arguments,
+    #     vqpu_backend=vqpu_backend,
+    # )
+    # using submit_compat to wrap prefect 3 into awaiting
+    future = await submit_compat(
+        launch_vqpu,
         myqpuworkflow=myqpuworkflow,
         vqpu_id=vqpu_id,
         arguments=arguments,
         vqpu_backend=vqpu_backend,
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # now run it
     logger.info(
         f"vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... "
     )
-    future = await run_vqpu.submit(
-        myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id, walltime=walltime
+    future = await submit_compat(
+        run_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id, walltime=walltime
     )
-    await future.result()
+    # await future.result()
+    await result_from_future_compat(future)
 
     # once the run has finished, shut it down
-    future = await shutdown_vqpu.submit(myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
-    await future.result()
+    # future = await shutdown_vqpu.submit(myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
+    # await future.result()
+    future = await submit_compat(
+        shutdown_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id
+    )
+    await result_from_future_compat(future)
 
 
 async def postprocessing_histo_plot(
@@ -391,7 +408,9 @@ async def run_circuit(
         Tuple[Dict[str, int], int]: Dictionary results from a circuit that consists of bitstrings and counts along with the id of this task running the circuit
     """
     if backend_sel == None and vqpu_id != None and remote != None:
-        future = await run_circuit_vqpu.submit(
+        # future = await run_circuit_vqpu.submit(
+        future = await submit_compat(
+            run_circuit_vqpu,
             myqpuworkflow=myqpuworkflow,
             circuitfunc=circuitfunc,
             arguments=arguments,
@@ -400,7 +419,9 @@ async def run_circuit(
             circ_qpu_reqs=circ_qpu_reqs,
         )
     elif backend_sel == None and vqpu_id == None and remote != None:
-        future = await run_circuit_remote.submit(
+        # future = await run_circuit_remote.submit(
+        future = await submit_compat(
+            run_circuit_remote,
             myqpuworkflow=myqpuworkflow,
             circuitfunc=circuitfunc,
             arguments=arguments,
@@ -408,7 +429,9 @@ async def run_circuit(
             circ_qpu_reqs=circ_qpu_reqs,
         )
     elif backend_sel != None and vqpu_id == None and remote == None:
-        future = await run_circuit_sim.submit(
+        # future = await run_circuit_sim.submit(
+        future = await submit_compat(
+            run_circuit_sim,
             myqpuworkflow=myqpuworkflow,
             circuitfunc=circuitfunc,
             arguments=arguments,
@@ -423,7 +446,8 @@ async def run_circuit(
         message += "Terminating."
         raise RuntimeError(message)
 
-    results, task_run_id = await future.result()
+    # results, task_run_id = await future.result()
+    results, task_run_id = await result_from_future_compat(future)
     return results, task_run_id
 
 
@@ -864,10 +888,16 @@ async def cpu_workflow(
     for exec, args in zip(execs, arguments):
         logger.info(f"Running {exec} with {args}")
         futures.append(
-            await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
+            # older prefect2 had to await a task. prefect 3 does not. Created a wrapper
+            # that handles this submission so that it is always awaitable
+            # await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
+            await submit_compat(
+                run_cpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
+            )
         )
     for f in futures:
-        await f.result()
+        # await f.result()
+        await result_from_future_compat(f)
 
     logger.info("Finished CPU flow")
 
@@ -917,12 +947,14 @@ async def gpu_workflow(
         ):
             logger.info(f"Running {exec} with {args}")
             futures.append(
-                await run_gpu.submit(
-                    myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
+                # await run_gpu.submit(
+                await submit_compat(
+                    run_gpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
                 )
             )
         for f in futures:
-            await f.result()
+            # await f.result()
+            await result_from_future_compat(f)
         offset += chunksize
     logger.info("Finished GPU flow")
 
@@ -1072,7 +1104,7 @@ def limit_concurrent_tasks(
                 while len(active) >= max_active_task:
                     for key in active:
                         if futures[key] is not None:
-                            state = futures[key].get_state()
+                            state = get_state_compat(futures[key])
                             if state.is_final():
                                 active.remove(key)
                     time.sleep(sleep_time_active_tasks_poll)
@@ -1158,7 +1190,7 @@ def run_tasks_with_concurrency_limit(
         while len(active) >= max_active_task:
             for key in active:
                 if futures[key] is not None:
-                    state = futures[key].get_state()
+                    state = get_state_compat(futures[key])
                     if state.is_final():
                         active.remove(key)
             if len(active) < max_active_task:

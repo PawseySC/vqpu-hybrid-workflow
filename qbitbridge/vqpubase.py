@@ -17,7 +17,6 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
-    Union,
     Generator,
     Callable,
 )
@@ -33,6 +32,7 @@ from .utils import (
     get_flow_runs,
     upload_image_as_artifact,
     SlurmInfo,
+    PBSInfo,
     EventFile,
 )
 import yaml
@@ -343,7 +343,7 @@ class HybridQuantumWorkflowBase:
         self.name: str
         """name of workflow"""
         self.cluster: str
-        """cluster name for slurm configurations"""
+        """cluster name for slurm/pbs configurations"""
         self.maxvqpu: int = 100
         """max number of virtual qpus"""
         self.vqpu_template_script: str = f"{fpath}/../workflow/qb-vqpu/vqpu_template.sh"
@@ -475,7 +475,9 @@ class HybridQuantumWorkflowBase:
         message: str = f"Hybrid Quantum Workflow {self.name} running on\n"
         message += f"Cluster : {self.cluster}\n"
         for key, value in self.taskrunners["jobscript"].items():
-            message += f"Slurm configuration {key}: {value}\n"
+            # ctype = self.taskrunners["specs"][key]["cluster_class"]
+            # message += f"\tCluster type {ctype}\n"
+            message += f"Job configuration for {key}\n{value}\n"
         message += f"Allowed QPU backends : {self.backends}\n"
         return message
 
@@ -605,13 +607,13 @@ class HybridQuantumWorkflowBase:
         # return runners[task_runner_name]
 
     async def __create_vqpu_remote_yaml(
-        self, job_info: Union[SlurmInfo], vqpu_id: int
+        self, job_info: SlurmInfo | PBSInfo, vqpu_id: int
     ) -> None:
         """Saves the remote backend for the vqpu to a yaml file and artifact
         having extracted the hostname running the vqpu from the slurm job
 
         Args:
-            job_info (Union[SlurmInfo]): slurm job information
+            job_info (SlurmInfo|PBSInfo): slurm or pbs job information
             vqpu_id (int): The vqpu id
         """
         # where to save the workflow yaml
@@ -674,7 +676,7 @@ class HybridQuantumWorkflowBase:
 
     async def launch_vqpu(
         self,
-        job_info: SlurmInfo,
+        job_info: SlurmInfo | PBSInfo,
         vqpu_id: int,
         spinuptime: float,
         vqpu_backend: str | None = None,
@@ -683,7 +685,7 @@ class HybridQuantumWorkflowBase:
         """Launchs the vqpu service and generates events to indicate it has been launched
 
         Args:
-            job_info (SlurmInfo) : gets the slurm job info related to spinning up the service
+            job_info (SlurmInfo|PBSInfo) : gets the slurm/pbs job info related to spinning up the service
             vqpu_id (int) : The vqpu id
             spinuptime (float) : The time to wait before setting the event
             vqpu_data (QPUMetaData) : Optional metadata to pass
@@ -771,6 +773,7 @@ class HybridQuantumWorkflowBase:
                 if process.stdout == "No":
                     avail = False
             else:
+                # looks like a bug
                 avail = remote_query[0](args=remote_query[1], filename=fname)
         if not avail:
             message: str = ""
@@ -782,6 +785,8 @@ class HybridQuantumWorkflowBase:
         if qpu_data is not None:
             self.active_qpus[qpu_id] = copy.deepcopy(qpu_data)
         else:
+            if remote_data_query is None:
+                raise ValueError("Missing remote data query commands")
             # need to determine how to setup remote access for the QPU. Ideally there is a simple command to run
             # the command(s) should be split by , and pipe results to a file
             fname: str = f"meta_data_for_{qpu_id}.yaml"

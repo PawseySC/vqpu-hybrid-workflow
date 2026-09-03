@@ -3,7 +3,6 @@ import logging
 
 from qbitbridge.utils import load_config
 
-
 def main() -> None:
     """
     The main entry point for the service.
@@ -42,7 +41,6 @@ def main() -> None:
         else:
             qbb = load_config(args.config)
             qbb.launch()
-
     except Exception as e:
         logging.error(f"Failed to start service. Exception: {str(e)}")
         raise

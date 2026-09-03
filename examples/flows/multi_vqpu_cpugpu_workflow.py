@@ -285,9 +285,9 @@ async def workflow2(
 
 
 def wrapper_to_async_flow(
-    yaml_template: str | None = None,
-    script_template: str | None = None,
-    cluster: str | None = None,
+    yaml_template: str,
+    script_template: str,
+    cluster: str ,
     circuitargs: str = "",
     cpuexecs: List[str] = [
         "/software/projects/pawsey0001/pelahi/profile_util/examples/openmp/bin/openmpvec_cpp",
@@ -307,12 +307,6 @@ def wrapper_to_async_flow(
     """
     @brief run the workflow with the appropriate task runner
     """
-    if yaml_template == None:
-        yaml_template = f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/remote_vqpu_ella_template.yaml"
-    if script_template == None:
-        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
-    if cluster == None:
-        cluster = "ella-qb-1.7.0-pypath"
     myflow = HybridQuantumWorkflowBase(
         cluster=cluster,
         vqpu_ids=[1, 2, 3, 16],
@@ -340,20 +334,34 @@ def wrapper_to_async_flow(
 
 
 if __name__ == "__main__":
-    yaml_template = None
-    script_template = None
-    cluster = None
-    res = [i for i in sys.argv if re.findall("--yaml=", i)]
-    if len(res) > 0:
-        yaml_template = res[0].split("=")[1]
-    res = [i for i in sys.argv if re.findall("--script=", i)]
-    if len(res) > 0:
-        script_template = res[0].split("=")[1]
-    res = [i for i in sys.argv if re.findall("--cluster=", i)]
-    if len(res) > 0:
-        cluster = res[0].split("=")[1]
+    import argparse
+    parser = argparse.ArgumentParser(description="Start the cpu-gpu workflow.")
+
+    # Give a good default for development
+    parser.add_argument(
+        "--yaml-template",
+        type=str,
+        help="Path to the YAML configuration file",
+        default=f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/remote_vqpu_ella_template.yaml",
+    )
+    parser.add_argument(
+        "--script-template",
+        type=str,
+        help="vqpu start-up script",
+        default=f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh",
+    )
+    parser.add_argument(
+        "--cluster",
+        type=str,
+        help="Cluster configuration",
+        default="ella-qb-1.7.0-pypath",
+    )
+
+
+    args = parser.parse_args()
+        
     wrapper_to_async_flow(
-        yaml_template=yaml_template,
-        script_template=script_template,
-        cluster=cluster,
+        yaml_template=args.yaml_template,
+        script_template=args.script_template,
+        cluster=args.cluster,
     )
