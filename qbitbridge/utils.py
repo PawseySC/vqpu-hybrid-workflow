@@ -145,6 +145,8 @@ class PrefectConfiguration(NamedTuple):
     """Wehther to create a profile. If name provided create new profile and use"""
     workers: int = 1
     """number of workers created by uvicorn launch of prefect"""
+    max_poll_time: float = 600.0
+    """Maximum amount of time spent polling to see if prefect running"""
 
 
 class PostgresConfiguration(NamedTuple):
@@ -180,6 +182,8 @@ class PostgresConfiguration(NamedTuple):
     """The delay in seconds to wait before starting the prefect server after starting postgres"""
     healthcheck: str = "pg_isready"
     """health check command"""
+    max_poll_time: float = 600.0
+    """Maximum amount of time spent polling to see if postgres running"""
 
 
 class QBitBridgeLauncher:
@@ -296,6 +300,59 @@ class QBitBridgeLauncher:
                 )
         return my_env, base_env
 
+    def _get_env_prefect(self):
+        base_env = os.environ.copy()
+        my_env = {}
+        my_env["POSTGRES_PASSWORD"] = self.postgres.password
+        my_env["POSTGRES_ADDR"] = self.hostname
+        my_env["POSTGRES_USER"] = self.postgres.user
+        my_env["POSTGRES_DB"] = self.postgres.db
+        my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
+
+        # set the prefect home directory
+        my_env["PREFECT_HOME"] = self.prefect.home
+        # set the prefect host.
+        my_env["PREFECT_ORION_HOST"] = self.hostname
+
+        # set the prefect web concurrency
+        my_env["PREFECT_ORION_WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
+        # set the sqlalchemy pool size
+        my_env["PREFECT_ORION_SQLALCHEMY_POOL_SIZE"] = str(
+            self.prefect.sqlalchemy_pool_size
+        )
+        # set the sqlalchemy max overflow
+        my_env["PREFECT_ORION_SQLALCHEMY_MAX_OVERFLOW"] = str(
+            self.prefect.sqlalchemy_max_overflow
+        )
+        # set the prefect port
+        my_env["PREFECT_API_URL"] = f"http://{self.hostname}:{self.prefect.port}/api"
+        # since launching on same system as postgres, use 0.0.0.0
+        my_env["PREFECT_SERVER_API_HOST"] = "0.0.0.0"  # self.hostname
+        my_env["PREFECT_API_DATABASE_CONNECTION_URL"] = (
+            f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@0.0.0.0:{self.postgres.port}/{self.postgres.db}"
+        )
+        my_env["WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
+        my_env["PREFECT_SQLALCHEMY_POOL_SIZE"] = str(self.prefect.sqlalchemy_pool_size)
+        my_env["PREFECT_SQLALCHEMY_MAX_OVERFLOW"] = str(
+            self.prefect.sqlalchemy_max_overflow
+        )
+        my_env["PREFECT_API_URL"] = f"http://127.0.0.1:4200/api"
+        my_env["PREFECT_UI_API_URL"] = f"http://127.0.0.1:4200/api"
+
+        return my_env, base_env
+
+    def _print_env(self, 
+                   my_env : dict, 
+                   prescript : str = "", 
+                   postscript : str = "",
+                   ):
+        envinfo : str = prescript
+        for k, v in my_env.items():
+            envinfo += f"export {k}={v}\n"
+        envinfo += postscript
+        return envinfo
+
+
     def _health_check_postgres(self):
         # health check to see if running
         my_env, base_env = self._get_env_postgres()
@@ -308,6 +365,7 @@ class QBitBridgeLauncher:
             "-U",
             f"{self.postgres.user}",
         ]
+        start = time.monotonic()
         while notrunning:
             time.sleep(self.postgres.delay_time)
             procwait = subprocess.Popen(
@@ -319,8 +377,42 @@ class QBitBridgeLauncher:
                 bufsize=1,
             )
             stdout, stderr = procwait.communicate()
+            polltime = time.monotonic()-start
             notrunning = not ("accepting connections" in stdout)
-            self.logger.debug(f"Checking POSTGRES health {stdout}")
+            self.logger.debug(f"Checking POSTGRES health with {' '.join(cmdwait)}. Current output is :{stdout}")
+            if notrunning and polltime > self.postgres.max_poll_time:
+                self.logger.error(f"Postgres still not running after {polltime}. Check config")
+                raise RuntimeError("Postgres failed to start and accept communication")
+
+    def _health_check_prefect(self):
+        my_env, base_env = self._get_env_postgres()
+        notrunning: bool = True
+        cmdwait: list = [
+            "curl",
+            "-fsS",
+            "--max-time",
+            "5",
+            f"http://127.0.0.1:{self.prefect.port}/api/ready",
+
+        ]
+        start = time.monotonic()
+        while notrunning:
+            time.sleep(self.prefect.delay_time)
+            procwait = subprocess.Popen(
+                cmdwait,
+                env=my_env | base_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+            stdout, stderr = procwait.communicate()
+            polltime = time.monotonic() - start
+            notrunning = not ("message" in stdout and "OK" in stdout)
+            self.logger.debug(f"Checking PREFECT health with {' '.join(cmdwait)}. Current output is :{stdout}")
+            if notrunning and polltime > self.prefect.max_poll_time:
+                self.logger.error(f"Prefect still not running after {polltime}. Check config")
+                raise RuntimeError("Prefect failed to start and accept flows")
 
     def _launch_postgres(self) -> subprocess.Popen | None:
         """Launch the postgres service using the configuration"""
@@ -377,8 +469,10 @@ class QBitBridgeLauncher:
         )
         if not self.postgres.dry_run and self.output_script is None:
             self.logger.info(f"Launching POSTGRES {version}... ")
-            self.logger.debug(f"With command \n {cmd}")
-            self.logger.debug(f"With env \n {my_env}")
+            line = f"Environment related to POSTGRES and container engine {self.postgres.container_engine}"
+            envinfo = self._print_env(my_env)
+            self.logger.debug(envinfo)
+            self.logger.debug(f"With command \n {' '.join(cmd)}")
             # checking container image
             container_image = Path(self.postgres.container)
             if not container_image.is_file():
@@ -397,32 +491,14 @@ class QBitBridgeLauncher:
             self._health_check_postgres()
             return proc
         else:
-            line: str
-            envinfo: str
             line = "Dry run: launching POSTGRES with the following configuration:"
             self.logger.info(line)
-            self._add_to_script(
-                f'echo "Launching POSTGRES with the following configuration:"'
-            )
-            line = f"{self.postgres}"
-            self.logger.info(line)
-            self._add_to_script(f'echo "{line}"')
-            line = f"Environment related to POSTGRES"
-            self._add_to_script(f'echo "{line}"')
-            envinfo = ""
-            for k, v in my_env.items():
-                if "POSTGRES" in k:
-                    envinfo += f"export {k}={v}\n"
-                    self._add_to_script(f"export {k}={v}")
-            self.logger.info(line + "\n" + envinfo)
-            line = f"Environment related to container engine {self.postgres.container_engine.upper()}"
-            self._add_to_script(f'echo "{line}"')
-            envinfo = ""
-            for k, v in my_env.items():
-                if self.postgres.container_engine.upper() in k:
-                    envinfo += f"export {k}={v}\n"
-                    self._add_to_script(f"export {k}={v}")
-            self.logger.info(line + "\n" + envinfo)
+            line = f"Environment related to POSTGRES and container engine {self.postgres.container_engine}"
+            self.logger.debug(line)
+            self._add_to_script(f"echo \"{line}\"")
+            envinfo = self._print_env(my_env)
+            self.logger.debug(envinfo)
+            self._add_to_script(envinfo)
             from pathlib import Path
 
             self.logger.info(
@@ -455,8 +531,7 @@ class QBitBridgeLauncher:
         self.versions["PREFECT"] = int(proc.stdout.split(".")[0])
         version = self.versions["PREFECT"]
 
-        base_env = os.environ.copy()
-        my_env = dict()
+        my_env, base_env = self._get_env_prefect()
 
         if self.prefect.profile is not None:
             self.logger.info(f"Creating PREFECT profile {self.prefect.profile}")
@@ -500,43 +575,6 @@ class QBitBridgeLauncher:
             else:
                 line: str = f"{' '.join(cmd)}"
                 self._add_to_script(line)
-
-        # set postgres environment
-        my_env["POSTGRES_PASSWORD"] = self.postgres.password
-        my_env["POSTGRES_ADDR"] = self.hostname
-        my_env["POSTGRES_USER"] = self.postgres.user
-        my_env["POSTGRES_DB"] = self.postgres.db
-        my_env["POSTGRES_SCRATCH"] = self.postgres.scratch
-
-        # set the prefect home directory
-        my_env["PREFECT_HOME"] = self.prefect.home
-        # set the prefect host.
-        my_env["PREFECT_ORION_HOST"] = self.hostname
-
-        # set the prefect web concurrency
-        my_env["PREFECT_ORION_WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
-        # set the sqlalchemy pool size
-        my_env["PREFECT_ORION_SQLALCHEMY_POOL_SIZE"] = str(
-            self.prefect.sqlalchemy_pool_size
-        )
-        # set the sqlalchemy max overflow
-        my_env["PREFECT_ORION_SQLALCHEMY_MAX_OVERFLOW"] = str(
-            self.prefect.sqlalchemy_max_overflow
-        )
-        # set the prefect port
-        my_env["PREFECT_API_URL"] = f"http://{self.hostname}:{self.prefect.port}/api"
-        # since launching on same system as postgres, use 0.0.0.0
-        my_env["PREFECT_SERVER_API_HOST"] = "0.0.0.0"  # self.hostname
-        my_env["PREFECT_API_DATABASE_CONNECTION_URL"] = (
-            f"postgresql+asyncpg://{self.postgres.user}:{self.postgres.password}@0.0.0.0:{self.postgres.port}/{self.postgres.db}"
-        )
-        # postgresql+asyncpg://$POSTGRES_USER:$POSTGRES_PASS@$POSTGRES_ADDR:5432/$POSTGRES_DB
-        my_env["WEB_CONCURRENCY"] = str(self.prefect.web_concurrency)
-        my_env["PREFECT_SQLALCHEMY_POOL_SIZE"] = str(self.prefect.sqlalchemy_pool_size)
-        my_env["PREFECT_SQLALCHEMY_MAX_OVERFLOW"] = str(
-            self.prefect.sqlalchemy_max_overflow
-        )
-        my_env["PREFECT_API_URL"] = f"http://{self.hostname}:4200/api"
 
         if self.prefect.database_reset and not self.prefect.dry_run:
             self.logger.info("Resetting PREFECT Database ... ")
@@ -582,14 +620,24 @@ class QBitBridgeLauncher:
         ]
         cmd += ["--workers", str(self.prefect.workers)]
         cmd += ["--log-level", self.log_level.lower()]
+        cmd = [
+            "prefect",
+            "server",
+            "start",
+            "--host", "0.0.0.0", 
+            "--port", str(self.prefect.port), 
+            "--workers", str(self.prefect.workers),
+            "--background",
+        ]
 
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
             line: str
             line = f"Launching PREFECT {version}... "
-            self.logger.debug(f"With command \n {cmd}")
-            self.logger.debug(f"With env \n {my_env}")
             self.logger.info(line)
+            self.logger.debug(f"With command \n{' '.join(cmd)}")
+            envinfo = self._print_env(my_env)
+            self.logger.debug(f"With env \n{envinfo}")
             line = f"To view prefect UI, open an ssh tunnel"
             self.logger.info(line)
             line = f"ssh -N -f -L {self.prefect.port}:{self.hostname}:{self.prefect.port} <user>@<remote_host>"
@@ -609,6 +657,7 @@ class QBitBridgeLauncher:
                 bufsize=1,  # Line buffered
             )
             self.envs["PREFECT"] = my_env
+            self._health_check_prefect()
             return proc
         else:
             line: str
@@ -617,29 +666,18 @@ class QBitBridgeLauncher:
                 "Dry run: launching PREFECT with the following configuration:"
             )
             self._add_to_script(
-                f'echo "Launching PREFECT with the following configuration:"'
+                f"echo \"Launching PREFECT with the following configuration:\""
             )
             self.logger.info(f"{self.prefect}")
             self._add_to_script(f'echo "{self.prefect}"')
             line = f"Environment related to PREFECT"
             self._add_to_script(f'echo "{line}"')
-            envinfo = ""
-            for k, v in my_env.items():
-                if "PREFECT" in k:
-                    envinfo += f"export {k}={v}\n"
-                    self._add_to_script(f"export {k}={v}")
-            self.logger.info(line + "\n" + envinfo)
-            line = f"Environment related to POSTGRES"
-            self._add_to_script(f'echo "{line}"')
-            envinfo = ""
-            for k, v in my_env.items():
-                if "POSTGRES" in k:
-                    envinfo += f"export {k}={v}\n"
-                    self._add_to_script(f"export {k}={v}")
-            self.logger.info(line + "\n" + envinfo)
+            envinfo = self._print_env(my_env)
+            self.logger.info(f"With env \n {envinfo}")
+            self._add_to_script(envinfo)
             line = f"Launching PREFECT {version} with command: {' '.join(cmd)}"
             self.logger.info(line)
-            self._add_to_script(f'echo "{line}"')
+            self._add_to_script(f"echo \"{line}\"")
             line = f"{' '.join(cmd)}"
             self._add_to_script(f"{line} &")
             self._add_to_script(f"sleep {self.prefect.delay_time}")
