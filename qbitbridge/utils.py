@@ -64,7 +64,7 @@ _SCHEDULER_POLL_JOB_INFO = {
     "KuberCluster": "",
 }
 _SCHEDULER_JOB_EXITSTATUS = {
-    "SLURMCluster": "sacct -j $JOBID -X -n -o ExitCode | sed \"s/:/ /g\" | awk \'{print $1}\'",
+    "SLURMCluster": "sacct -j $JOBID -X -n -o ExitCode | sed \"s/:/ /g\" | awk '{print $1}'",
     "PBSCluster": "qstat $JOBID -x -f | grep \"Exit_status\" | awk '{print $3}'",
     "KuberCluster": "",
 }
@@ -341,17 +341,17 @@ class QBitBridgeLauncher:
 
         return my_env, base_env
 
-    def _print_env(self, 
-                   my_env : dict, 
-                   prescript : str = "", 
-                   postscript : str = "",
-                   ):
-        envinfo : str = prescript
+    def _print_env(
+        self,
+        my_env: dict,
+        prescript: str = "",
+        postscript: str = "",
+    ):
+        envinfo: str = prescript
         for k, v in my_env.items():
             envinfo += f"export {k}={v}\n"
         envinfo += postscript
         return envinfo
-
 
     def _health_check_postgres(self):
         # health check to see if running
@@ -377,11 +377,15 @@ class QBitBridgeLauncher:
                 bufsize=1,
             )
             stdout, stderr = procwait.communicate()
-            polltime = time.monotonic()-start
+            polltime = time.monotonic() - start
             notrunning = not ("accepting connections" in stdout)
-            self.logger.debug(f"Checking POSTGRES health with {' '.join(cmdwait)}. Current output is :{stdout}")
+            self.logger.debug(
+                f"Checking POSTGRES health with {' '.join(cmdwait)}. Current output is :{stdout}"
+            )
             if notrunning and polltime > self.postgres.max_poll_time:
-                self.logger.error(f"Postgres still not running after {polltime}. Check config")
+                self.logger.error(
+                    f"Postgres still not running after {polltime}. Check config"
+                )
                 raise RuntimeError("Postgres failed to start and accept communication")
 
     def _health_check_prefect(self):
@@ -393,7 +397,6 @@ class QBitBridgeLauncher:
             "--max-time",
             "5",
             f"http://127.0.0.1:{self.prefect.port}/api/ready",
-
         ]
         start = time.monotonic()
         while notrunning:
@@ -409,9 +412,13 @@ class QBitBridgeLauncher:
             stdout, stderr = procwait.communicate()
             polltime = time.monotonic() - start
             notrunning = not ("message" in stdout and "OK" in stdout)
-            self.logger.debug(f"Checking PREFECT health with {' '.join(cmdwait)}. Current output is :{stdout}")
+            self.logger.debug(
+                f"Checking PREFECT health with {' '.join(cmdwait)}. Current output is :{stdout}"
+            )
             if notrunning and polltime > self.prefect.max_poll_time:
-                self.logger.error(f"Prefect still not running after {polltime}. Check config")
+                self.logger.error(
+                    f"Prefect still not running after {polltime}. Check config"
+                )
                 raise RuntimeError("Prefect failed to start and accept flows")
 
     def _launch_postgres(self) -> subprocess.Popen | None:
@@ -495,7 +502,7 @@ class QBitBridgeLauncher:
             self.logger.info(line)
             line = f"Environment related to POSTGRES and container engine {self.postgres.container_engine}"
             self.logger.debug(line)
-            self._add_to_script(f"echo \"{line}\"")
+            self._add_to_script(f'echo "{line}"')
             envinfo = self._print_env(my_env)
             self.logger.debug(envinfo)
             self._add_to_script(envinfo)
@@ -597,38 +604,43 @@ class QBitBridgeLauncher:
         import sys
 
         cmd = []
-        cmd += [
-            sys.executable,
-        ]
-        if self.log_level == "DEBUG":
+        if version < 3:
             cmd += [
-                "-vvv",
+                sys.executable,
             ]
-        cmd += [
-            "-m",
-            "uvicorn",
-            "--factory",
-            "prefect.server.api.server:create_app",
-        ]
-        cmd += ["--host", "0.0.0.0"]
-        cmd += ["--port", str(self.prefect.port)]
-        cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
-        cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
-        cmd += [
-            "--timeout-graceful-shutdown",
-            str(self.prefect.timeout_graceful_shutdown),
-        ]
-        cmd += ["--workers", str(self.prefect.workers)]
-        cmd += ["--log-level", self.log_level.lower()]
-        cmd = [
-            "prefect",
-            "server",
-            "start",
-            "--host", "0.0.0.0", 
-            "--port", str(self.prefect.port), 
-            "--workers", str(self.prefect.workers),
-            "--background",
-        ]
+            if self.log_level == "DEBUG":
+                cmd += [
+                    "-vvv",
+                ]
+            cmd += [
+                "-m",
+                "uvicorn",
+                "--factory",
+                "prefect.server.api.server:create_app",
+            ]
+            cmd += ["--host", "0.0.0.0"]
+            cmd += ["--port", str(self.prefect.port)]
+            cmd += ["--timeout-keep-alive", str(self.prefect.timeout_keep_alive)]
+            cmd += ["--limit-max-requests", str(self.prefect.limit_max_requests)]
+            cmd += [
+                "--timeout-graceful-shutdown",
+                str(self.prefect.timeout_graceful_shutdown),
+            ]
+            cmd += ["--workers", str(self.prefect.workers)]
+            cmd += ["--log-level", self.log_level.lower()]
+        else:
+            cmd = [
+                "prefect",
+                "server",
+                "start",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                str(self.prefect.port),
+                "--workers",
+                1,  # sql can only function with one worker
+                "--background",
+            ]
 
         # Run the app using Uvicorn
         if not self.prefect.dry_run:
@@ -646,6 +658,8 @@ class QBitBridgeLauncher:
             line = f"Before launching prefect jobs, copy the following"
             self.logger.info(line)
             line = f"export PREFECT_API_URL=http://{self.hostname}:4200/api"
+            self.logger.info(line)
+            line = f"export PREFECT_UI_API_URL=http://{self.hostname}:4200/api"
             self.logger.info(line)
 
             proc = subprocess.Popen(
@@ -666,7 +680,7 @@ class QBitBridgeLauncher:
                 "Dry run: launching PREFECT with the following configuration:"
             )
             self._add_to_script(
-                f"echo \"Launching PREFECT with the following configuration:\""
+                f'echo "Launching PREFECT with the following configuration:"'
             )
             self.logger.info(f"{self.prefect}")
             self._add_to_script(f'echo "{self.prefect}"')
@@ -677,7 +691,7 @@ class QBitBridgeLauncher:
             self._add_to_script(envinfo)
             line = f"Launching PREFECT {version} with command: {' '.join(cmd)}"
             self.logger.info(line)
-            self._add_to_script(f"echo \"{line}\"")
+            self._add_to_script(f'echo "{line}"')
             line = f"{' '.join(cmd)}"
             self._add_to_script(f"{line} &")
             self._add_to_script(f"sleep {self.prefect.delay_time}")
