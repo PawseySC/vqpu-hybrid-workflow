@@ -1,16 +1,18 @@
-'''
-@brief This sample worfklow has several simple tasks and a simple flow
-show how to run a workflow. 
-'''
+"""
+@brief This sample workflow has several simple tasks and a simple flow
+show how to run a workflow.
+"""
 
 import httpx
 from prefect import flow, task
+
 
 @task
 def get_url(url: str, params: dict = None):
     response = httpx.get(url, params=params)
     response.raise_for_status()
     return response.json()
+
 
 @flow(retries=3, retry_delay_seconds=5, log_prints=True)
 def get_repo_info(repo_name: str = "PrefectHQ/prefect"):
@@ -20,6 +22,6 @@ def get_repo_info(repo_name: str = "PrefectHQ/prefect"):
     print(f"Stars 🌟: {repo_stats['stargazers_count']}")
     print(f"Forks 🌱: {repo_stats['forks_count']}")
 
+
 if __name__ == "__main__":
     get_repo_info()
-

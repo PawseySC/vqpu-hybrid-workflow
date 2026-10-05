@@ -49,12 +49,12 @@ PYBIND11_MODULE(py_profile_util, m) {
 #endif
         .def("set_ref", &Timer::set_ref)
         .def("get_ref", &Timer::get_ref);
-    
-    m.def("ReportTimeTaken", &ReportTimeTaken, 
+
+    m.def("ReportTimeTaken", &ReportTimeTaken,
         "Reports the time taken (on host) between creation of timer and when/where this is called"
         );
 #if defined(_GPU)
-    m.def("ReportTimeTakenOnDevice", &ReportTimeTakenOnDevice, 
+    m.def("ReportTimeTakenOnDevice", &ReportTimeTakenOnDevice,
         "Reports the time taken (on device) between creation of timer and when/where this is called"
         );
 #endif
@@ -65,31 +65,31 @@ PYBIND11_MODULE(py_profile_util, m) {
         .def(py::init<const std::string &, const std::string &, const std::string &, float , bool , bool>())
         .def("GetCPUUsageFname", &ComputeSampler::GetCPUUsageFname)
         .def("GetCPUEnergyFname", &ComputeSampler::GetCPUEnergyFname)
-#ifdef _GPU 
+#ifdef _GPU
         .def("GetGPUUsageFname", &ComputeSampler::GetGPUUsageFname)
         .def("GetGPUEnergyFname", &ComputeSampler::GetGPUEnergyFname)
         .def("GetGPUMemUsageFname", &ComputeSampler::GetGPUMemUsageFname)
         .def("GetGPUMemFname", &ComputeSampler::GetGPUMemFname)
 #endif
         .def("GetNumDevices", &ComputeSampler::GetNumDevices);
-    
-    m.def("ReportCPUUsage", &ReportCPUUsage, 
+
+    m.def("ReportCPUUsage", &ReportCPUUsage,
         "Reports the usage of CPUs between creation of sampler and when/where this is called."
         );
 #if defined(_GPU)
-    m.def("ReportGPUUsage", &ReportGPUUsage, 
+    m.def("ReportGPUUsage", &ReportGPUUsage,
         "Reports the usage of GPU between creation of sampler and when/where this is called."
         );
-    m.def("ReportGPUEnergy", &ReportGPUEnergy, 
+    m.def("ReportGPUEnergy", &ReportGPUEnergy,
         "Reports the power and energy consumed of GPU between creation of sampler and when/where this is called."
         );
-    m.def("ReportGPUMem", &ReportGPUMem, 
+    m.def("ReportGPUMem", &ReportGPUMem,
         "Reports the GPU memory used in MiB between creation of sampler and when/where this is called."
         );
-    m.def("ReportGPUMemUsage", &ReportGPUMemUsage, 
+    m.def("ReportGPUMemUsage", &ReportGPUMemUsage,
         "Reports the GPU memory used in % between creation of sampler and when/where this is called."
         );
-    m.def("ReportGPUStatistics", &ReportStatistics, 
+    m.def("ReportGPUStatistics", &ReportStatistics,
         "Reports the GPU statistics (usage, energy, etc) between creation of sampler and when/where this is called."
         );
 #endif
@@ -98,16 +98,16 @@ PYBIND11_MODULE(py_profile_util, m) {
     /// @defgroup Python_API_Thread_affinity
     //@{
     m.def("cpuset_to_cstr", &cpuset_to_cstr);
-    m.def("MPICallingRank", &MPICallingRank, 
+    m.def("MPICallingRank", &MPICallingRank,
         "A function that returns string of calling mpi rank", py::arg("rank"));
-    m.def("ReportParallelAPI", &ReportParallelAPI, 
+    m.def("ReportParallelAPI", &ReportParallelAPI,
         "Reports all the parallel APIs being used");
-    m.def("ReportBinding", &ReportBinding, 
+    m.def("ReportBinding", &ReportBinding,
         "Reports the core and gpu binding");
-    m.def("ReportThreadAffinity", &ReportThreadAffinity, 
+    m.def("ReportThreadAffinity", &ReportThreadAffinity,
         "Reports the core affinity for a given calling thread");
 #ifdef _MPI
-    m.def("MPIReportThreadAffinity", &MPIReportThreadAffinity, 
+    m.def("MPIReportThreadAffinity", &MPIReportThreadAffinity,
         "Reports the MPI aware core affinity for a given calling thread");
 #endif
     //@}
@@ -116,40 +116,39 @@ PYBIND11_MODULE(py_profile_util, m) {
     //{@
     py::class_<memory_usage>(m, "memory_usage");
     py::class_<sys_memory_stats>(m, "sys_memory_stats");
-    m.def("GetMemUsage", 
+    m.def("GetMemUsage",
         py::overload_cast<const std::string &, const std::string &, const std::string &>(&GetMemUsage),
-        "Return the memory used by the process" 
+        "Return the memory used by the process"
         );
-    m.def("GetMemUsage", 
+    m.def("GetMemUsage",
         py::overload_cast<const memory_usage &, const std::string &, const std::string &, const std::string &>(&GetMemUsage),
-        "Returns the memory used by the process relative to a memory usage point" 
+        "Returns the memory used by the process relative to a memory usage point"
         );
-    m.def("ReportMemUsage", 
+    m.def("ReportMemUsage",
         py::overload_cast<const std::string &, const std::string &, const std::string &>(&ReportMemUsage),
-        "Reports the memory used by the process" 
+        "Reports the memory used by the process"
         );
-    m.def("ReportMemUsage", 
+    m.def("ReportMemUsage",
         py::overload_cast<const memory_usage &, const std::string &, const std::string &, const std::string &>(&ReportMemUsage),
-        "Reports the memory used by the process relative to a memory usage point" 
+        "Reports the memory used by the process relative to a memory usage point"
         );
-    m.def("ReportSystemMem", 
-        py::overload_cast<const std::string &, const std::string &, const std::string &>(&ReportSystemMem), 
-        "Reports the memory state of the node" 
+    m.def("ReportSystemMem",
+        py::overload_cast<const std::string &, const std::string &, const std::string &>(&ReportSystemMem),
+        "Reports the memory state of the node"
     );
-    m.def("ReportSystemMem", 
-        py::overload_cast<const sys_memory_stats &, const std::string &, const std::string &, const std::string &>(&ReportSystemMem), 
-        "Reports the memory state of the node relative to a memory usage point" 
+    m.def("ReportSystemMem",
+        py::overload_cast<const sys_memory_stats &, const std::string &, const std::string &, const std::string &>(&ReportSystemMem),
+        "Reports the memory state of the node relative to a memory usage point"
     );
-#ifdef _MPI 
-    m.def("MPIReportNodeMemUsage",  
+#ifdef _MPI
+    m.def("MPIReportNodeMemUsage",
         py::overload_cast<MPI_Comm &, const std::string &, const std::string &, const std::string &>(&MPIReportMemUsage),
-        "Reports the memory used by a MPI process" 
+        "Reports the memory used by a MPI process"
     );
-    m.def("MPIReportNodeSystemMem", 
-        py::overload_cast<MPI_Comm &, const std::string &, const std::string &, const std::string &>(&MPIReportSystemMem), 
-        "Reports the memory state of all nodes in the MPI comm" 
+    m.def("MPIReportNodeSystemMem",
+        py::overload_cast<MPI_Comm &, const std::string &, const std::string &, const std::string &>(&MPIReportSystemMem),
+        "Reports the memory state of all nodes in the MPI comm"
     );
 #endif
     //@}
 }
-

@@ -1,5 +1,5 @@
 /*! \file mem_util.cpp
- *  \brief Get memory 
+ *  \brief Get memory
  */
 
 #include <unordered_set>
@@ -7,7 +7,7 @@
 
 #include "profile_util.h"
 
-/// get the memory use looking as the /proc/self/status file 
+/// get the memory use looking as the /proc/self/status file
 namespace profiling_util {
 
     // return the memory usage;
@@ -55,7 +55,7 @@ namespace profiling_util {
     }
 
     // execute a command on the command line
-    std::string exec_sys_cmd(std::string cmd) 
+    std::string exec_sys_cmd(std::string cmd)
     {
         std::string result;
         if (cmd.size()==0) return result;
@@ -102,7 +102,7 @@ namespace profiling_util {
 
 
     std::string ReportMemUsage(
-        const std::string &function, 
+        const std::string &function,
         const std::string &file,
         const std::string &line_num
         )
@@ -116,7 +116,7 @@ namespace profiling_util {
     //report usage along with change relative to another sampling of memory
     std::string ReportMemUsage(
         const memory_usage &prior_mem_usage,
-        const std::string &function, 
+        const std::string &function,
         const std::string &file,
         const std::string &line_num
         )
@@ -128,7 +128,7 @@ namespace profiling_util {
     }
 
     std::tuple<std::string, memory_usage> GetMemUsage(
-        const std::string &function, 
+        const std::string &function,
         const std::string &file,
         const std::string &line_num
         )
@@ -148,7 +148,7 @@ namespace profiling_util {
     //report usage along with change relative to another sampling of memory
     std::tuple<std::string, memory_usage> GetMemUsage(
         const memory_usage &prior_mem_usage,
-        const std::string &function, 
+        const std::string &function,
         const std::string &file,
         const std::string &line_num
         )
@@ -167,7 +167,7 @@ namespace profiling_util {
         return std::make_tuple(memory_report.str(), memory_usage);
     }
 
-    #ifdef _MPI 
+    #ifdef _MPI
     inline std::string _gethostname(){
         char hnbuf[64];
         memset(hnbuf, 0, sizeof(hnbuf));
@@ -175,8 +175,8 @@ namespace profiling_util {
         return std::string(hnbuf);
     }
     std::string MPIReportNodeMemUsage(
-        MPI_Comm &comm, 
-        const std::string &function, 
+        MPI_Comm &comm,
+        const std::string &function,
         const std::string &file,
         const std::string &line_num
     )
@@ -186,8 +186,8 @@ namespace profiling_util {
     }
 
     std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(
-        MPI_Comm &comm, 
-        const std::string &function, 
+        MPI_Comm &comm,
+        const std::string &function,
         const std::string &file,
         const std::string &line_num
     )
@@ -203,7 +203,7 @@ namespace profiling_util {
         for (auto i=size;i<maxsize;i++) hostname+=" ";
         MPI_Gather(hostname.c_str(), maxsize, MPI_CHAR, allhostnames.data(), maxsize, MPI_CHAR, 0, comm);
         std::unordered_set<std::string> hostnames;
-        for (auto i=0;i<commsize;i++) 
+        for (auto i=0;i<commsize;i++)
         {
             std::string s;
             for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
@@ -216,7 +216,7 @@ namespace profiling_util {
         std::map<std::string, memory_usage> memonhost;
         memory_usage nomem;
         for (auto &s:hostnames) memonhost.insert(std::pair<std::string,memory_usage>(s,nomem));
-        for (auto i=0;i<commsize;i++) 
+        for (auto i=0;i<commsize;i++)
         {
             std::string s;
             for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
@@ -243,8 +243,8 @@ namespace profiling_util {
     }
 
     std::string MPIReportNodeSystemMem(MPI_Comm &comm,
-        const std::string &function, 
-        const std::string &file, 
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num
         )
     {
@@ -253,9 +253,9 @@ namespace profiling_util {
     }
 
     std::tuple<std::string, std::vector<std::string>, std::vector<sys_memory_stats>> MPIGetNodeSystemMem(
-        MPI_Comm &comm, 
-        const std::string &function, 
-        const std::string &file, 
+        MPI_Comm &comm,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num
     )
     {
@@ -270,7 +270,7 @@ namespace profiling_util {
         for (auto i=size;i<maxsize;i++) hostname+=" ";
         MPI_Gather(hostname.c_str(), maxsize, MPI_CHAR, allhostnames.data(), maxsize, MPI_CHAR, 0, comm);
         std::unordered_set<std::string> hostnames;
-        for (auto i=0;i<commsize;i++) 
+        for (auto i=0;i<commsize;i++)
         {
             std::string s;
             for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
@@ -281,7 +281,7 @@ namespace profiling_util {
         std::vector<sys_memory_stats> allmems(commsize);
         MPI_Gather(&mem, sizeof(sys_memory_stats), MPI_BYTE, allmems.data(), sizeof(sys_memory_stats), MPI_BYTE, 0, comm);
         std::map<std::string, sys_memory_stats> memonhost;
-        for (auto i=0;i<commsize;i++) 
+        for (auto i=0;i<commsize;i++)
         {
             std::string s;
             for (auto j=0;j<maxsize;j++) s += allhostnames[i*maxsize+j];
@@ -295,7 +295,7 @@ namespace profiling_util {
             memory_report << name << ": " << memory_amount(stat);
         };
         memory_report << "Node system memory report @ " << function << " "<<file<<":L"<<line_num <<" :\n";
-        for (auto &m:memonhost) 
+        for (auto &m:memonhost)
         {
             memory_report << "\tNode : " << m.first<<" : ";
             append_memory_stats("Total ", m.second.total);memory_report << "; ";
@@ -314,8 +314,8 @@ namespace profiling_util {
     #endif
 
     std::string ReportSystemMem(
-        const std::string &function, 
-        const std::string &file, 
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num
         )
     {
@@ -328,8 +328,8 @@ namespace profiling_util {
     //report usage along with change relative to another sampling of memory
     std::string ReportSystemMem(
         const sys_memory_stats &prior_mem_usage,
-        const std::string &function, 
-        const std::string &file, 
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num
         )
     {
@@ -340,8 +340,8 @@ namespace profiling_util {
     }
 
     std::tuple<std::string, sys_memory_stats> GetSystemMem(
-        const std::string &function, 
-        const std::string &file, 
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num
         )
     {
@@ -363,8 +363,8 @@ namespace profiling_util {
     //report usage along with change relative to another sampling of memory
     std::tuple<std::string, sys_memory_stats> GetSystemMem(
         const sys_memory_stats &prior_mem_usage,
-        const std::string &function, 
-        const std::string &file, 
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num
         )
     {
@@ -382,5 +382,4 @@ namespace profiling_util {
         append_memory_stats("Avail ", sys_mem.avail, sys_mem.avail-prior_mem_usage.avail);memory_report << "; ";
         return std::make_tuple(memory_report.str(), sys_mem);
     }
-} 
-
+}

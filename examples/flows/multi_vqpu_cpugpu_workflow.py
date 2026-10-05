@@ -67,9 +67,7 @@ async def cpu_with_random_qpu_workflow(
     futures = []
     for exec, args in zip(cpuexecs, cpuargs):
         logger.info(f"Running {exec} with {args}")
-        futures.append(
-            await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
-        )
+        futures.append(await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args))
     for f in futures:
         await f.result()
     tasks = {
@@ -88,9 +86,7 @@ async def cpu_with_random_qpu_workflow(
             if np.random.uniform() > 0.5:
                 tasks["gpu"].append(
                     tg.create_task(
-                        gpu_workflow.with_options(
-                            task_runner=myqpuworkflow.gettaskrunner("gpu")
-                        )(
+                        gpu_workflow.with_options(task_runner=myqpuworkflow.gettaskrunner("gpu"))(
                             myqpuworkflow=myqpuworkflow,
                             execs=gpuexecs,
                             arguments=gpuargs,
@@ -100,9 +96,7 @@ async def cpu_with_random_qpu_workflow(
                 if np.random.uniform() > 0.75:
                     tasks["cpu"].append(
                         tg.create_task(
-                            cpu_workflow.with_options(
-                                task_runner=myqpuworkflow.gettaskrunner("cpu")
-                            )(
+                            cpu_workflow.with_options(task_runner=myqpuworkflow.gettaskrunner("cpu"))(
                                 myqpuworkflow=myqpuworkflow,
                                 execs=cpuexecs,
                                 arguments=cpuargs,
@@ -287,7 +281,7 @@ async def workflow2(
 def wrapper_to_async_flow(
     yaml_template: str,
     script_template: str,
-    cluster: str ,
+    cluster: str,
     circuitargs: str = "",
     cpuexecs: List[str] = [
         "/software/projects/pawsey0001/pelahi/profile_util/examples/openmp/bin/openmpvec_cpp",
@@ -335,6 +329,7 @@ def wrapper_to_async_flow(
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Start the cpu-gpu workflow.")
 
     # Give a good default for development
@@ -357,9 +352,8 @@ if __name__ == "__main__":
         default="ella-qb-1.7.0-pypath",
     )
 
-
     args = parser.parse_args()
-        
+
     wrapper_to_async_flow(
         yaml_template=args.yaml_template,
         script_template=args.script_template,

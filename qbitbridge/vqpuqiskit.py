@@ -64,9 +64,7 @@ from qiskit_ibm_runtime import QiskitRuntimeService, IBMInputValueError
 from qiskit_ibm_runtime.accounts.exceptions import AccountNotFoundError
 
 
-def qiskit_check_credentials(
-    account_info: Tuple[str, str] | None = None, report_keys: bool = False
-) -> Dict[str, str]:
+def qiskit_check_credentials(account_info: Tuple[str, str] | None = None, report_keys: bool = False) -> Dict[str, str]:
     """Print the Qiskit Credentials
     Args:
         account_info (Tuple[str,str]): token and name of account to use. If not provided, use default account
@@ -74,7 +72,7 @@ def qiskit_check_credentials(
     Returns:
         Tuple of relevant information : message, and relevant access information like access_key
     Raises:
-        RuntimeErorr if access keys not defined
+        RuntimeError if access keys not defined
     """
     # what do grab to check for qiskit access?
     # The standard mechanism is to save account information
@@ -88,7 +86,7 @@ def qiskit_check_credentials(
         plans_preference="['open', 'premium']", # Optionally set the types of plans to prioritize.  This is ignored if the instance is specified.
         # Additionally, instances of a certain plan type are excluded if the plan name is not specified.
         region="us-east", # Optionally set the region to prioritize. Accepted values are 'us-east' or 'eu-de'. This is ignored if the instance is specified.
-        name="<account-name>", # Optionally name this set of account credentials. 
+        name="<account-name>", # Optionally name this set of account credentials.
         set_as_default=True, # Optionally set these as your default credentials.
     )
     """
@@ -102,9 +100,7 @@ def qiskit_check_credentials(
             qiskit_service = QiskitRuntimeService(token=token, name=name)
         except IBMInputValueError or AccountNotFoundError:
             if report_keys:
-                message = (
-                    f"IBM Qiskit account error using {token}. Please check token used."
-                )
+                message = f"IBM Qiskit account error using {token}. Please check token used."
             else:
                 message = "IBM Qiskit account error using a passed token. Please check token used."
             raise RuntimeError(message)
@@ -113,9 +109,7 @@ def qiskit_check_credentials(
         try:
             qiskit_service = QiskitRuntimeService()
         except IBMInputValueError or AccountNotFoundError:
-            message = (
-                "IBM Qiskit account error using default token stored via saved account."
-            )
+            message = "IBM Qiskit account error using default token stored via saved account."
             message += "Please check saved account information."
             raise RuntimeError(message)
 
@@ -129,7 +123,7 @@ def qiskit_parse_args(arguments: str) -> argparse.Namespace:
     """Parse arguments related to qiskit access
     Args:
         args (str) : string of arguments
-    Retursn:
+    Returns:
         Returns the parsed args
     """
     # Create the parser
@@ -147,7 +141,7 @@ def qiskit_parse_args(arguments: str) -> argparse.Namespace:
         default=False,
         type=bool,
         required=False,
-        help=f"Include simulator (y/n)",
+        help="Include simulator (y/n)",
     )
     return get_argparse_args(arguments=arguments, parser=parser)
 
@@ -165,9 +159,7 @@ async def qiskit_check_qpu(arguments: str | argparse.Namespace) -> Tuple[bool, s
     else:
         args = arguments
     service = QiskitRuntimeService()
-    backend = service.backend(
-        args.qiskitdevice, simulator=args.qiskitimulateddevice, operational=True
-    )
+    backend = service.backend(args.qiskitdevice, simulator=args.qiskitimulateddevice, operational=True)
     if backend is not None:
         avail = True
     else:
@@ -192,9 +184,7 @@ async def qiskit_get_metadata(arguments: str | argparse.Namespace) -> QPUMetaDat
     for backend in qiskit_service.backends():
         qiskit_devices.append(backend.config_name)
     if args.qiskitdevice not in qiskit_devices:
-        raise ValueError(
-            f"Device {args.qiskitdevice} not in list of available devices ({qiskit_devices})."
-        )
+        raise ValueError(f"Device {args.qiskitdevice} not in list of available devices ({qiskit_devices}).")
     backend = qiskit_service.backend(args.qiskitdevice)
     meta_data = QPUMetaData(
         name=backend.name,
@@ -267,9 +257,7 @@ async def run_qiskit_qpu(
 
     """
     logger = get_run_logger()
-    logger.info(
-        f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... "
-    )
+    logger.info(f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... ")
     # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
     tasks = [
         asyncio.create_task(myqpuworkflow.task_circuitcomplete(vqpu_id=qpu_id)),
@@ -385,8 +373,6 @@ async def launch_qiskit_qpu_workflow(
 
     # once the run has finished, shut it down
     # future = await shutdown_qiskit_qpu.submit(
-    future = await submit_compat(
-        shutdown_qiskit_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
-    )
+    future = await submit_compat(shutdown_qiskit_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
     # await future.result()
     await result_from_future_compat(future)

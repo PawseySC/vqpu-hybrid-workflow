@@ -115,9 +115,7 @@ async def run_vqpu(
         walltime (float): Walltime to wait before shutting down vqpu
     """
     logger = get_run_logger()
-    logger.info(
-        f"vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... "
-    )
+    logger.info(f"vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... ")
     # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
     tasks = [
         asyncio.create_task(myqpuworkflow.task_circuitcomplete(vqpu_id=vqpu_id)),
@@ -207,21 +205,15 @@ async def launch_vqpu_workflow(
     await result_from_future_compat(future)
 
     # now run it
-    logger.info(
-        f"vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... "
-    )
-    future = await submit_compat(
-        run_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id, walltime=walltime
-    )
+    logger.info(f"vQPU-{vqpu_id} running and will keep running till circuits complete or hit walltime ... ")
+    future = await submit_compat(run_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id, walltime=walltime)
     # await future.result()
     await result_from_future_compat(future)
 
     # once the run has finished, shut it down
     # future = await shutdown_vqpu.submit(myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
     # await future.result()
-    future = await submit_compat(
-        shutdown_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id
-    )
+    future = await submit_compat(shutdown_vqpu, myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
     await result_from_future_compat(future)
 
 
@@ -244,7 +236,7 @@ async def postprocessing_histo_plot(
     """
     logger = get_run_logger()
     libcheck = check_python_installation("matplotlib")
-    if libcheck == False:
+    if not libcheck:
         logger("Missing matplotlib, not producing histogram")
         return data
     import matplotlib.pyplot as plt
@@ -302,9 +294,7 @@ async def run_circuit_vqpu(
         Tuple[Dict[str, int], int]: Dictionary results from a circuit that consists of bitstrings and counts along with the id of this task running the circuit
     """
     myqpuworkflow.checkbackends(checktype="circuit")
-    myqpuworkflow.checkcircuitreqs(
-        circuitfunc=circuitfunc, qpu_id=vqpu_id, circ_qpu_reqs=circ_qpu_reqs
-    )
+    myqpuworkflow.checkcircuitreqs(circuitfunc=circuitfunc, qpu_id=vqpu_id, circ_qpu_reqs=circ_qpu_reqs)
 
     results = circuitfunc(remote, arguments)
     task_run_id = get_task_run_id()
@@ -407,7 +397,7 @@ async def run_circuit(
     Returns:
         Tuple[Dict[str, int], int]: Dictionary results from a circuit that consists of bitstrings and counts along with the id of this task running the circuit
     """
-    if backend_sel == None and vqpu_id != None and remote != None:
+    if backend_sel is None and vqpu_id is not None and remote is not None:
         # future = await run_circuit_vqpu.submit(
         future = await submit_compat(
             run_circuit_vqpu,
@@ -418,7 +408,7 @@ async def run_circuit(
             remote=remote,
             circ_qpu_reqs=circ_qpu_reqs,
         )
-    elif backend_sel == None and vqpu_id == None and remote != None:
+    elif backend_sel is None and vqpu_id is None and remote is not None:
         # future = await run_circuit_remote.submit(
         future = await submit_compat(
             run_circuit_remote,
@@ -428,7 +418,7 @@ async def run_circuit(
             remote=remote,
             circ_qpu_reqs=circ_qpu_reqs,
         )
-    elif backend_sel != None and vqpu_id == None and remote == None:
+    elif backend_sel is not None and vqpu_id is None and remote is None:
         # future = await run_circuit_sim.submit(
         future = await submit_compat(
             run_circuit_sim,
@@ -534,7 +524,7 @@ async def run_circuitandpost_vqpu(
     results["post"] = {"results": None, "name": None, "id": None}
     logger.debug(f"{circ.__name__} with {circ_id} results: {circ_results}")
     # results['post'] = {'results': None, 'name': None, 'id': None}
-    if post != None and post != postprocessing_histo_plot:
+    if post is not None and post != postprocessing_histo_plot:
         future = await run_postprocess.submit(
             myqpuworkflow=myqpuworkflow,
             postprocessfunc=post,
@@ -640,7 +630,7 @@ async def circuits_vqpu_workflow(
 
     Args:
         myqpuworkflow (HybridQuantumWorkflowBase): hybrid workflow class that manages circuit workflow
-        circuits (List[Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]]): circuits (and postprocessing and possible circuit requirments) to run
+        circuits (List[Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]]): circuits (and postprocessing and possible circuit requirements) to run
         vqpu_id (int): vqpu id
         arguments (str): string of arguments to pass extra options to launching of vqpu
         delay_before_start (float): how much time to wait before running circuits
@@ -654,9 +644,7 @@ async def circuits_vqpu_workflow(
     # clean-up any events
     # myqpuworkflow.cleanupbeforestart(vqpu_id = vqpu_id)
     logger = get_run_logger()
-    logger.info(
-        f"Delay of {delay_before_start} seconds before starting circuit submission ... "
-    )
+    logger.info(f"Delay of {delay_before_start} seconds before starting circuit submission ... ")
     await asyncio.sleep(delay_before_start)
     logger.info(f"Waiting for vqpu-{vqpu_id} to start ... ")
     remote = await myqpuworkflow.getremoteaftervqpulaunch(vqpu_id=vqpu_id)
@@ -727,7 +715,7 @@ async def circuits_with_nqvpuqs_workflow(
         logger.info(f"Delay of {delay_before_start} seconds before starting ... ")
         await asyncio.sleep(delay_before_start)
 
-    if vqpu_ids_subset == None:
+    if vqpu_ids_subset is None:
         vqpu_ids_subset = myqpuworkflow.vqpu_ids
     else:
         if not all(item in myqpuworkflow.vqpu_ids for item in vqpu_ids_subset):
@@ -792,9 +780,7 @@ def run_workflow_circuits_with_nqvpuqs(
     task_run_name="Run_cpu_{exec}",
     # result_serializer=HybridQuantumWorkflowSerializer(),
 )
-async def run_cpu(
-    exec: str, arguments: str, myqpuworkflow: HybridQuantumWorkflowBase | None = None
-) -> None:
+async def run_cpu(exec: str, arguments: str, myqpuworkflow: HybridQuantumWorkflowBase | None = None) -> None:
     """Running CPU based programs.
 
     Args:
@@ -891,9 +877,7 @@ async def cpu_workflow(
             # older prefect2 had to await a task. prefect 3 does not. Created a wrapper
             # that handles this submission so that it is always awaitable
             # await run_cpu.submit(myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
-            await submit_compat(
-                run_cpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
-            )
+            await submit_compat(run_cpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
         )
     for f in futures:
         # await f.result()
@@ -942,15 +926,11 @@ async def gpu_workflow(
     offset = 0
     for i in range(nchunks):
         chunksize = int(np.min([len(execs) - offset, ngpus]))
-        for exec, args in zip(
-            execs[offset : offset + chunksize], arguments[offset : offset + chunksize]
-        ):
+        for exec, args in zip(execs[offset : offset + chunksize], arguments[offset : offset + chunksize]):
             logger.info(f"Running {exec} with {args}")
             futures.append(
                 # await run_gpu.submit(
-                await submit_compat(
-                    run_gpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args
-                )
+                await submit_compat(run_gpu, myqpuworkflow=myqpuworkflow, exec=exec, arguments=args)
             )
         for f in futures:
             # await f.result()
@@ -1003,7 +983,7 @@ def TaskForSillyTestClass(obj1: SillyTestClass, obj2: SillyTestClass):
 
 @flow()
 def FlowForSillyTestClass(baseobj: SillyTestClass | None = None):
-    if baseobj != None:
+    if baseobj is not None:
         baseobj.x = baseobj.y
     obj1 = SillyTestClass(x=100)
     obj2 = SillyTestClass(x=0)
@@ -1012,9 +992,7 @@ def FlowForSillyTestClass(baseobj: SillyTestClass | None = None):
 
 
 @flow
-def RunSillyFlowswithUpdateDaskTaskRunner(
-    taskrunner: DaskTaskRunner, baseobj: SillyTestClass
-):
+def RunSillyFlowswithUpdateDaskTaskRunner(taskrunner: DaskTaskRunner, baseobj: SillyTestClass):
     # lets construct another DaskTaskRunner
     otherrunner = DaskTaskRunner(
         cluster_class=taskrunner.cluster_class,  # Reuse the same cluster class
@@ -1024,7 +1002,7 @@ def RunSillyFlowswithUpdateDaskTaskRunner(
         },  # Modify the number of workers
         adapt_kwargs=taskrunner.adapt_kwargs,  # Keep the same adapt_kwargs
     )
-    if baseobj != None:
+    if baseobj is not None:
         baseobj.x = baseobj.y
     obj1 = SillyTestClass(x=-100)
     obj2 = SillyTestClass(x=-200)
@@ -1158,9 +1136,7 @@ def run_tasks_with_concurrency_limit(
     task_list = False
     if isinstance(task_func_wrapper, list):
         if ntasks != len(task_func_wrapper):
-            logger.warning(
-                "Task list does not match arg list length. Running minimum number of either"
-            )
+            logger.warning("Task list does not match arg list length. Running minimum number of either")
             if ntasks < len(task_func_wrapper):
                 logger.warning("Truncating task function list to match args length")
             else:
@@ -1183,9 +1159,7 @@ def run_tasks_with_concurrency_limit(
         active.append(hexkey)
         counter += 1
         if counter % max_task_submissions == 0:
-            logger.info(
-                f"Pausing task submission for {sleep_time_submission} seconds to not overload database"
-            )
+            logger.info(f"Pausing task submission for {sleep_time_submission} seconds to not overload database")
             time.sleep(sleep_time_submission)
         while len(active) >= max_active_task:
             for key in active:
@@ -1195,7 +1169,7 @@ def run_tasks_with_concurrency_limit(
                         active.remove(key)
             if len(active) < max_active_task:
                 break
-            logger.info(f"Pausing task submission till number active is reduced. ")
+            logger.info("Pausing task submission till number active is reduced. ")
             time.sleep(sleep_time_active_tasks_poll)
     logger.info("All tasks submitted. Gathering results.")
     # collect results in order of the args list

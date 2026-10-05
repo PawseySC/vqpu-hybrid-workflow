@@ -14,7 +14,7 @@ qbitbridge.clusters module
    :members:
    :show-inheritance:
    :undoc-members:
-   
+
 qbitbridge.options module
 -------------------------
 

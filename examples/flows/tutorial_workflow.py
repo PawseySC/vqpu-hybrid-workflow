@@ -106,7 +106,7 @@ async def async_workflow(
     async with asyncio.TaskGroup() as tg:
         for i in range(10):
             tg.create_task(simple_async_task.submit())
-        # once the async taskgroup is finished all tasks have been submited
+        # once the async taskgroup is finished all tasks have been submitted
     # we can also just create a list of tasks
     tg = []
     for i in range(10):
@@ -146,15 +146,14 @@ def wrapper_to_async_flow(
 
     # for an asynchronous flow, call with asyncio.run in a non async function
     asyncio.run(
-        async_workflow.with_options(task_runner=myflowmanager.gettaskrunner("generic"))(
-            myqpuworkflow=myflowmanager
-        )
+        async_workflow.with_options(task_runner=myflowmanager.gettaskrunner("generic"))(myqpuworkflow=myflowmanager)
     )
 
 
 if __name__ == "__main__":
 
     import argparse
+
     parser = argparse.ArgumentParser(description="Start the tutorial workflow.")
 
     # Give a good default for development

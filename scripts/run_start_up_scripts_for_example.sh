@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 
 host=$(hostname)
 
@@ -8,4 +8,3 @@ $SCRIPT_DIR/start_postgres.sh -p testrun_1 -a ${host} -s $MYPOSTGRES -c $MYSOFTW
 sleep 10
 
 $SCRIPT_DIR/start_prefect.sh -H $MYPREFECT -p testrun_1 -a ${host} -s $MYPOSTGRES -v -S -e $MYPREFECTPYENV &
-

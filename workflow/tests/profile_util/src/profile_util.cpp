@@ -5,8 +5,8 @@
 #include "profile_util.h"
 
 namespace profiling_util {
-    std::string __extract_filename(std::string fullpath) 
-    { 
+    std::string __extract_filename(std::string fullpath)
+    {
         auto lastSlashPos = fullpath.find_last_of('/');
         return fullpath.substr(lastSlashPos + 1);
     };
@@ -21,7 +21,7 @@ namespace profiling_util {
         std::string version= "Version: ";
         version+= __PU_VERSION__;
         version+=", git:" + profiling_util::git_sha1();
-        return version; 
+        return version;
     }
     template std::tuple<double, double, double, double>get_stats(std::vector<double> &input, unsigned int offset, unsigned int stride);
     template std::tuple<float, float, float, float>get_stats(std::vector<float> &input, unsigned int offset, unsigned int stride);
@@ -39,4 +39,3 @@ namespace profiling_util {
     static bool _PU_USING_OPENMP=true;
     #endif
 }
-

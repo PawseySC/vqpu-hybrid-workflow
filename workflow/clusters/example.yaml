@@ -21,7 +21,7 @@ generic:
     account: ""
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "export OMP_NUM_THREADS=1"
       - "export OMP_PLACES=cores"
       - "export OMP_MAX_ACTIVE_LEVELS=4"
@@ -34,13 +34,13 @@ generic:
     job_mem: "1GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_worker_%J.err'
       - '-o dask_logs/dask_generic_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:

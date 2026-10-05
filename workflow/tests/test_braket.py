@@ -55,18 +55,18 @@ class TestHybridAWSBraketWorkflowBasics(unittest.TestCase):
         availdevices = AwsDevice.get_devices(statuses=["ONLINE"])
         message += f"Avail Devices :{availdevices} \n\n"
         print(message)
-        #asyncio.run(aws_braket_check_qpu(arguments=arguments))
+        # asyncio.run(aws_braket_check_qpu(arguments=arguments))
         devices = ["Aquila", "Forte__1", "Aria__1", "Garnet", "Ankaa-3"]
         for d in devices:
-            arguments : str = f"--braketdevice={d}"
+            arguments: str = f"--braketdevice={d}"
             print(f"Check device {d} ")
             avail, result = asyncio.run(aws_braket_check_qpu(arguments=arguments))
             print(result)
-            if avail :
+            if avail:
                 result = asyncio.run(aws_braket_get_metadata(arguments=arguments))
                 print(result)
 
-    #def test_qpu_flow(self):
+    # def test_qpu_flow(self):
     #    frame = inspect.currentframe()
     #    # Get the function name
     #    function_name = frame.f_code.co_name
