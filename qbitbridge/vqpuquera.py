@@ -35,8 +35,8 @@ from .utils import (
     upload_image_as_artifact,
     SlurmInfo,
     EventFile,
-    submit_compat,
     result_from_future_compat,
+    submit_compat,
 )
 from .vqpubase import (
     QPUMetaData,
@@ -69,7 +69,7 @@ def quera_check_credentials(report_keys: bool = False) -> Dict[str, str]:
     Returns:
         Tuple of relevant information : message, and relevant access information like access_key
     Raises:
-        RuntimeErorr if ZAPIER_WEBHOOK_KEY not defined
+        RuntimeError if ZAPIER_WEBHOOK_KEY not defined
     """
     message: str = ""
     access_key = os.getenv("ZAPIER_WEBHOOK_KEY")
@@ -105,7 +105,7 @@ def quera_parse_args(arguments: str) -> argparse.Namespace:
     """Parse arguments related to quera bloqade access
     Args:
         args (str) : string of arguments
-    Retursn:
+    Returns:
         Returns the parsed args
     """
     # Create the parser
@@ -228,9 +228,7 @@ async def run_quera_qpu(
 
     """
     logger = get_run_logger()
-    logger.info(
-        f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... "
-    )
+    logger.info(f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... ")
     # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
     tasks = [
         asyncio.create_task(myqpuworkflow.task_circuitcomplete(vqpu_id=qpu_id)),
@@ -346,8 +344,6 @@ async def launch_quera_qpu_workflow(
 
     # once the run has finished, shut it down
     # future = await shutdown_quera_qpu.submit(myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
-    future = await submit_compt(
-        shutdown_quera_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
-    )
+    future = await submit_compat(shutdown_quera_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
     # await future.result()
     await result_from_future_compat(future)

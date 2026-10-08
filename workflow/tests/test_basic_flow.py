@@ -49,7 +49,7 @@ def SillyTask(obj1: SillyClass, obj2: SillyClass):
 
 @flow()
 def SillyFlow(baseobj: SillyClass | None = None):
-    if baseobj != None:
+    if baseobj is not None:
         baseobj.x = baseobj.y
     obj1 = SillyClass(x=100)
     obj2 = SillyClass(x=0)
@@ -104,22 +104,14 @@ async def multivqpuworkflow(
 class TestHybridWorkflowBasics(unittest.TestCase):
     cluster: str = "ella-qb-1.7.0-pypath"
     vqpu_template_script: str = (
-        os.path.dirname(os.path.abspath(__file__))
-        + "/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
+        os.path.dirname(os.path.abspath(__file__)) + "/../qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
     )
-    vqpu_template_yaml: str = (
-        os.path.dirname(os.path.abspath(__file__))
-        + "/../qb-vqpu/remote_vqpu_ella_template.yaml"
-    )
+    vqpu_template_yaml: str = os.path.dirname(os.path.abspath(__file__)) + "/../qb-vqpu/remote_vqpu_ella_template.yaml"
     gpuruns: int = 4
     gpucudaexec: str = (
-        os.path.dirname(os.path.abspath(__file__))
-        + "/profile_util/build-cuda/src/tests/test_profile_util"
+        os.path.dirname(os.path.abspath(__file__)) + "/profile_util/build-cuda/src/tests/test_profile_util"
     )
-    gpuhipexec: str = (
-        os.path.dirname(os.path.abspath(__file__))
-        + "/profile_util/build-hip/src/tests/test_profile_util"
-    )
+    gpuhipexec: str = os.path.dirname(os.path.abspath(__file__)) + "/profile_util/build-hip/src/tests/test_profile_util"
     gpuexec: str = ""
 
     def test_jsonserialization(self):
@@ -175,8 +167,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
     #     x : float = 1.0
     #     y = { 'foo' : [1,2,4,5], 'bar': 'what?'}
     #     serialized = serializer.serialize(y)
-    #     deserialzed = serializer.deserialize(serialized)
-    #     self.assertEqual(y, deserialzed)
+    #     deserialized = serializer.deserialize(serialized)
+    #     self.assertEqual(y, deserialized)
 
     # def test_deserialize(self):
     #     frame = inspect.currentframe()
@@ -214,9 +206,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         # Get the line number
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
-        print(
-            "Check simple flow with SillyTestClass defined in qbitbridge.vqpuworkflow works"
-        )
+        print("Check simple flow with SillyTestClass defined in qbitbridge.vqpuworkflow works")
         FlowForSillyTestClass()
 
     def test_flowwithlocalrunner(self):
@@ -233,12 +223,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
             vqpu_template_script=self.vqpu_template_script,
             vqpu_template_yaml=self.vqpu_template_yaml,
         )
-        print(
-            "Check if simple flow without vQPU related classes with local task runner works"
-        )
-        asyncio.run(
-            cpu_workflow(myqpuworkflow=myflow, execs=["ls"], arguments=["/opt/"])
-        )
+        print("Check if simple flow without vQPU related classes with local task runner works")
+        asyncio.run(cpu_workflow(myqpuworkflow=myflow, execs=["ls"], arguments=["/opt/"]))
 
     def test_flowwithclassanddaskrunner(self):
         """Test flow with a class and dask task runners."""
@@ -248,9 +234,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         # Get the line number
         line_number = frame.f_lineno
         print(f"Function name: {function_name}, Line number: {line_number}")
-        print(
-            "Check simple flow with SillyTestClass defined in qbitbridge.vqpuworkflow works"
-        )
+        print("Check simple flow with SillyTestClass defined in qbitbridge.vqpuworkflow works")
         # task_runners = get_dask_runners(self.cluster)
         # myflow = FlowForSillyTestClass.with_options(task_runner = task_runners['cpu'])
         # myflow()
@@ -275,9 +259,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
         cpuflow = cpu_workflow.with_options(task_runner=myflow.gettaskrunner("cpu"))
-        print(
-            "Check if simple flow without vQPU related classes with dask task runner works"
-        )
+        print("Check if simple flow without vQPU related classes with dask task runner works")
         asyncio.run(cpuflow(execs=["ls"], arguments=["/opt/"]))
 
     def test_flow(self):
@@ -296,12 +278,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         )
         # cpuflow = cpu_workflow.with_options(task_runner = myflow.taskrunners['cpu'])
         cpuflow = cpu_workflow.with_options(task_runner=myflow.gettaskrunner("cpu"))
-        print(
-            "Check if simple flow without vQPU related classes with dask task runner works"
-        )
-        asyncio.run(
-            cpuflow(myqpuworkflow=myflow, execs=["ls"], arguments=["/usr/local/"])
-        )
+        print("Check if simple flow without vQPU related classes with dask task runner works")
+        asyncio.run(cpuflow(myqpuworkflow=myflow, execs=["ls"], arguments=["/usr/local/"]))
 
     def test_gpu_flow(self):
         """Test flow with HybridQuantumWorlfowBase class and daks task runners, gpu focus.
@@ -332,15 +310,13 @@ class TestHybridWorkflowBasics(unittest.TestCase):
             self.gpuexec = self.gpuhipexec
 
         execs = [self.gpuexec for i in range(self.gpuruns)]
-        arugments = ["" for i in range(self.gpuruns)]
-        print(
-            "Check if simple GPU flow without vQPU related classes with dask task runner works"
-        )
+        arguments = ["" for i in range(self.gpuruns)]
+        print("Check if simple GPU flow without vQPU related classes with dask task runner works")
         asyncio.run(
             gpuflow(
                 myqpuworkflow=myflow,
                 execs=execs,
-                arguments=arugments,
+                arguments=arguments,
             )
         )
 
@@ -367,7 +343,10 @@ class TestHybridWorkflowBasics(unittest.TestCase):
 
     def test_limit_concurrent(self):
         """Test flow with limited tasks running concurrently."""
-        @limit_concurrent_tasks(max_active_task=5, sleep_time_submission = 10, sleep_time_active_tasks_poll=20, max_task_submissions=3)
+
+        @limit_concurrent_tasks(
+            max_active_task=5, sleep_time_submission=10, sleep_time_active_tasks_poll=20, max_task_submissions=3
+        )
         @task
         def process_data(item):
             x = int(item)
@@ -379,6 +358,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
             items = list(range(5))
             results = process_data(items)
             print("Processed results:", results)
+
         @task
         def process_data2(item):
             x = int(item)
@@ -396,8 +376,8 @@ class TestHybridWorkflowBasics(unittest.TestCase):
             tasks = [process_data2 for i in range(10)] + [process_data3 for i in range(10)]
             args = list(range(len(tasks)))
             results = run_tasks_with_concurrency_limit(
-                task_func_wrapper=tasks, 
-                args=args, 
+                task_func_wrapper=tasks,
+                args=args,
                 max_task_submissions=3,
                 max_active_task=15,
                 sleep_time_submission=4,
@@ -416,7 +396,7 @@ class TestHybridWorkflowBasics(unittest.TestCase):
         limitedflow()
         limitedflow = limited_flow2.with_options(task_runner=task_runner)
         limitedflow()
-       
+
 
 if __name__ == "__main__":
 

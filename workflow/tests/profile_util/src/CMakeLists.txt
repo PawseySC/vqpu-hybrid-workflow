@@ -22,15 +22,15 @@ if (BUILD_TESTING)
 	add_subdirectory(tests)
 endif()
 
-install(TARGETS profile_util 
+install(TARGETS profile_util
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if (PU_ENABLE_PYTHON_INTERFACE)
     pybind11_add_module(py_profile_util
-    profile_util_pyinterface.cpp 
-    profile_util.cpp 
-    mem_util.cpp 
+    profile_util_pyinterface.cpp
+    profile_util.cpp
+    mem_util.cpp
     thread_affinity_util.cpp
     time_util.cpp
     "${git_revision_cpp}")

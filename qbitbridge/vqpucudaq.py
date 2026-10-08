@@ -55,9 +55,7 @@ from prefect.serializers import Serializer, JSONSerializer
 # AWS imports: Import CUDAQ modules
 libcheck = check_python_installation("cudaq")
 if not libcheck:
-    raise ImportError(
-        "Missing CUDAQ library, cannot with cudaq library nor use QPUs via cudaq backends"
-    )
+    raise ImportError("Missing CUDAQ library, cannot with cudaq library nor use QPUs via cudaq backends")
 import cudaq
 
 cudaq_allowed_devices: List[str] = [
@@ -74,7 +72,7 @@ def cudaq_check_credentials() -> str:
     Returns:
         string of relevant information
     Raises:
-        RuntimeErorr if credentials not defined
+        RuntimeError if credentials not defined
         ValueError if device not in list allowed devices.
     """
     report: str = ""
@@ -85,9 +83,7 @@ def cudaq_check_credentials() -> str:
     return report
 
 
-def cudaq_check_device_credentials(
-    arguments: str | argparse.Namespace, raise_error: bool = False
-) -> Tuple[bool, str]:
+def cudaq_check_device_credentials(arguments: str | argparse.Namespace, raise_error: bool = False) -> Tuple[bool, str]:
     """Check CUDAQ Credentials for a given device
     Args:
         device (str) : device name to check if credentials in place
@@ -95,7 +91,7 @@ def cudaq_check_device_credentials(
     Returns:
         string of relevant information
     Raises:
-        RuntimeErorr if credentials not defined
+        RuntimeError if credentials not defined
         ValueError if device not in list allowed devices.
     """
 
@@ -164,7 +160,7 @@ def cudaq_parse_args(arguments: str) -> argparse.Namespace:
     """Parse arguments related to aws braket qpus
     Args:
         args (str) : string of arguments
-    Retursn:
+    Returns:
         Returns the parsed args
     """
     # Create the parser
@@ -264,9 +260,7 @@ async def launch_cudaq_qpu(
         qpu_data=qpu_data,
     )
     cudaq.set_target(args.cudaqdevice, machine=args.cudaqmachine)
-    logger.info(
-        f"Running CUDAQ QPU-{qpu_id} {args.cudaqdevice}-{args.cudaqmachine} ... "
-    )
+    logger.info(f"Running CUDAQ QPU-{qpu_id} {args.cudaqdevice}-{args.cudaqmachine} ... ")
 
 
 @task(
@@ -292,9 +286,7 @@ async def run_cudaq_qpu(
 
     """
     logger = get_run_logger()
-    logger.info(
-        f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... "
-    )
+    logger.info(f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... ")
     # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
     tasks = [
         asyncio.create_task(myqpuworkflow.task_circuitcomplete(vqpu_id=qpu_id)),
@@ -409,8 +401,6 @@ async def launch_cudaq_qpu_workflow(
 
     # once the run has finished, shut it down
     # future = await shutdown_cudaq_qpu.submit(myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
-    future = await submit_compat(
-        shutdown_cudaq_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
-    )
+    future = await submit_compat(shutdown_cudaq_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
     # await future.result()
     await result_from_future_compat(future)

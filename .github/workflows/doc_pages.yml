@@ -1,23 +1,23 @@
 on:
   push:
     branches: [ main ]
-    
+
 jobs:
 
   build_docs_job:
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB.TOKEN }}
-      
+
     steps:
       - name: Checkout project.
         uses: actions/checkout@v2.3.4
-          
+
       - name: Set up Python.
         uses: actions/setup-python@v2.2.1
         with:
           python-version: '3.10'
-            
+
       - name: Install documentation dependencies.
         run: |
           python -m pip install "docutils<0.18 "
@@ -28,12 +28,12 @@ jobs:
           python -m pip install "sphinx-rtd-theme==1.2.0"
           python -m pip install "numpydoc==1.5.0"
           sudo apt-get install -y graphviz
-            
+
       - name: Make docs.
         run: |
           cd docs
           make html
-            
+
       - name: Init new repo in dist folder and commit generated files.
         run: |
           cd ./docs/_build/html
@@ -43,7 +43,7 @@ jobs:
           git config --local user.name "GitHub Action"
           git add -A
           git commit -m 'built html docs'
-             
+
       - name: Force push to destination branch.
         uses: ad-m/github-push-action@master
         with:
@@ -51,6 +51,3 @@ jobs:
           branch: gh-pages
           force: true
           directory: ./docs/_build/html
-            
-           
-    

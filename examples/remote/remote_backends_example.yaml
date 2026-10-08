@@ -10,7 +10,7 @@ loopback:
   use_default_contrast_settings: false
   init_contrast_threshold: 0
   # note that the qubit contrast thresholds only hold for running on real qubits
-  # for virtual qpus, this is set in the front end. 
+  # for virtual qpus, this is set in the front end.
   qubit_contrast_thresholds:
     0: 0
     1: 0
@@ -20,4 +20,4 @@ aws-braket:
   format: openqasm3
   s3: amazon-braket-qbsdk-2023
   path: output
-  noise: false      
+  noise: false

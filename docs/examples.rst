@@ -3,10 +3,10 @@
 Example Workflow
 ################
 
-There are example workflows in `examples/flows/` that could make use of the tasks and flows 
-defined in QBitBridge. 
+There are example workflows in `examples/flows/` that could make use of the tasks and flows
+defined in QBitBridge.
 We discuss a multi-vqpu example here see :file:`multi_vqpu_cpugpu_workflow.py` in detail here.
-This flow uses some basic build-block tasks and flows defined in :file:`qbitbridge/vqpuflows.py`. 
+This flow uses some basic build-block tasks and flows defined in :file:`qbitbridge/vqpuflows.py`.
 The Prefect view is of this flow is shown below.
 
 .. figure:: figs/qbitbridge_full.gif
@@ -14,32 +14,32 @@ The Prefect view is of this flow is shown below.
    :align: center
 
    **Video of QbitBridge in action.** An example of a multi-vQPU workflow as visualized by the Prefect UI.
-   
-This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other 
-vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and 
-how to run these flows in an asynchronous fashion. 
 
-We strongly suggest you alter the CPU and GPU commands before trialling this workflow if you would like to test it. The 
-code as it stands also uses a cluster specific yaml file where the python path variable has been updated to include the 
-absolute path of the :file:`workflow/` directory. 
+This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other
+vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and
+how to run these flows in an asynchronous fashion.
+
+We strongly suggest you alter the CPU and GPU commands before trialling this workflow if you would like to test it. The
+code as it stands also uses a cluster specific yaml file where the python path variable has been updated to include the
+absolute path of the :file:`workflow/` directory.
 
 This example showcases a few key things:
 
 * Use of the `HybridQuantumWorkflowBase` class to manage a flow
-* Use of basic flows like `gpu_workflow` being launched with a `DaskTaskRunner` that differs form the parent flow runner. 
+* Use of basic flows like `gpu_workflow` being launched with a `DaskTaskRunner` that differs form the parent flow runner.
 * Use of asynchronous flows launched using `asyncio.TaskGroup`
 * Multiple vQPUs being launched and awaiting circuits
 * Circuits being sent to several different vQPUs from a single flow
 
-To get a better understanding of the workflow, let's break it down. 
+To get a better understanding of the workflow, let's break it down.
 
-.. _example-main-flow 
+.. _example-main-flow
 
 Main flow
 =========
 
-The main workflow, `Multi-vQPU Test`, launches several other flows, each with appropriate DaskTaskRunners 
-which effectively submit Slurm jobs with appropriate resource requests. If we look at the code 
+The main workflow, `Multi-vQPU Test`, launches several other flows, each with appropriate DaskTaskRunners
+which effectively submit Slurm jobs with appropriate resource requests. If we look at the code
 
 .. code-block:: python
 
@@ -152,22 +152,22 @@ which effectively submit Slurm jobs with appropriate resource requests. If we lo
 
 We can several key features:
 
-* The flow is passed a `HybridQuantumWorkflowBase` instance. This instance is passed along to 
-  every subflow that is called. 
-* Subflow as defined are never called directly. Instead, a flow instance is create from a flow definition 
-  using the `with_options` to set the `task_runner` to an appropriate task runner. 
-* Sublows instances are called from within an `asycio.TaskGroup` to run the flows concurrently. 
+* The flow is passed a `HybridQuantumWorkflowBase` instance. This instance is passed along to
+  every subflow that is called.
+* Subflow as defined are never called directly. Instead, a flow instance is create from a flow definition
+  using the `with_options` to set the `task_runner` to an appropriate task runner.
+* Sublows instances are called from within an `asycio.TaskGroup` to run the flows concurrently.
 
 Subflows
 ========
 
-The subflows called by the parent flow are 
+The subflows called by the parent flow are
 
-* `qbitbridge.vqpuflow.launch_vqpu_workflow.with_options` - which launches a vQPU service that can 
-  receive circuits and will return results to the appropriate calling circuit submission process. 
-  This flow runs a `launch_vqpu`` task, a `run_vqpu`` task and a `shudown_vqpu`:  
+* `qbitbridge.vqpuflow.launch_vqpu_workflow.with_options` - which launches a vQPU service that can
+  receive circuits and will return results to the appropriate calling circuit submission process.
+  This flow runs a `launch_vqpu`` task, a `run_vqpu`` task and a `shutdown_vqpu`:
 
-  .. code-block:: python 
+  .. code-block:: python
 
       @flow()
       async def launch_vqpu_workflow(
@@ -176,7 +176,7 @@ The subflows called by the parent flow are
       ) -> None:
          future = await launch_vqpu.submit(
             myqpuworkflow=myqpuworkflow,
-            ..., 
+            ...,
          )
          await future.result()
          # run vqpu till shut-down signal received
@@ -188,18 +188,18 @@ The subflows called by the parent flow are
          # once the run has finished, shut it down
          future = await shutdown_vqpu.submit(myqpuworkflow=myqpuworkflow, vqpu_id=vqpu_id)
          await future.result()
- 
-* `qbitbridge.vqpuflow.circuits_with_nqvpuqs_workflow` - runs circuits on a set of vQPUs once the vQPUs 
+
+* `qbitbridge.vqpuflow.circuits_with_nqvpuqs_workflow` - runs circuits on a set of vQPUs once the vQPUs
   are available. A dictionary of vqpu ids and the circuits that they will run is provided. The flow
-  makes use of the `qbitbridge.vqpuflow.run_circuits_once_vqpu_ready` task.  
+  makes use of the `qbitbridge.vqpuflow.run_circuits_once_vqpu_ready` task.
 
   .. code-block:: python
 
       @flow()
       async def circuits_with_nqvpuqs_workflow(
          myqpuworkflow: HybridQuantumWorkflowBase,
-         circuits, 
-         ...,  
+         circuits,
+         ...,
       ) -> Dict[str, List[Dict[str, Any]]]:
          async with asyncio.TaskGroup() as tg:
             # either spin up real vqpu
@@ -216,11 +216,11 @@ The subflows called by the parent flow are
          results = {f"vqpu_{name}": task.result() for name, task in tasks.items()}
          logger.debug(results)
          return results
- 
-* `qbitbridge.vqpuflow.run_circuits_once_vqpu_ready` task that handles ciccuit submission to 
-  to a given remote vqpu service (can also be a real qpu). It waits for the service to be running. 
+
+* `qbitbridge.vqpuflow.run_circuits_once_vqpu_ready` task that handles ciccuit submission to
+  to a given remote vqpu service (can also be a real qpu). It waits for the service to be running.
   Once all circuits have been submitted, it can tell the vqpu to shutdown if the vqpu is listening
-  for all circuits submitted event. 
+  for all circuits submitted event.
 
    .. code-block:: python
 
@@ -247,8 +247,8 @@ The subflows called by the parent flow are
             myqpuworkflow.events[f"qpu_{vqpu_id}_circuits_finished"].set()
          return results
 
-* `cpu_with_random_qpu_workflow` - a flow that also creates several subflows dynamically. The key 
-  feature of this flow is similar to the main workflow: creating flow instances with appropriate task 
+* `cpu_with_random_qpu_workflow` - a flow that also creates several subflows dynamically. The key
+  feature of this flow is similar to the main workflow: creating flow instances with appropriate task
   runners and submitting these flow instances to run within `asyncio.TaskGroup`
 
    .. code-block:: python
@@ -256,9 +256,9 @@ The subflows called by the parent flow are
       @flow()
       async def cpu_with_random_qpu_workflow(
          myqpuworkflow: HybridQuantumWorkflowBase,
-         ..., 
+         ...,
       ) -> None:
-         # run cpu tasks using this flows taskrunner 
+         # run cpu tasks using this flows taskrunner
          for exec, args in zip(cpuexecs, cpuargs):
             logger.info(f"Running {exec} with {args}")
             futures.append(
@@ -270,9 +270,9 @@ The subflows called by the parent flow are
          circflow = circuits_vqpu_workflow.with_options(
             task_runner=myqpuworkflow.gettaskrunner("circuit"),
          )
-         # dynamically launch a gpu flow with the gpu task runner 
-         # and cpu flows with the cpu task runner 
-         # or submit circuits to a vqpu 
+         # dynamically launch a gpu flow with the gpu task runner
+         # and cpu flows with the cpu task runner
+         # or submit circuits to a vqpu
          async with asyncio.TaskGroup() as tg:
             for i in range(max_num_gpu_launches):
                   if np.random.uniform() > 0.5:
@@ -318,32 +318,31 @@ The subflows called by the parent flow are
                      myqpuworkflow.events[f"qpu_{vqpu_id}_circuits_finished"].set()
 
 
-Overall flow 
+Overall flow
 ============
 
-The dynamic nature of the workflow means it can be difficult to visualise it with a 
-directed acyclic graph (DAG). The use of asynchronous tasks and flows means it is not possible 
-to use in-built tools to create a DAG. Even the Prefect UI does not capture the 
+The dynamic nature of the workflow means it can be difficult to visualise it with a
+directed acyclic graph (DAG). The use of asynchronous tasks and flows means it is not possible
+to use in-built tools to create a DAG. Even the Prefect UI does not capture the
 dependency between tasks since some tasks in one flow, specifically the circuit submission ones
-will not start running till an event is created in another flow, namely the vQPU flows. 
-These circuits can trigger a vQPU shutdown as well. 
+will not start running till an event is created in another flow, namely the vQPU flows.
+These circuits can trigger a vQPU shutdown as well.
 
-However, the full set of interdependencies need not be fully known a-priori, just key interdependencies 
-between tasks within the same flow (by ordering the of tasks) and across flows (by setting events). 
-An example of the flowchart for the multi-vQPU workflow (here limited to two vQPUs) is presented below, which 
-illustrates the communication managed by QBitBridge, Prefect, and the (v)QPU API calls. 
+However, the full set of interdependencies need not be fully known a-priori, just key interdependencies
+between tasks within the same flow (by ordering the of tasks) and across flows (by setting events).
+An example of the flowchart for the multi-vQPU workflow (here limited to two vQPUs) is presented below, which
+illustrates the communication managed by QBitBridge, Prefect, and the (v)QPU API calls.
 
 .. graphviz:: figs/multi-vqpu-workflow.dot
-   :caption: **Outline of the multi-vQPU workflow.** Flows are colour-coded according to the resources used. 
+   :caption: **Outline of the multi-vQPU workflow.** Flows are colour-coded according to the resources used.
      We also show the events that communicate across flows as blue arrows and communication that occurs between
-     flows and the remote vQPU service (which can be also replaced by a real QPU) as red arrows. 
+     flows and the remote vQPU service (which can be also replaced by a real QPU) as red arrows.
 
 .. figure:: figs/example_multivqpuflow.png
    :width: 100%
    :align: center
-   
+
    **Prefect View.** An example of a multi-vQPU workflow as visualized by the Prefect UI.
 
-The dynamic nature of the flow means that the exact number of flows and the inter-flow communication 
-will change each time it is run. 
-
+The dynamic nature of the flow means that the exact number of flows and the inter-flow communication
+will change each time it is run.

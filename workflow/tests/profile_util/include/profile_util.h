@@ -33,7 +33,7 @@
 
 #ifdef _MPI
 #include <mpi.h>
-#endif 
+#endif
 
 #include "profile_util_gpu.h"
 #include "profile_util_api.h"
@@ -50,41 +50,41 @@ namespace profiling_util {
     /// function getting version information
     std::string __version();
 
-    /// function that returns a string of the time at when it is called. 
+    /// function that returns a string of the time at when it is called.
     std::string __when();
-    /// function that converts the mask of thread affinity to human readable string 
+    /// function that converts the mask of thread affinity to human readable string
     void cpuset_to_cstr(cpu_set_t *mask, char *str);
-    /// reports the parallelAPI 
+    /// reports the parallelAPI
     /// @return string of MPI comm size and OpenMP version and max threads for given rank
     /// \todo needs to be generalized to report parallel API of code and not library
     std::string ReportParallelAPI();
-    /// reports binding of MPI comm world and each ranks thread affinity 
-    /// @return string of MPI comm rank and thread core affinity 
+    /// reports binding of MPI comm world and each ranks thread affinity
+    /// @return string of MPI comm rank and thread core affinity
     std::string ReportBinding();
-    /// reports thread affinity within a given scope, thus depends if called within OMP region 
+    /// reports thread affinity within a given scope, thus depends if called within OMP region
     /// @param func function where called in code, useful to provide __func__ and __LINE
-    /// @param file source file where called in code, useful to provide __FILE__ 
+    /// @param file source file where called in code, useful to provide __FILE__
     /// @param line code line number where called
-    /// @return string of thread core affinity 
+    /// @return string of thread core affinity
     std::string ReportThreadAffinity(std::string func, std::string file, std::string line);
 #ifdef _MPI
     /// reports thread affinity within a given scope, thus depends if called within OMP region, MPI aware
     /// @param func function where called in code, useful to provide __func__ and __LINE
-    /// @param file source file where called in code, useful to provide __FILE__ 
+    /// @param file source file where called in code, useful to provide __FILE__
     /// @param line code line number where called
     /// @param comm MPI communicator
-    /// @return string of MPI comm rank and thread core affinity 
+    /// @return string of MPI comm rank and thread core affinity
     std::string MPIReportThreadAffinity(std::string func, std::string file, std::string line, MPI_Comm &comm);
 #endif
 
-    /// reports MPI rank 
+    /// reports MPI rank
     /// @param task rank of mpi
     std::string MPICallingRank(int task);
 
 
      /// run a command
     /// @param cmd string of command to run on system
-    /// @return string of MPI comm rank and thread core affinity 
+    /// @return string of MPI comm rank and thread core affinity
     std::string exec_sys_cmd(std::string cmd);
 
     namespace detail {
@@ -174,8 +174,8 @@ namespace profiling_util {
             if (time < 1000) {
                 os << time << " [ns]";
                 return os;
-            }    
-	    
+            }
+
 	    ftime = time/1000.f;
 	    time /= 1000;
 	    if (time < 1000) {
@@ -269,23 +269,23 @@ namespace profiling_util {
     ///get memory usage
     memory_usage get_memory_usage();
     ///report memory usage from within a specific function/scope
-    ///usage would be from within a function use 
+    ///usage would be from within a function use
     ///auto l=std::to_string(__LINE__); auto f = __func__; GetMemUsage(f,l);
     std::string ReportMemUsage(const std::string &f, const std::string &F, const std::string &l);
-    /// like above but also reports change relative to another sampling of memory 
+    /// like above but also reports change relative to another sampling of memory
     std::string ReportMemUsage(const memory_usage &prior_mem_use, const std::string &f, const std::string &F, const std::string &l);
-    /// like ReportMemUsage but also returns the mem usage 
+    /// like ReportMemUsage but also returns the mem usage
     std::tuple<std::string, memory_usage> GetMemUsage(const std::string &f, const std::string &F, const std::string &l);
     std::tuple<std::string, memory_usage> GetMemUsage(const memory_usage &prior_mem_use, const std::string &f, const std::string &F, const std::string &l);
-    /// Get memory usage on all hosts 
+    /// Get memory usage on all hosts
     #ifdef _MPI
-    std::string MPIReportNodeMemUsage(MPI_Comm &comm, 
-    const std::string &function, 
+    std::string MPIReportNodeMemUsage(MPI_Comm &comm,
+    const std::string &function,
     const std::string &file,
     const std::string &line_num
     );
-    std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(MPI_Comm &comm, 
-    const std::string &function, 
+    std::tuple<std::string, std::vector<std::string>, std::vector<memory_usage>> MPIGetNodeMemUsage(MPI_Comm &comm,
+    const std::string &function,
     const std::string &file,
     const std::string &line_num
     );
@@ -295,10 +295,10 @@ namespace profiling_util {
     /// get the memory of the system using free
     sys_memory_stats get_system_memory();
     ///report memory state of the system from within a specific function/scope
-    ///usage would be from within a function use 
+    ///usage would be from within a function use
     ///auto l=std::to_string(__LINE__); auto f = __func__; GetMemUsage(f,l);
     std::string ReportSystemMem(const std::string &f, const std::string &F, const std::string &l);
-    /// like above but also reports change relative to another sampling of memory 
+    /// like above but also reports change relative to another sampling of memory
     std::string ReportSystemMem(const sys_memory_stats &prior_mem_use, const std::string &f, const std::string &F, const std::string &l);
     /// like ReportSystemMem but also returns the system memory
     std::tuple<std::string, sys_memory_stats> GetSystemMem(const std::string &f, const std::string &F, const std::string &l);
@@ -308,16 +308,16 @@ namespace profiling_util {
     std::tuple<std::string, std::vector<std::string>, std::vector<sys_memory_stats>> MPIGetNodeSystemMem(MPI_Comm &comm, const std::string &function, const std::string &File, const std::string &line_num);
     #endif
 
-    /// Timer class. 
-    /// In code create an instance of time and then just a mantter of 
-    /// creating an instance and then reporting it. 
+    /// Timer class.
+    /// In code create an instance of time and then just a mantter of
+    /// creating an instance and then reporting it.
     class Timer {
 
     public:
 
         using clock = std::chrono::high_resolution_clock;
         using duration = typename std::chrono::nanoseconds::rep;
-        
+
 
         /*!
          * Returns whether timer has timer on device and not just host
@@ -368,18 +368,18 @@ namespace profiling_util {
             }
         }
         inline
-        float get_on_device()  
+        float get_on_device()
         {
             if (!use_device) return 0;
             float telapsed = 0;
             get_ref_device();
             pu_gpuEvent_t t1_event;
-            // create event 
+            // create event
             pu_gpuErrorCheck(pu_gpuEventCreate(&t1_event));
-            pu_gpuErrorCheck(pu_gpuEventRecord(t1_event)); 
+            pu_gpuErrorCheck(pu_gpuEventRecord(t1_event));
             pu_gpuErrorCheck(pu_gpuEventSynchronize(t1_event));
             pu_gpuErrorCheck(pu_gpuEventElapsedTime(&telapsed,t0_event,t1_event));
-            telapsed *= _GPU_TO_SECONDS * 1e9; // to convert to nano seconds 
+            telapsed *= _GPU_TO_SECONDS * 1e9; // to convert to nano seconds
             pu_gpuErrorCheck(pu_gpuEventDestroy(t1_event));
             set_cur_device();
             return telapsed;
@@ -392,20 +392,20 @@ namespace profiling_util {
             t0 = clock::now();
 #if defined(_GPU)
             if (use_device) {
-                // clean up current event 
+                // clean up current event
                 pu_gpuErrorCheck(pu_gpuSetDevice(device_id));
                 pu_gpuErrorCheck(pu_gpuEventDestroy(t0_event));
                 // make new event on current device
                 pu_gpuErrorCheck(pu_gpuGetDevice(&device_id));
                 pu_gpuErrorCheck(pu_gpuEventCreate(&t0_event));
-                pu_gpuErrorCheck(pu_gpuEventRecord(t0_event)); 
+                pu_gpuErrorCheck(pu_gpuEventRecord(t0_event));
                 pu_gpuErrorCheck(pu_gpuEventSynchronize(t0_event));
                 other_device_id = device_id;
                 swap_device = false;
             }
 #endif
         };
-        std::string get_ref() const 
+        std::string get_ref() const
         {
             return ref;
         };
@@ -431,7 +431,7 @@ namespace profiling_util {
             if (use_device) {
                 pu_gpuErrorCheck(pu_gpuGetDevice(&device_id));
                 pu_gpuErrorCheck(pu_gpuEventCreate(&t0_event));
-                pu_gpuErrorCheck(pu_gpuEventRecord(t0_event)); 
+                pu_gpuErrorCheck(pu_gpuEventRecord(t0_event));
                 pu_gpuErrorCheck(pu_gpuEventSynchronize(t0_event));
                 other_device_id = device_id;
             }
@@ -469,38 +469,38 @@ namespace profiling_util {
 
     /// @brief report the time taken between some reference time (which defaults to creation of timer )
     /// and current call
-    /// @param t instance of timer class 
+    /// @param t instance of timer class
     /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
     /// @param F string of file where the ReporTimeTaken is called (at least that is the idea)
     /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
-    /// @return string reporting time taken 
+    /// @return string reporting time taken
     std::string ReportTimeTaken(Timer &t, const std::string &f, const std::string &F, const std::string &l);
 
     /// @brief get the time taken between some reference time (which defaults to creation of timer )
     /// and current call
-    /// @param t instance of timer class 
+    /// @param t instance of timer class
     /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
     /// @param F string of file where the ReporTimeTaken is called (at least that is the idea)
     /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
-    /// @return time taken 
+    /// @return time taken
     float GetTimeTaken(Timer &t, const std::string &f, const std::string &F, const std::string &l);
 
 #if defined(_GPU)
     /// @brief report the time taken between some reference time (which defaults to creation of timer )
-    /// and current call on the device 
-    /// @param t instance of timer class 
+    /// and current call on the device
+    /// @param t instance of timer class
     /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
     /// @param F string of file where the ReporTimeTaken is called (at least that is the idea)
     /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
-    /// @return string reporting time taken 
+    /// @return string reporting time taken
     std::string ReportTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &F, const std::string &l);
     /// @brief get the time taken between some reference time (which defaults to creation of timer )
-    /// and current call on device 
-    /// @param t instance of timer class 
+    /// and current call on device
+    /// @param t instance of timer class
     /// @param f string of function where the ReporTimeTaken is called (at least that is the idea)
     /// @param F string of file where the ReporTimeTaken is called (at least that is the idea)
     /// @param l string of line number in file where the ReporTimeTaken is called (at least that is the idea)
-    /// @return time taken 
+    /// @return time taken
     float GetTimeTakenOnDevice(Timer &t, const std::string &f, const std::string &F, const std::string &l);
 #endif
 
@@ -532,7 +532,7 @@ namespace profiling_util {
 
     protected:
         // unique sample identifier
-        int id; 
+        int id;
         /// process id
         int pid = 0;
         // time in seconds between samples
@@ -554,19 +554,19 @@ namespace profiling_util {
         /// @param fnames vector of strings containing file names to which to save the output
         void _launch(std::vector<std::string> requests = {}, std::vector<std::string> fnames = {});
 
-        /// @brief Place a command using std::system and threads 
-        /// @param cmd command to place 
+        /// @brief Place a command using std::system and threads
+        /// @param cmd command to place
         void _place_cmd(const std::string cmd)
         {
             auto status = std::system(cmd.c_str());
         }
 
-        /// @brief Place a command using std::system and threads 
-        /// @param cmd command to place 
+        /// @brief Place a command using std::system and threads
+        /// @param cmd command to place
         /// @param sleep_time time to sleep between running command
         void _place_long_lived_cmd(const std::string cmd, float sleep_time)
         {
-            while (!stopFlag) 
+            while (!stopFlag)
             {
                 auto status = std::system(cmd.c_str());
                 usleep(sleep_time);
@@ -580,14 +580,14 @@ namespace profiling_util {
         void Pause();
         /// @brief restart the sampling by launching threads
         void Restart();
-        /// @brief get sample time 
+        /// @brief get sample time
         /// @return sample time
         float GetSampleTime(){return sample_time;}
-        /// @brief indicate whether to keep files used for sampling 
+        /// @brief indicate whether to keep files used for sampling
         /// @param _keep_files bool whether to keep files
         void SetKeepFiles(bool _keep_files){keep_files = _keep_files;};
-        /// @brief get whether keeping files  
-        /// @return bool of keeping files 
+        /// @brief get whether keeping files
+        /// @return bool of keeping files
         bool GetKeepFiles(){return keep_files;}
 
         /// @brief read the data from a file and returnt the vector of sampling data
@@ -608,7 +608,7 @@ namespace profiling_util {
 #ifdef _GPU
         std::string gpu_energy_fname, gpu_usage_fname, gpu_mem_fname, gpu_memusage_fname;
 #endif
-        
+
     public:
         ComputeSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true, bool _keep_files=false);
         ~ComputeSampler();
@@ -639,49 +639,49 @@ namespace profiling_util {
 
 
     /// @brief reports the statistics of CPU from start to current line
-    /// @param s sampler to use for reporting 
-    /// @param f function where called in code, useful to provide __func__ 
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param s sampler to use for reporting
+    /// @param f function where called in code, useful to provide __func__
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @return string of CPU usage statistics
     std::string ReportCPUUsage(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l);
 
 #ifdef _GPU
     /// @brief reports the statistics of GPU usage from start to current line
-    /// @param s sampler to use for reporting 
-    /// @param f function where called in code, useful to provide __func__ 
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param s sampler to use for reporting
+    /// @param f function where called in code, useful to provide __func__
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @return string of GPU usage statistics
     std::string ReportGPUUsage(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// @brief reports the statistics of GPU energy from start to current line
-    /// @param s sampler to use for reporting 
-    /// @param f function where called in code, useful to provide __func__ 
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param s sampler to use for reporting
+    /// @param f function where called in code, useful to provide __func__
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @return string of GPU energy statistics
     std::string ReportGPUEnergy(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// @brief reports the statistics of GPU memory used in MiB from start to current line
-    /// @param s sampler to use for reporting 
-    /// @param f function where called in code, useful to provide __func__ 
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param s sampler to use for reporting
+    /// @param f function where called in code, useful to provide __func__
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @return string of GPU memory used in MiB statistics
     std::string ReportGPUMem(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
     /// @brief reports the statistics of GPU memory used in % from start to current line
-    /// @param s sampler to use for reporting 
-    /// @param f function where called in code, useful to provide __func__ 
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param s sampler to use for reporting
+    /// @param f function where called in code, useful to provide __func__
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @return string of GPU memory usage statistics
     std::string ReportGPUMemUsage(ComputeSampler &s, const std::string &f, const std::string &F, const std::string &l, int gpu_id = -1);
 
-    /// reports the GPU statistics 
+    /// reports the GPU statistics
     /// @param f function where called in code, useful to provide __func__ and __LINE
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @param gpu_id gpu device of interest. Default is -1 and gets all gpus
     /// @return string of GPU energy, usage, etc
@@ -705,9 +705,9 @@ namespace profiling_util {
     };
 
     /// @brief reports the statistics of IO from start to current line
-    /// @param s sampler to use for reporting 
-    /// @param f function where called in code, useful to provide __func__ 
-    /// @param F function where called in code, useful to provide __FILE__ 
+    /// @param s sampler to use for reporting
+    /// @param f function where called in code, useful to provide __func__
+    /// @param F function where called in code, useful to provide __FILE__
     /// @param l code line number where called
     /// @return string of CPU usage statistics
     std::string ReportIOStats(IOSampler &s, const std::string &f, const std::string &F, const std::string &l);
@@ -719,7 +719,7 @@ namespace profiling_util {
 
     private:
         std::string strace_fname;
-        
+
     public:
         STraceSampler(const std::string &f, const std::string &F, const std::string &l, float samples_per_sec = 1.0, bool _use_device=true, bool _keep_files=true);
         ~STraceSampler();

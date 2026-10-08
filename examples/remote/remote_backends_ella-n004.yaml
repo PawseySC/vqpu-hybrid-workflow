@@ -18,4 +18,4 @@ aws-braket:
   format: openqasm3
   s3: amazon-braket-qbsdk-2023
   path: output
-  noise: false      
+  noise: false

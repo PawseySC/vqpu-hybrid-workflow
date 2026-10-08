@@ -34,7 +34,7 @@ from typing import List, Tuple
 
 class TestHybridQueraWorkflowBasics(unittest.TestCase):
     cluster: str = "ella-qb-1.7.0"
-    account_info : Tuple[str,str] | None = None
+    account_info: Tuple[str, str] | None = None
 
     def test_qiskit_credentials(self):
         print(qiskit_check_credentials(account_info=self.account_info))
@@ -44,7 +44,7 @@ class TestHybridQueraWorkflowBasics(unittest.TestCase):
         qiskit_devices: List = []
         for backend in qiskit_service.backends():
             qiskit_devices.append(backend.config_name)
-        
+
         for d in qiskit_devices:
             arguments: str = f"--qiskitdevice={d}"
             print(f"Check if {d} available")

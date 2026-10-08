@@ -1,4 +1,4 @@
-.. _modules: 
+.. _modules:
 
 qbitbridge
 ==========

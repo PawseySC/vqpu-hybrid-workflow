@@ -1,166 +1,149 @@
-# using poetry to install
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+# requires = ["setuptools >= 77.0.3"]
+# build-backend = "setuptools.build_meta"
 
-# define basic package information 
-[tool.poetry]
+# define basic package information
+[project]
 name = "QBitBridge"
-version = "0.2.1"
-description = "Example hybrid workflow for running (v)QPUs, GPUs and CPUs"
-authors = ["pelahi <pascal.elahi@pawsey.org.au>"]
-license = "MIT"
+dynamic = ["version"]
+description = "Hybrid workflow framework for running (v)QPUs, GPUs and CPUs"
+authors = [
+    {name = "pelahi", email = "pascal.elahi@pawsey.org.au"},
+]
+maintainers = [
+    {name = "pelahi", email = "pascal.elahi@pawsey.org.au"},
+]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["quantum computing", "supercomputing", "hybrid", "workflow"]
 readme = "README.md"
-include = [
-    {path = 'qbitbridge'},
-    {path = 'workflow/clusters'},
-    {path = 'workflow/scripts/'},
-    {path = 'workflow/tests/'},
+# include = [
+#     {path = 'qbitbridge'},
+#     {path = 'workflow/clusters'},
+#     {path = 'workflow/scripts/'},
+#     {path = 'workflow/tests/'},
+# ]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering :: Quantum Computing",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Software Development :: Libraries",
+  # Specify the Python versions you support here.
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.11"
+# set dependencies
+dependencies = [
+    "prefect",
+    "prefect-dask",
+    "dask-jobqueue",
+    "numpy",
+    "pydantic",
+    "scipy",
+    "spython",
+    "matplotlib",
+    # "sckikit-image",
 ]
 
+[tool.hatch.version]
+path = "qbitbridge/__about__.py"
 
-# set dependencies 
-[tool.poetry.dependencies]
-python = "^3.11"
-numpy = "^1.26.0"
-pydantic = "2.8.2" # version 2.9.0 caused prefect model validation error
-scipy = "*"
-spython = "^0.3.1"
-matplotlib = "*"
-prefect = "^2.10.0"
-prefect-dask = "^0.2.4"
-dask-jobqueue = "*"
-scikit-image = "*"
 
-[tool.poetry.group.docs]
-optional = true
+[tool.hatch.metadata]
+allow-direct-references = true
 
-[tool.poetry.group.docs.dependencies]
-sphinx = "*"
+[tool.hatch.build.targets.wheel]
+packages = ["qbitbridge"]
 
-[tool.poetry.group.test]
-optional = true
+[tool.black]
+line-length = 120
 
-[tool.poetry.group.test.dependencies]
-pytest = "*"
-pytest-cov = "*"
-
-# set poetry dependencies 
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-black = "^23.3.0"
-mypy = "^1.4.1"
-isort = "^5.12.0"
-pre-commit = "*"
-ruff = "^0.1.12"
-pytest = "*"
-pytest-cov = "*"
-sphinx = "*"
-
-[tool.poetry.group.fitting]
-optional = true
-
-[tool.poetry.group.fitting.dependencies]
-emcee = "*"
-corner = "*"
-pandas = "*"
-dynesty = "*"
-
-[tool.poetry.group.quera]
-optional = true
-
-[tool.poetry.group.quera.dependencies]
-bloqade = "*"
-
-[tool.poetry.group.qiskit]
-optional = true
-
-[tool.poetry.group.qiskit.dependencies]
-qiskit = "*"
-qiskit_ibm_runtime = "*"
-qiskit_aer = "*"
-
-[tool.poetry.group.braket]
-optional = true
-
-[tool.poetry.group.braket.dependencies]
-awscli = "*"
-amazon-braket-sdk = "*"
-
-[tool.poetry.group.cudaq]
-optional = true
-
-[tool.poetry.group.cudaq.dependencies]
-cudaq = "*"
-
-# set the build system 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-# poetry scripts to run 
-# Ideally would like to have some tests to run but 
-# need to have prefect server running. Could use local server  
-#[tool.poetry.scripts]
-# vqpu_test = "workflow.tests:cli"
+[tool.isort]
+profile = "black"
+combine_as_imports = true
+multi_line_output = 3
+length_sort = true
+src_paths = ["qbitbridge"]
 
 [tool.ruff]
-# Exclude a variety of commonly ignored directories.
 exclude = [
     ".bzr",
     ".direnv",
     ".eggs",
     ".git",
-    ".git-rewrite",
     ".hg",
-    ".ipynb_checkpoints",
     ".mypy_cache",
     ".nox",
     ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
     ".pytype",
     ".ruff_cache",
     ".svn",
     ".tox",
     ".venv",
-    ".vscode",
     "__pypackages__",
     "_build",
     "buck-out",
     "build",
     "dist",
     "node_modules",
-    "site-packages",
     "venv",
 ]
-
-# set the line length and indendt with 
-line-length = 120
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+target-version = "py311"
+lint.ignore = ["F401", "E401", "E402", "F841", "E741"]
+lint.extend-select = ["F541", "E711"]
 indent-width = 4
 
-# Assume Python 3.11
-target-version = "py311"
+[project.urls]
+Documentation = "https://pawseysc.github.io/vqpu-hybrid-workflow/"
+Repository = "https://github.com/PawseySC/vqpu-hybrid-workflow.git"
+Issues = "https://github.com/PawseySC/vqpu-hybrid-workflow/issues"
+Changelog = "https://github.com/PawseySC/vqpu-hybrid-workflow/blob/master/CHANGELOG.md"
 
-# PJE: I need to check the linting 
-[tool.ruff.lint]
-# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-select = ["E4", "E7", "E9", "F"]
-ignore = []
 
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["ALL"]
-unfixable = []
-
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-# set the format 
-[tool.ruff.format]
-# Like Black, indent with spaces, rather than tabs.
-indent-style = "space"
-
-# Like Black, respect magic trailing commas.
-skip-magic-trailing-comma = false
-
-# Like Black, automatically detect the appropriate line ending.
-line-ending = "auto"
+[project.optional-dependencies]
+docs = ["sphinx"]
+test = [
+  "pytest",
+  "pytest-cov",
+]
+dev = [
+    "black",
+    "mypy",
+    "isort",
+    "pre-commit",
+    "ruff",
+    "pytest",
+    "pytest-cov",
+    "sphinx",
+]
+fitting = [
+    "emcee",
+    "corner",
+    "pandas",
+    "dynesty",
+    "h5py",
+]
+quera = [
+    "bloqade",
+    "bloqade-analogue",
+]
+qiskit = [
+    "qiskit",
+    "qiskit_ibm_runtime",
+    "qiskit_aer"
+]
+braket = [
+    "awscli",
+    "amazon-braket-sdk",
+]
+cudaq = [
+    "cudaq",
+]

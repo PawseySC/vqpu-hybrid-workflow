@@ -22,7 +22,7 @@ generic:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.24.4 nvhpc/25.3"
       - "module load python/3.11.10"
       - "module load hpcx-mt-ompi"
@@ -42,14 +42,14 @@ generic:
     job_mem: "8GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_worker_%J.err'
       - '-o dask_logs/dask_generic_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -85,7 +85,7 @@ circuit:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.24.4 nvhpc/25.3"
       - "module load python/3.11.10"
       - "module load hpcx-mt-ompi"
@@ -106,14 +106,14 @@ circuit:
     job_mem: "8GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_circuit_worker_%J.err'
       - '-o dask_logs/dask_circuit_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -149,7 +149,7 @@ vqpu:
     account: "pawsey0001"
     walltime: "24:00:00"
     env_extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module use /software/ella/2025.02/modules/custom/"
       - "module load vQPU-QB/1.7.0"
       # - "source /software/projects/pawsey0001/pelahi/py-venv-vqpu/bin/activate"
@@ -172,7 +172,7 @@ vqpu:
     job_cpu: 32
     job_mem: null
     job_extra: null
-    job_extra_directives: 
+    job_extra_directives:
       - "--gres=gpu:1"
       - "-w ella-n00[6-8]"
       - "--nodes=1"
@@ -184,7 +184,7 @@ vqpu:
       - '-o dask_logs/dask_vqpu_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -220,7 +220,7 @@ gpu:
     account: "pawsey0001"
     walltime: "1:00:00"
     env_extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.24.4 nvhpc/25.3"
       - "module load python/3.11.10"
       - "module load hpcx-mt-ompi"
@@ -241,7 +241,7 @@ gpu:
     job_cpu: 32
     #job_mem: null
     #job_extra: null
-    job_extra_directives: 
+    job_extra_directives:
       - "--gres=gpu:1"
       - "-w ella-n00[3-5]"
       - "--nodes=1"
@@ -252,7 +252,7 @@ gpu:
       - '-o dask_logs/dask_gpu_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
     # Scheduler options
     # scheduler_options: {}
@@ -290,7 +290,7 @@ cpu:
     account: "pawsey0001"
     walltime: "1:00:00"
     env_extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.24.4 nvhpc/24.5"
       - "module load python/3.11.10"
       - "module load hpcx-mt-ompi"
@@ -310,7 +310,7 @@ cpu:
     job_mem: "32GB"
     job_extra: null
 
-    job_extra_directives: 
+    job_extra_directives:
       - "-w ella-n00[2-3]"
       - "--nodes=1"
       - "--cpus-per-task=8"
@@ -318,7 +318,7 @@ cpu:
       - '-o dask_logs/dask_cpu_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -354,7 +354,7 @@ circuit-braket:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.24.4 nvhpc/25.3"
       - "module load python/3.11.10"
       - "module load hpcx-mt-ompi"
@@ -375,14 +375,14 @@ circuit-braket:
     job_mem: "8GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_aws_worker_%J.err'
       - '-o dask_logs/dask_generic_aws_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -418,7 +418,7 @@ circuit-quera:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.24.4 nvhpc/25.3"
       - "module load python/3.11.10"
       - "module load hpcx-mt-ompi"
@@ -439,14 +439,14 @@ circuit-quera:
     job_mem: "8GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "-w ella-n00[2-3]"
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_quera_worker_%J.err'
       - '-o dask_logs/dask_generic_quera_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:

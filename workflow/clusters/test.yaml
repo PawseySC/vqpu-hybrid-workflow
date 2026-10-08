@@ -16,4 +16,3 @@ cluster_kwargs:
     log_directory: 'vqpu_logs'
     job_script_prologue:
         - "export OMP_NUM_THREADS=${SLURM_CPUS_ON_NODE}"
-

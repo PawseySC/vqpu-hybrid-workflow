@@ -67,12 +67,12 @@ macro(pu_find_cuda)
             set(CMAKE_CUDA_STANDARD 17)
             set(CMAKE_CUDA_STANDARD_REQUIRED ON)
         endif()
-       string(REGEX MATCHALL "[0-9]+" numbers "${CMAKE_CUDA_COMPILER_VERSION}") 
+       string(REGEX MATCHALL "[0-9]+" numbers "${CMAKE_CUDA_COMPILER_VERSION}")
 list(GET numbers 0 cuda_major_version)
 list(GET numbers 1 cuda_minor_version)
             set(cuda_version "${cuda_major_version}.${cuda_minor_version}")
 
-        message("a message ${CUDA_TOOLKIT_ROOT_DIR} ${cuda_version} arch ${CUDA_ARCH_DIR} ${CMAKE_CUDA_COMPILER_VERSION} ${cuda_major_version}.${cuda_minor_version}") 
+        message("a message ${CUDA_TOOLKIT_ROOT_DIR} ${cuda_version} arch ${CUDA_ARCH_DIR} ${CMAKE_CUDA_COMPILER_VERSION} ${cuda_major_version}.${cuda_minor_version}")
     else()
         message(SEND_ERROR "CUDA enabled but not found. Please check configuration or disable CUDA")
     endif()
@@ -171,7 +171,7 @@ function(list_to_bulletpoints result)
 endfunction(list_to_bulletpoints)
 
 #
-# valid the option choosen based on allowed values
+# valid the option chosen based on allowed values
 #
 function(validate_option name values)
     string(TOLOWER ${${name}} needle_lower)
@@ -231,8 +231,8 @@ macro(prevent_in_source_builds)
     # disallow in-source builds
     if("${srcdir}" STREQUAL "${bindir}" OR "${srcdir2}" STREQUAL "${bindir}" OR "${srcdir3}" STREQUAL "${bindir}")
         message(FATAL_ERROR "\
-            CMake must not to be run in the source directory. 
-            Rather create a dedicated build directory and run CMake there. 
+            CMake must not to be run in the source directory.
+            Rather create a dedicated build directory and run CMake there.
             To clean up after this aborted in-place compilation:
             rm -r CMakeCache.txt CMakeFiles
         ")
@@ -241,7 +241,7 @@ endmacro()
 
 #
 # set the default build and also store the compilation flags
-# as a string based on the currently choosen flags
+# as a string based on the currently chosen flags
 #
 macro(my_set_build_type)
 	set(default_build_type "Release")
@@ -256,7 +256,7 @@ macro(my_set_build_type)
 	#set(ACTIVE_COMPILE_OPTIONS )
 endmacro()
 
-macro(enable_santizer_option)
+macro(enable_sanitizer_option)
     set(ENABLE_SANITIZER "none" CACHE STRING "Select a code sanitizer option (none (default), address, leak, thread, undefined)")
     mark_as_advanced(ENABLE_SANITIZER)
     set(ENABLE_SANITIZER_VALUES none address leak thread undefined)
@@ -280,4 +280,4 @@ endfunction()
 #run some macros automatically
 prevent_in_source_builds()
 my_set_build_type()
-enable_santizer_option()
+enable_sanitizer_option()

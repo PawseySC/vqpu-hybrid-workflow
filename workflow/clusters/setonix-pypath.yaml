@@ -14,10 +14,10 @@ generic:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -25,7 +25,7 @@ generic:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
@@ -43,13 +43,13 @@ generic:
     job_mem: "1GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_worker_%J.err'
       - '-o dask_logs/dask_generic_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -77,10 +77,10 @@ circuit:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -88,7 +88,7 @@ circuit:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
@@ -106,13 +106,13 @@ circuit:
     job_mem: "1GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "--ntasks=1"
       - '-e dask_logs/dask_circuit_worker_%J.err'
       - '-o dask_logs/dask_circuit_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -140,10 +140,10 @@ vqpu:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -151,7 +151,7 @@ vqpu:
     account: "pawsey0001"
     walltime: "24:00:00"
     env_extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
@@ -173,7 +173,7 @@ vqpu:
     job_cpu: 64
     job_mem: null
     job_extra: null
-    job_extra_directives: 
+    job_extra_directives:
       - "--gres=gpu:1"
       - "--nodes=1"
       - "--ntasks=1"
@@ -183,7 +183,7 @@ vqpu:
       - '-o dask_logs/dask_vqpu_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -211,10 +211,10 @@ gpu:
     # shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -222,7 +222,7 @@ gpu:
     account: "pawsey0012-gpu"
     walltime: "1:00:00"
     env_extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "module load rocm/5.7.3"
@@ -241,14 +241,14 @@ gpu:
     job_cpu: 8
     #job_mem: null
     #job_extra: null
-    job_extra_directives: 
+    job_extra_directives:
       - "--gres=gpu:1"
       - "--nodes=1"
       - '-e dask_logs/dask_gpu_worker_%J.err'
       - '-o dask_logs/dask_gpu_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o', '-c', '--cpus-per-task', '--mem']    
+    job_directives_skip: ['-e', '-o', '-c', '--cpus-per-task', '--mem']
 
     # Scheduler options
     # scheduler_options: {}
@@ -278,10 +278,10 @@ cpu:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -289,7 +289,7 @@ cpu:
     account: "pawsey0001"
     walltime: "1:00:00"
     env_extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
@@ -307,14 +307,14 @@ cpu:
     job_mem: "32GB"
     job_extra: null
 
-    job_extra_directives: 
+    job_extra_directives:
       - "--nodes=1"
       - "--cpus-per-task=8"
       - '-e dask_logs/dask_cpu_worker_%J.err'
       - '-o dask_logs/dask_cpu_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -342,10 +342,10 @@ generic-aws:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -353,7 +353,7 @@ generic-aws:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
@@ -372,13 +372,13 @@ generic-aws:
     job_mem: "8GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_aws_worker_%J.err'
       - '-o dask_logs/dask_generic_aws_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:
@@ -406,10 +406,10 @@ generic-quera:
     shared_temp_directory: null       # Shared directory currently used to dump temporary security objects for workers
     # worker_command: "distributed.cli.dask_worker" # Command to launch a worker
     # worker_extra_args: []       # Additional arguments to pass to `dask-worker`
-    # interfaces : 
+    # interfaces :
     # for compute nodes, one of 'lo', 'bond0', 'hsn0', 'hsn1', 'enp65s0',
     # for login ondes, 'lo', 'bond0', 'ens1f0np0', 'hsn0', 'ens10f0', 'ens10f1', 'ens5f0', 'ens5f1', 'ens1f1np1'
-    interface: "hsn0" 
+    interface: "hsn0"
 
     # SLURM resource manager options
     shebang: "#!/usr/bin/bash"
@@ -417,7 +417,7 @@ generic-quera:
     account: "pawsey0001"
     walltime: "1:00:00"
     # env-extra: null
-    job_script_prologue: 
+    job_script_prologue:
       - "module load cmake/3.27.7"
       - "module load python/3.11.6"
       - "source /software/projects/pawsey0001/pelahi/py-prefect2/bin/activate"
@@ -436,13 +436,13 @@ generic-quera:
     job_mem: "8GB"
     job_extra: null
     # add anything extra #SBATCH additions
-    job_extra_directives: 
+    job_extra_directives:
       - "--ntasks=1"
       - '-e dask_logs/dask_generic_aws_worker_%J.err'
       - '-o dask_logs/dask_generic_aws_worker_%J.log'
     log_directory: dask_logs
     silence_logs: 'info'
-    job_directives_skip: ['-e', '-o']    
+    job_directives_skip: ['-e', '-o']
 
   # now for number of slurm jobs
   adapt_kwargs:

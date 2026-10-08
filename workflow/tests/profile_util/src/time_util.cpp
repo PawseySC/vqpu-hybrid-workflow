@@ -4,7 +4,7 @@
 
 #include "profile_util.h"
 
-/// get the time taken to do some comptue 
+/// get the time taken to do some compute
 namespace profiling_util {
     template <typename T>
     inline
@@ -18,7 +18,7 @@ namespace profiling_util {
         if (requests.size() == 0) return;
         std::string s;
         std::string cmd;
-        for (auto i=0;i<requests.size();i++) 
+        for (auto i=0;i<requests.size();i++)
         {
             auto req = requests[i];
             auto fname = fnames[i];
@@ -30,7 +30,7 @@ namespace profiling_util {
     profiling_util::GeneralSampler::GeneralSampler(const std::string &f, const std::string &F, const std::string &l, float _sample_time_in_sec, bool _use_device, bool _keep_files) : profiling_util::Timer::Timer(f,F,l,_use_device)
     {
         pid = getpid();
-        // set the random seed based on curent time 
+        // set the random seed based on current time
         std::srand(static_cast<unsigned>(std::time(nullptr)));
         id = std::rand();
         sample_time = _sample_time_in_sec*1000.0;//convert to micro seconds
@@ -101,10 +101,10 @@ namespace profiling_util {
                 std::string(pu_gpu_mem_request(nDevices)),
                 std::string(pu_gpu_memusage_request(nDevices))
             };
-            for (auto i=0;i<s_gpu_requests.size();i++) 
+            for (auto i=0;i<s_gpu_requests.size();i++)
             {
                 auto req = s_gpu_requests[i];
-                auto s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formating(nDevices));
+                auto s_gpu = std::string(pu_gpuMonitorCmd) + " " + req + " " + std::string(pu_gpu_formatting(nDevices));
                 requests.push_back(s_gpu);
             }
             fnames.push_back(gpu_usage_fname);
@@ -132,22 +132,22 @@ namespace profiling_util {
     }
 
     template <typename T> inline std::string _make_statistics_report(
-        const std::string &f, const std::string &F, const std::string &l, 
-        const std::string ref, profiling_util::detail::_nanoseconds_amount time, 
-        const std::string dev, const std::string prop, const std::string unit, 
+        const std::string &f, const std::string &F, const std::string &l,
+        const std::string ref, profiling_util::detail::_nanoseconds_amount time,
+        const std::string dev, const std::string prop, const std::string unit,
         T ave, T std, T min, T max
         )
     {
         std::string new_ref = "@"+f+" "+F+":L"+l;
         std::ostringstream report;
-        report <<dev<<" "<<prop<<" ("<<unit<<") statistics taken between : " << new_ref << " - " << ref << " over " << time << " : "; 
+        report <<dev<<" "<<prop<<" ("<<unit<<") statistics taken between : " << new_ref << " - " << ref << " over " << time << " : ";
         report <<" [ave,std,min,max] = [ "<<ave<<", "<<std<<", "<<min<<", "<<max<<" ] ";
         return report.str();
     }
 
-    std::string ReportCPUUsage(profiling_util::ComputeSampler &s, 
-        const std::string &function, 
-        const std::string &file, 
+    std::string ReportCPUUsage(profiling_util::ComputeSampler &s,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num)
     {
         s.Pause();
@@ -157,28 +157,9 @@ namespace profiling_util {
         return _make_statistics_report<double>(function, file, line_num, s.get_ref(), ns_time(s.get()), "CPU", "Usage", "%", ave, std, min, max);
     }
 #ifdef _GPU
-    std::string ReportGPUUsage(profiling_util::ComputeSampler &s, 
-        const std::string &function, 
-        const std::string &file, 
-        const std::string &line_num, 
-        int gid)
-    {
-        s.Pause();
-        std::vector<double> content(std::move(s.GetSamplingData(s.GetGPUEnergyFname())));
-        s.Restart();
-        auto n = s.GetNumDevices();
-        std::ostringstream report;
-        for (auto i=0;i<n;i++) 
-        {
-            auto [ave, std, min, max] = get_stats(content, i, n);
-            report <<_make_statistics_report<double>(function, file, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Usage", "%", ave, std, min, max);
-            report <<" | ";
-        }
-        return report.str();
-    }
-    std::string ReportGPUEnergy(profiling_util::ComputeSampler &s, 
-        const std::string &function, 
-        const std::string &file, 
+    std::string ReportGPUUsage(profiling_util::ComputeSampler &s,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num,
         int gid)
     {
@@ -187,7 +168,26 @@ namespace profiling_util {
         s.Restart();
         auto n = s.GetNumDevices();
         std::ostringstream report;
-        for (auto i=0;i<n;i++) 
+        for (auto i=0;i<n;i++)
+        {
+            auto [ave, std, min, max] = get_stats(content, i, n);
+            report <<_make_statistics_report<double>(function, file, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Usage", "%", ave, std, min, max);
+            report <<" | ";
+        }
+        return report.str();
+    }
+    std::string ReportGPUEnergy(profiling_util::ComputeSampler &s,
+        const std::string &function,
+        const std::string &file,
+        const std::string &line_num,
+        int gid)
+    {
+        s.Pause();
+        std::vector<double> content(std::move(s.GetSamplingData(s.GetGPUEnergyFname())));
+        s.Restart();
+        auto n = s.GetNumDevices();
+        std::ostringstream report;
+        for (auto i=0;i<n;i++)
         {
             auto [ave, std, min, max] = get_stats(content, i, n);
             // to get Wh
@@ -198,10 +198,10 @@ namespace profiling_util {
         }
         return report.str();
     }
-    std::string ReportGPUMem(profiling_util::ComputeSampler &s, 
-        const std::string &function, 
-        const std::string &file, 
-        const std::string &line_num, 
+    std::string ReportGPUMem(profiling_util::ComputeSampler &s,
+        const std::string &function,
+        const std::string &file,
+        const std::string &line_num,
         int gid)
     {
         s.Pause();
@@ -209,7 +209,7 @@ namespace profiling_util {
         s.Restart();
         auto n = s.GetNumDevices();
         std::ostringstream report;
-        for (auto i=0;i<n;i++) 
+        for (auto i=0;i<n;i++)
         {
             auto [ave, std, min, max] = get_stats(content, i, n);
             report <<_make_statistics_report<double>(function, file, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Memory", "MiB", ave, std, min, max);
@@ -217,10 +217,10 @@ namespace profiling_util {
         }
         return report.str();
     }
-    std::string ReportGPUMemUsage(profiling_util::ComputeSampler &s, 
-        const std::string &function, 
-        const std::string &file, 
-        const std::string &line_num, 
+    std::string ReportGPUMemUsage(profiling_util::ComputeSampler &s,
+        const std::string &function,
+        const std::string &file,
+        const std::string &line_num,
         int gid)
     {
         s.Pause();
@@ -228,7 +228,7 @@ namespace profiling_util {
         s.Restart();
         auto n = s.GetNumDevices();
         std::ostringstream report;
-        for (auto i=0;i<n;i++) 
+        for (auto i=0;i<n;i++)
         {
             auto [ave, std, min, max] = get_stats(content, i, n);
             report <<_make_statistics_report<double>(function, file, line_num, s.get_ref(), ns_time(s.get()), "GPU"+std::to_string(i), "Memory Usage", "%", ave, std, min, max);
@@ -238,10 +238,10 @@ namespace profiling_util {
     }
 
 
-    std::string ReportGPUStatistics(profiling_util::ComputeSampler &s, 
-        const std::string &function, 
-        const std::string &file, 
-        const std::string &line_num, 
+    std::string ReportGPUStatistics(profiling_util::ComputeSampler &s,
+        const std::string &function,
+        const std::string &file,
+        const std::string &line_num,
         int gid)
     {
         s.Pause();
@@ -253,13 +253,13 @@ namespace profiling_util {
         std::vector<std::string> plist = {"Usage", "Memory Usage", "Power"};
         std::vector<std::string> ulist = {"%", "%", "%"};
         report << "GPU Statistics || ";
-        for (auto i=0;i<flist.size();i++) 
+        for (auto i=0;i<flist.size();i++)
         {
             std::vector<double> content(std::move(s.GetSamplingData(flist[i])));
             for (auto j=0;j<n;j++) {
                 auto [ave, std, min, max] = get_stats(content, j, n);
                 report<< _make_statistics_report<double>(function, file, line_num, ref, t, "GPU"+std::to_string(j), plist[i], ulist[i], ave, std, min, max);
-                if (plist[i] == "Power") 
+                if (plist[i] == "Power")
                 {
                     auto energy_used = ave * static_cast<double>(content.size()) * s.GetSampleTime()/1000.0/3600.0;
                     report <<" GPU Energy (Wh) used = "<< energy_used;
@@ -289,9 +289,9 @@ namespace profiling_util {
     }
 
     std::string ReportTimeTaken(
-        Timer &t, 
-        const std::string &function, 
-        const std::string &file, 
+        Timer &t,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num)
     {
         std::string new_ref = "@"+function+" "+file+":L"+line_num;
@@ -301,9 +301,9 @@ namespace profiling_util {
     }
 
     float GetTimeTaken(
-        Timer &t, 
-        const std::string &function, 
-        const std::string &file, 
+        Timer &t,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num)
     {
         return static_cast<float>((t.get()));
@@ -311,9 +311,9 @@ namespace profiling_util {
 
 #if defined(_GPU)
     std::string ReportTimeTakenOnDevice(
-        Timer &t, 
-        const std::string &function, 
-        const std::string &file, 
+        Timer &t,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num)
     {
         std::string new_ref = "@"+function+" "+file+":L"+line_num;
@@ -327,14 +327,13 @@ namespace profiling_util {
     }
 
     float GetTimeTakenOnDevice(
-        Timer &t, 
-        const std::string &function, 
-        const std::string &file, 
+        Timer &t,
+        const std::string &function,
+        const std::string &file,
         const std::string &line_num)
     {
         return t.get_on_device();
     }
 #endif
 
-} 
-
+}

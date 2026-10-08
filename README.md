@@ -1,82 +1,82 @@
-# QBitBridge 
+# QBitBridge
 
 <img src="docs/figs/qbitbridge_logo.png" style="float: right; margin: 0 0 15px 15px; width: 20%;" alt="Logo">
 
 <!-- ![multivqpuflow](docs/figs/qbitbridge_logo.png) -->
 
-QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. It is meant to easy the integration of quantum computing acceleration into a workflow. 
+QBitBridge is framework for running hybrid workflows containing (v)QPU, GPU and CPU oriented tasks on HPC systems. It is meant to easy the integration of quantum computing acceleration into a workflow.
 
 ## Description
 
-This framework uses [Prefect](https://www.prefect.io) to orchesetrate asynchronous tasks and flows, an EventFile class that produces globally visible events to the orchestration process and all other processes, Dask for integration with Slurm to run hybrid workflows. 
+This framework uses [Prefect](https://www.prefect.io) to orchesetrate asynchronous tasks and flows, an EventFile class that produces globally visible events to the orchestration process and all other processes, Dask for integration with Slurm to run hybrid workflows.
 
-The current setup is designed to integrate with the virtual QPU from Quantum Brilliance, a emulator for quantum circuit simulation that runs as a service, accepting circuits sent to a specific port with a specific API and format. Currently it has been tested with circuits produced by the Qristal SDK produced by Quantum Brilliance. 
+The current setup is designed to integrate with the virtual QPU from Quantum Brilliance, a emulator for quantum circuit simulation that runs as a service, accepting circuits sent to a specific port with a specific API and format. Currently it has been tested with circuits produced by the Qristal SDK produced by Quantum Brilliance.
 
-The QPU integration is based on Quantum Brilliance, AWS Braket (WIP) and QuEra (WIP) as well. 
+The QPU integration is based on Quantum Brilliance, AWS Braket (WIP) and QuEra (WIP) as well.
 
 This setup is not fixed to Quantum Brilliance and could easily be expanded to include other vQPUs and QPUs as well.
 
-It consists of: 
-- `qbitbridge/`: A directory containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow. 
-- `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.  
-- a `workflow/` which contains 
-    - `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` configurations for running generic tasks, `circuit` tasks where circuit simluation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming. 
+It consists of:
+- `qbitbridge/`: A directory containing all the utilities, classes and basic flows that are the building blocks for running a hybrid workflow.
+- `scripts/`: some scripts to help launch a POSTGres database and the prefect server. These scripts will use a container for running the database server.
+- a `workflow/` which contains
+    - `clusters/`: collection of example cluster configuration yaml files. Cluster configurations should contain `generic`, `circuit`, `vqpu`, `cpu`, and `gpu` configurations for running generic tasks, `circuit` tasks where circuit simulation is done with a `vqpu`, the `vqpu` tasks, and then `cpu` and `gpu` oriented workflows. There is also a '`generic-aws` setup to allow additional aws related information to be loaded in the environment. MPI will be forthcoming.
     - `circuits/`: collection of example circuits.
-    - `tests/`: python unit test for package 
-- `example/flows`: a useful set of example workflows. 
+    - `tests/`: python unit test for package
+- `example/flows`: a useful set of example workflows.
 
-There are other directories, such as `events` that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem. 
+There are other directories, such as `events` that are useful when running a workflow but these workflow oriented, temporary output directories can be located anywhere globally visible on the filesystem.
 
 ### Main classes and functions
-The main classes and basic tasks of the hybrid flow are found in [vqpubase](qbitbridge/vqpubase.py) and [vqpuflow](qbitbridge/vqpuflow.py) respectively. The key components of the QBitBridge framerwork is the introduction of the `EventFile` class (see [utils](qbitbridge/utils.py)), the `QPUMetaData` and `HybridQuantumWorkflowBase` classes (see [vqpubase](qbitbridge/vqpubase.py)). 
+The main classes and basic tasks of the hybrid flow are found in [vqpubase](qbitbridge/vqpubase.py) and [vqpuflow](qbitbridge/vqpuflow.py) respectively. The key components of the QBitBridge framerwork is the introduction of the `EventFile` class (see [utils](qbitbridge/utils.py)), the `QPUMetaData` and `HybridQuantumWorkflowBase` classes (see [vqpubase](qbitbridge/vqpubase.py)).
 
 #### EventFile
-The `EventFile` class is the interaface to storing events via a file globally visible to all processes. File is created if set and dependent tasks can be set to `await eventfile.wait()` for the file to be created and have appropriate information before moving on. Events can also be cleared. 
+The `EventFile` class is the interaface to storing events via a file globally visible to all processes. File is created if set and dependent tasks can be set to `await eventfile.wait()` for the file to be created and have appropriate information before moving on. Events can also be cleared.
 
 #### QPUMetaData
 The `QPUMetaData` class contains the metadata associated with a (v)QPU, such as maximum number of qubits, connectivity, etc. This can then be compared to the requirements of a circuit to see if the (v)QPU can be used to run the circuit.
 
 #### HybridQuantumWorkflowBase
-The `HybirdQuantumWorkflowBase` class Contains parameters and events for running a hybrid workflow. 
+The `HybirdQuantumWorkflowBase` class Contains parameters and events for running a hybrid workflow.
 
 #### Basic Tasks and Flows
-The basic building block tasks and flows are in [vqpuflow](qbitbridge/vqpuflow.py). 
+The basic building block tasks and flows are in [vqpuflow](qbitbridge/vqpuflow.py).
 
-The key vQPU flows are 
-* `@task launch_vqpu`: Launch a virtual QPU service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. 
+The key vQPU flows are
+* `@task launch_vqpu`: Launch a virtual QPU service on a given node, get node information and generate artifact that can be accessed by other tasks and flows.
 * `@task run_vqpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime.
 * `@task shutdown_vqpu`: Shuts down vqpu, gracefully terminating the relevant process.
-* `@flow launch_vqpu_workflow`: Calls all these above tasks with appropriate logging. 
+* `@flow launch_vqpu_workflow`: Calls all these above tasks with appropriate logging.
 
-There are other tasks, such as those associated with sending circuits to vqpus. For a complete view, please refer to the source code. 
+There are other tasks, such as those associated with sending circuits to vqpus. For a complete view, please refer to the source code.
 
 ### AWS Braket Integration
 [AWS Braket](https://docs.aws.amazon.com/braket/latest/developerguide/what-is-braket.html) provides an interface for launching jobs on AWS cloud-accessible QPU's. The integration for this service is in [vqpubraket](qbitbridge/vqpubraket.py). This contains the key QPU access tasks and flows:
-* `@task launch_aws_braket_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. Checks to see if credentials are able to access the device. 
-* `@task run_aws_braket_qpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime and device still available. 
+* `@task launch_aws_braket_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. Checks to see if credentials are able to access the device.
+* `@task run_aws_braket_qpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime and device still available.
 * `@task shutdown_aws_braket_qpu`: Shuts down qpu access, gracefully terminating the relevant process.
-* `@flow launch_aws_braket_qpu_workflow`: Calls all these above tasks with appropriate logging. 
+* `@flow launch_aws_braket_qpu_workflow`: Calls all these above tasks with appropriate logging.
 
 ### QuEra Bloqade
-There is also a preliminary interface to QuEra QPU's via [bloqade](https://bloqade.quera.com/latest/). The integration for this service is in [vqpuquera](qbitbridge/vqpuquera.py). This contains the key QPU access tasks and flows simlar to aws. 
-* `@task launch_quera_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. Checks to see if credentials are able to access the device. 
-* `@task run_quera_qpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime and device still available. 
+There is also a preliminary interface to QuEra QPU's via [bloqade](https://bloqade.quera.com/latest/). The integration for this service is in [vqpuquera](qbitbridge/vqpuquera.py). This contains the key QPU access tasks and flows similar to aws.
+* `@task launch_quera_qpu`: Launch a QPU-access service on a given node, get node information and generate artifact that can be accessed by other tasks and flows. Checks to see if credentials are able to access the device.
+* `@task run_quera_qpu`: Runs a task that waits to keep flow active so long as there are circuits to be run or have not exceeded the walltime and device still available.
 * `@task shutdown_quera_qpu`: Shuts down qpu access, gracefully terminating the relevant process.
-* `@flow launch_quera_qpu_workflow`: Calls all these above tasks with appropriate logging. 
+* `@flow launch_quera_qpu_workflow`: Calls all these above tasks with appropriate logging.
 
 ### Example Workflow
 
-There are a few examples that can be found in [the examles directory](examples/flows/). We discuss [a multi-vqpu](example/flows/multi_vqpu_cpugpu_workflow.py) here. This flow uses some basic build-block tasks and flows defined in [the base vpu flows](qbitbridge/vqpuflows.py) and the prefect view is of this flow is shown below.
+There are a few examples that can be found in [the examples directory](examples/flows/). We discuss [a multi-vqpu](example/flows/multi_vqpu_cpugpu_workflow.py) here. This flow uses some basic build-block tasks and flows defined in [the base vpu flows](qbitbridge/vqpuflows.py) and the prefect view is of this flow is shown below.
 ![multivqpuflow](docs/figs/example_multivqpuflow.png)
 
-This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and how to run these flows in an asynchronous fashion. 
+This flow demonstrates running several vQPUs that await circuits being sent to them before being shutdown along with other vQPUs that are ideal and shutdown after a certain amount of time. It also spawns CPU-oriented and GPU-oriented flows and how to run these flows in an asynchronous fashion.
 
 We strongly suggest you alter the CPU and GPU commands before trialling this workflow if you would like to test it. The code as it stands also uses a cluster specific yaml file where the python path variable has been updated to include the absolute path of the [parent]directory.
 
 This example showcases a few key things:
 
 * Use of the `HybridQuantumWorkflowBase` class to manage a flow
-* Use of basic flows like `gpu_workflow` being launched with a `DaskTaskRunner` that differs form the parent flow runner. 
+* Use of basic flows like `gpu_workflow` being launched with a `DaskTaskRunner` that differs form the parent flow runner.
 * Use of asynchronous flows launched using `asyncio.TaskGroup`
 * Multiple vQPUs being launched and awaiting circuits
 * Circuits being sent to several different vQPUs from a single flow
@@ -86,7 +86,7 @@ There are several unit tests available as well. One checks basic vQPU flows and 
 ```bash
 python3 tests/test_<name>.py
 ```
-For the basic tests, it will also be necessary to build the [profile_util](workflow/tests/profile_util/) test using either the [cuda](workflow/tests/profile_util/build_cuda.sh) or [hip](workflow/tests/profile_util/build_hip.sh) build scripts. 
+For the basic tests, it will also be necessary to build the [profile_util](workflow/tests/profile_util/) test using either the [cuda](workflow/tests/profile_util/build_cuda.sh) or [hip](workflow/tests/profile_util/build_hip.sh) build scripts.
 
 ## Installation
 
@@ -102,22 +102,22 @@ pip install -e .
 pip install ".[dev]"
 ```
 
-We strongly recommend use of python virtual environments and that this virtual environment is loadable on all the nodes that will be doing compute on the HPC system. 
+We strongly recommend use of python virtual environments and that this virtual environment is loadable on all the nodes that will be doing compute on the HPC system.
 
 ## Services required
 
-The workflows will be best run with a prefect server running using `uvicorn` and a postgres database. The bundle includes two scripts designed to launch these services. By default, there is an assumption that both of these services run on the same host but that does not need to be the case. 
+The workflows will be best run with a prefect server running using `uvicorn` and a postgres database. The bundle includes two scripts designed to launch these services. By default, there is an assumption that both of these services run on the same host but that does not need to be the case.
 
-### Using Launcher 
+### Using Launcher
 
-The key services, Postgres and Prefect, can be started using [launcher.py](launcher.py) with a yaml config file. 
-An example is found in [examples.yaml](examples/launcher_config/example.yaml). Launch using 
+The key services, Postgres and Prefect, can be started using [launcher.py](launcher.py) with a yaml config file.
+An example is found in [examples.yaml](examples/launcher_config/example.yaml). Launch using
 
 ```bash
    python launcher.py --config=examples/launcher_config/example.yaml
 ```
 
-The configuration sets the POSTGRES database settings and PREFECT server settings 
+The configuration sets the POSTGRES database settings and PREFECT server settings
 (which mirror the scripts `start_postgres.sh` and `start_prefect.sh` discussed below)
 
 The configuration consists has the following settings
@@ -145,12 +145,12 @@ The configuration consists has the following settings
     - `timeout_graceful_shutdown`: graceful shutdown time, default 7200
     -  `dry_run`: bool if just running a dry run, default false
     -  `delay_time`: amount of time to allow prefect to launch by delaying launch of follow-up services, default 20
-* `log_level`: logging level, default info. 
+* `log_level`: logging level, default info.
 * `delay_time`:  amount of time to wait in between services, default 10
 
 
-### Running Postgres 
-This can be started with [start_postgres.sh](workflow/scripts/start_postgres.sh). This will launch the postgres database using the [Singularity](https://docs.sylabs.io/guides/latest/user-guide/) container engine. This script makes use of several key POSTGRES environment variables (like `POSTGRES_ADDR`). This will pull the latest postgres container image from docker hub to locally store it. This script could be altered to use other container engines as well. 
+### Running Postgres
+This can be started with [start_postgres.sh](workflow/scripts/start_postgres.sh). This will launch the postgres database using the [Singularity](https://docs.sylabs.io/guides/latest/user-guide/) container engine. This script makes use of several key POSTGRES environment variables (like `POSTGRES_ADDR`). This will pull the latest postgres container image from docker hub to locally store it. This script could be altered to use other container engines as well.
 
 ### Running Prefect Server
 This can be started with [start_prefect.sh](workflow/scripts/start_prefect.sh). This will launch prefect using
@@ -162,24 +162,24 @@ python -m uvicorn \
     --port 4200 \
     --timeout-keep-alive 10 \
     --limit-max-requests 4096 \
-    --timeout-graceful-shutdown 7200 & 
+    --timeout-graceful-shutdown 7200 &
 ```
-and when running on the command line with a simple workflow, one can follow the reported message and set `export PREFECT_API_URL=http://${POSTGRES_ADDR}:4200/api` where `POSTGRES_ADD` will be replaced with the host on which the postgres database will be run. 
+and when running on the command line with a simple workflow, one can follow the reported message and set `export PREFECT_API_URL=http://${POSTGRES_ADDR}:4200/api` where `POSTGRES_ADD` will be replaced with the host on which the postgres database will be run.
 
 ## Running Workflows
 
 With these services running, it can be a simple matter of running on the prefect server node after setting the environment variable and typing
 ```bash
-python3 <your_workflow> 
+python3 <your_workflow>
 ```
-which will make use of this server to orchestrate and submit flows and tasks to the appropriate slurm partitions with appropriate resource requests. 
+which will make use of this server to orchestrate and submit flows and tasks to the appropriate slurm partitions with appropriate resource requests.
 
-Note that the python virtual environment that contains all the required dependencies should be loaded as part of the `job_script_prologue` portion of a cluster's slurm configuration yaml file. Otherwise, a variety of errors can be reported. 
+Note that the python virtual environment that contains all the required dependencies should be loaded as part of the `job_script_prologue` portion of a cluster's slurm configuration yaml file. Otherwise, a variety of errors can be reported.
 
 ## Future work
 
 - Better integration with the DaskTaskRunner and Slurm so that a node check is run (if desired) upon submission of a flow to check for node(s) health. If the nodes are not healthy, raise exception to retry (possibly on different nodes)
-- Better handling of errors from remote qpu backend. 
+- Better handling of errors from remote qpu backend.
 - Running service infront of remote back end that can be contact to better handle QPU queue
 - Better suspend/restart handling.
 

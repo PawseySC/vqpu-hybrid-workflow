@@ -112,9 +112,7 @@ class QPUMetaData:
                 if nt in self.noise_types:
                     self.noise[nt] = noise[nt]
                 else:
-                    message: str = (
-                        f"Uknown noise type {nt}. Please define noise in terms of {ntypes}"
-                    )
+                    message: str = f"Unknown noise type {nt}. Please define noise in terms of {ntypes}"
                     raise ValueError(message)
 
     def __str__(self) -> str:
@@ -134,7 +132,7 @@ class QPUMetaData:
         """Converts class to dictionary for serialisation
 
         Returns:
-            Dict containin relevant info. Can be used for serialization
+            Dict containing relevant info. Can be used for serialization
         """
         return {
             "QPUMetaData": {
@@ -294,18 +292,18 @@ class HybridQuantumWorkflowBase:
         # "custatevec:fp32": "Description: Single (custatevec:fp32) CUDA Quantum state vector simulator, built on CuQuantum libraries.",
         # "custatevec:fp64": "Description: double-precision CUDA Quantum state vector",
         # default
-        "aer": "Description: IBM Qiskit Aer noise-aware state-vector (and MPS and density-matrix simulator) [Default]",
+        "are": "Description: IBM Qiskit Are noise-aware state-vector (and MPS and density-matrix simulator) [Default]",
         "qb-mps": "Description: Quantum Brilliance noise-aware MPS simulator, configured to use XACC IR (qb-mps). The MPS method represents the quantum wavefunction as a tensor contraction of individual qubit quantum state. Each qubit quantum state is a rank-3 tensor (rank-2 tensor for boundary qubits).",
         # "cudaq:qb_mps": "Description: MPS using QIR.",
         "qb-mpdo": "Description: Quantum Brilliance noise-aware matrix-product density operator (MPDO) simulator, configured to use XACC IR (qb-mpdo). The MPDO method represents the density matrix as a tensor contraction of individual qubit density operator. Each qubit density operator is a rank-4 tensor (rank-3 tensor for boundary qubits).",
         # "cudaq:qb_mpdo": "Description: MPDO using QIR",
-        "qb-purification": "Descrption: Quantum Brilliance noise-aware state purification simulator, configured to use XACC IR (qb-purification). The purification method represents the purified quantum state as a tensor contraction of individual qubit purified state. Each qubit purified state is a rank-4 tensor (rank-3 tensor for boundary qubits).",
+        "qb-purification": "Description: Quantum Brilliance noise-aware state purification simulator, configured to use XACC IR (qb-purification). The purification method represents the purified quantum state as a tensor contraction of individual qubit purified state. Each qubit purified state is a rank-4 tensor (rank-3 tensor for boundary qubits).",
         # "cudaq:qb_purification": "Description: noise-aware state purification using QIR",
         # "cudaq:dm": "Description: The CUDA Quantum density matrix simulator, built on CuQuantum libraries",
     }
     """List of allowed vqpu backends"""
 
-    vqpu_backend_default: str = "aer"
+    vqpu_backend_default: str = "are"
     """Default vqpu backend simulator"""
 
     def __init__(
@@ -348,13 +346,9 @@ class HybridQuantumWorkflowBase:
         """max number of virtual qpus"""
         self.vqpu_template_script: str = f"{fpath}/../workflow/qb-vqpu/vqpu_template.sh"
         """template vqpu start up script to run"""
-        self.vqpu_template_yaml: str = (
-            f"{fpath}/../workflow/qb-vqpu/remote_vqpu_template.yaml"
-        )
+        self.vqpu_template_yaml: str = f"{fpath}/../workflow/qb-vqpu/remote_vqpu_template.yaml"
         """vqpu remote yaml template"""
-        self.vqpu_run_dir: str = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/vqpus/"
-        )
+        self.vqpu_run_dir: str = f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/vqpus/"
         """directory where to store the active vqpu yamls and scripts"""
         self.vqpu_exec: str = "qcstack"
         """vqpu executable. Default is QB's vQPU executable"""
@@ -364,9 +358,7 @@ class HybridQuantumWorkflowBase:
         """list of backend end used of the vqpu (state-vector, density-matrix, MPS)"""
         self.events: Dict[str, EventFile] = dict()
         """list of events"""
-        self.eventloc: str = (
-            f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/events/"
-        )
+        self.eventloc: str = f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/events/"
         """location of where to store event files"""
         # before taskrunners also stored the DaskTaskRunner but this leads to issues
         # with serialization. Now just store the slurm job script
@@ -417,9 +409,7 @@ class HybridQuantumWorkflowBase:
             if elem not in self.backends:
                 valerr.append(elem)
         if len(valerr) > 0:
-            raise ValueError(
-                f"Missing minimum req backends. Minimum set required is {reqbackends}. Missing {valerr}"
-            )
+            raise ValueError(f"Missing minimum req backends. Minimum set required is {reqbackends}. Missing {valerr}")
 
         self.vqpu_ids = vqpu_ids
         # set the default backend. Not clear if this structure is really necessary
@@ -445,9 +435,7 @@ class HybridQuantumWorkflowBase:
             self.vqpu_template_yaml = self.vqpu_template_yaml[0]
 
         if not os.path.isfile(self.vqpu_template_yaml):
-            message: str = (
-                f"Template yaml file {self.vqpu_template_yaml} not found. Please ensure file exists."
-            )
+            message: str = f"Template yaml file {self.vqpu_template_yaml} not found. Please ensure file exists."
             raise ValueError(message)
         if not os.path.isfile(self.vqpu_template_script):
             message: str = (
@@ -461,9 +449,7 @@ class HybridQuantumWorkflowBase:
         if events is None:
             if "qb-vqpu" in self.backends:
                 for vqpu_id in self.vqpu_ids:
-                    self.events[f"qpu_{vqpu_id}_launch"] = EventFile(
-                        name=f"qpu_{vqpu_id}_launch", loc=self.eventloc
-                    )
+                    self.events[f"qpu_{vqpu_id}_launch"] = EventFile(name=f"qpu_{vqpu_id}_launch", loc=self.eventloc)
                     self.events[f"qpu_{vqpu_id}_circuits_finished"] = EventFile(
                         name=f"qpu_{vqpu_id}_circuits_finished", loc=self.eventloc
                     )
@@ -577,9 +563,7 @@ class HybridQuantumWorkflowBase:
         else:
             artifact = await Artifact.get(key=f"activeqpudata{qpu_id}")
             if artifact is None:
-                raise ValueError(
-                    "asking workflow to get active qpu data but no active qpu found!"
-                )
+                raise ValueError("asking workflow to get active qpu data but no active qpu found!")
             data = dict(artifact)["data"]
             return QPUMetaData.from_string(data)
 
@@ -597,18 +581,14 @@ class HybridQuantumWorkflowBase:
             A DaskTaskRunner
         """
         if task_runner_name not in list(self.taskrunners["jobscript"].keys()):
-            raise ValueError(
-                f"Cluster {self.cluster} configuration does not have runner {task_runner_name}."
-            )
+            raise ValueError(f"Cluster {self.cluster} configuration does not have runner {task_runner_name}.")
         cluster_config = copy.deepcopy(self.taskrunners["specs"][task_runner_name])
         if extra_cluster_kwargs is not None:
             cluster_config["cluster_kwargs"].update(extra_cluster_kwargs)
         return DaskTaskRunner(**cluster_config)
         # return runners[task_runner_name]
 
-    async def __create_vqpu_remote_yaml(
-        self, job_info: SlurmInfo | PBSInfo, vqpu_id: int
-    ) -> None:
+    async def __create_vqpu_remote_yaml(self, job_info: SlurmInfo | PBSInfo, vqpu_id: int) -> None:
         """Saves the remote backend for the vqpu to a yaml file and artifact
         having extracted the hostname running the vqpu from the slurm job
 
@@ -626,7 +606,7 @@ class HybridQuantumWorkflowBase:
             if "HOSTNAME" in line:
                 line = line.replace("HOSTNAME", job_info.hostname)
             fout.write(line)
-        # to store the results of this task, make use of a helper function that creates artifcat
+        # to store the results of this task, make use of a helper function that creates artifact
         await save_artifact(workflow_yaml, key=f"remote{vqpu_id}")
         await save_artifact(job_info.job_id, key=f"vqpujobid{vqpu_id}")
 
@@ -670,7 +650,7 @@ class HybridQuantumWorkflowBase:
             if "MY_VQPU_BACKEND" in line:
                 line = line.replace("MY_VQPU_BACKEND", vqpu_backend)
             fout.write(line)
-        # to store the results of this task, make use of a helper function that creates artifcat
+        # to store the results of this task, make use of a helper function that creates artifact
         await save_artifact(vqpu_script, key=f"vqpuscript{vqpu_id}")
         return vqpu_script
 
@@ -682,7 +662,7 @@ class HybridQuantumWorkflowBase:
         vqpu_backend: str | None = None,
         vqpu_data: QPUMetaData | None = None,
     ) -> None:
-        """Launchs the vqpu service and generates events to indicate it has been launched
+        """Launches the vqpu service and generates events to indicate it has been launched
 
         Args:
             job_info (SlurmInfo|PBSInfo) : gets the slurm/pbs job info related to spinning up the service
@@ -690,24 +670,18 @@ class HybridQuantumWorkflowBase:
             spinuptime (float) : The time to wait before setting the event
             vqpu_data (QPUMetaData) : Optional metadata to pass
         """
-        # check if qpu is alread in activated list of qpus
+        # check if qpu is already in activated list of qpus
 
         # now add the vQPU to the active list
         if vqpu_data is None:
-            self.active_qpus[vqpu_id] = QPUMetaData(
-                name=f"Virtual QPU-{vqpu_id}", qubit_type="vQPU", qubit_count=32
-            )
+            self.active_qpus[vqpu_id] = QPUMetaData(name=f"Virtual QPU-{vqpu_id}", qubit_type="vQPU", qubit_count=32)
         else:
             self.active_qpus[vqpu_id] = copy.deepcopy(vqpu_data)
         await save_artifact(str(vqpu_id), key=f"activeqpu{vqpu_id}")
-        await save_artifact(
-            str(self.active_qpus[vqpu_id]), key=f"activeqpudata{vqpu_id}"
-        )
+        await save_artifact(str(self.active_qpus[vqpu_id]), key=f"activeqpudata{vqpu_id}")
 
         await self.__create_vqpu_remote_yaml(job_info, vqpu_id=vqpu_id)
-        vqpu_script = await self.__create_vqpu_script(
-            vqpu_id=vqpu_id, vqpu_backend=vqpu_backend
-        )
+        vqpu_script = await self.__create_vqpu_script(vqpu_id=vqpu_id, vqpu_backend=vqpu_backend)
 
         cmds = ["bash", vqpu_script]
         process = run_a_process(cmds)
@@ -746,7 +720,7 @@ class HybridQuantumWorkflowBase:
         qpu_data: QPUMetaData | None = None,
         remote_data_query: Tuple[str | Callable, str] | None = None,
     ) -> None:
-        """Launchs qpu service (that is register the service) and generates events to indicate that qpu is available.
+        """Launches qpu service (that is register the service) and generates events to indicate that qpu is available.
 
         Args:
             qpu_id (int) : The qpu id
@@ -759,11 +733,9 @@ class HybridQuantumWorkflowBase:
         """
         # now add the vQPU to the active list
         if qpu_data is None and remote_data_query is None:
-            raise ValueError(
-                "QPU missing meta data either provided explicitly or remote access to metadata"
-            )
+            raise ValueError("QPU missing meta data either provided explicitly or remote access to metadata")
 
-        # check if qpu is alread in activated list of qpus
+        # check if qpu is already in activated list of qpus
         avail: bool = True
         if remote_query is not None:
             if isinstance(remote_query[0], str):
@@ -773,13 +745,14 @@ class HybridQuantumWorkflowBase:
                 if process.stdout == "No":
                     avail = False
             else:
-                # looks like a bug
-                avail = remote_query[0](args=remote_query[1], filename=fname)
+                raise RuntimeError("Remote query must be a string or callable function")
+                # # looks like a bug
+                # avail = remote_query[0](args=remote_query[1], filename=fname)
         if not avail:
             message: str = ""
             if qpu_data is not None:
                 message += f"Requested {qpu_data} under qpu-{qpu_id}."
-            message += f"Not available."
+            message += "Not available."
             raise RuntimeError(message)
 
         if qpu_data is not None:
@@ -860,9 +833,7 @@ class HybridQuantumWorkflowBase:
         await asyncio.sleep(walltime)
         return "Walltime complete"
 
-    async def task_check_available(
-        self, qpu_id: int, check: Callable, arguments: Any, sampling: float = 10.0
-    ) -> str:
+    async def task_check_available(self, qpu_id: int, check: Callable, arguments: Any, sampling: float = 10.0) -> str:
         """Async task that indicates qpu is no longer available
 
         Args:
@@ -884,7 +855,7 @@ class HybridQuantumWorkflowBase:
         """process a possible circuit and any post processing to do. Expecting Callable | Tuple[Callable, Callable] | Tuple[Callable, QPUMetaData] | Tuple[Tuple[Callable, QPUMetaData], Callable]
 
         Args:
-            c : possible combintation of circuit, circuit and post, circuit and circuit requirents, or circuit,circuit requirements and post
+            c : possible combination of circuit, circuit and post, circuit and circuit requirents, or circuit,circuit requirements and post
 
         Raises:
             TypeErrors if the type is not correct
@@ -918,15 +889,11 @@ class HybridQuantumWorkflowBase:
             raise TypeError(errmessage)
 
         if not isinstance(post, Callable) and post is not None:
-            errmessage: str = (
-                f"Postprocessing passed but got {type(post)} instead of Callable"
-            )
+            errmessage: str = f"Postprocessing passed but got {type(post)} instead of Callable"
             raise TypeError(errmessage)
 
         if not isinstance(circ_qpu_reqs, QPUMetaData) and circ_qpu_reqs is not None:
-            errmessage: str = (
-                f"Circuit requirements passed but got {type(circ_qpu_reqs)} instead of QPUMetaData"
-            )
+            errmessage: str = f"Circuit requirements passed but got {type(circ_qpu_reqs)} instead of QPUMetaData"
             raise TypeError(errmessage)
 
         return circ, post, circ_qpu_reqs
@@ -969,9 +936,7 @@ class HybridQuantumWorkflowBase:
                 )
                 raise RuntimeError(message)
 
-    def checkbackends(
-        self, backend: str = "qb-vqpu", checktype: str = "launch"
-    ) -> None:
+    def checkbackends(self, backend: str = "qb-vqpu", checktype: str = "launch") -> None:
         """Runs a number of checks of the backend to see if enabled set of backends
 
         Args:
@@ -1111,7 +1076,5 @@ class SillyTestClass:
             return None
         runners = get_dask_runners(cluster=self.cluster)
         if task_runner_name not in list(self.taskrunners.keys()):
-            raise ValueError(
-                f"Cluster {self.cluster} configuration does not have runner {task-task_runner_name}."
-            )
+            raise ValueError(f"Cluster {self.cluster} configuration does not have runner {task-task_runner_name}.")
         return runners[task_runner_name]

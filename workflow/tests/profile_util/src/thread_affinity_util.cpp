@@ -5,11 +5,11 @@
 #include "profile_util.h"
 
 namespace profiling_util {
-    
+
     #ifdef _MPI
     MPI_Comm __comm;
     int __comm_rank;
-    #endif 
+    #endif
 
     /*
     Code to facilitate core binding reporting
@@ -77,7 +77,7 @@ namespace profiling_util {
         return std::string(s);
     }
 
-    std::string ReportParallelAPI() 
+    std::string ReportParallelAPI()
     {
         std::string s;
         s = "Parallel API's \n ======== \n";
@@ -87,8 +87,8 @@ namespace profiling_util {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         s += "MPI Comm world size " + std::to_string(size);
         s += "\n";
-#endif 
-#ifdef _OPENMP 
+#endif
+#ifdef _OPENMP
         s += "OpenMP version " + std::to_string(_OPENMP);
         s += " with total number of threads = " + std::to_string(omp_get_max_threads());
         s += " with total number of allowed levels " + std::to_string(omp_get_max_active_levels());
@@ -96,7 +96,7 @@ namespace profiling_util {
         int numdevices = omp_get_num_devices();
         int defaultdevice = omp_get_default_device();
         int ninfo[2];
-        if (numdevices > 0) 
+        if (numdevices > 0)
         {
             #pragma omp target map(tofrom:ninfo)
             {
@@ -119,11 +119,11 @@ namespace profiling_util {
 #endif
         s += "\n";
 #endif
-#ifdef _GPU 
+#ifdef _GPU
         int nDevices = 0;
         pu_gpuErrorCheck(pu_gpuGetDeviceCount(&nDevices));
         s += "Using GPUs: Running with " +std::string(_GPU_API) + " and found " + std::to_string(nDevices) + " devices\n";
-#endif 
+#endif
         return s;
     }
 
@@ -202,11 +202,11 @@ namespace profiling_util {
         }
 #endif
 #ifdef _MPI
-        // gather all strings to for outputing info 
+        // gather all strings to for outputting info
         std::vector<int> recvcounts(NProcs);
         std::vector<int> offsets(NProcs);
         int size = binding_report.length();
-        auto p1 = recvcounts.data(); 
+        auto p1 = recvcounts.data();
         MPI_Allgather(&size, 1, MPI_INTEGER, p1, 1, MPI_INTEGER, MPI_COMM_WORLD);
         size = recvcounts[0];
         offsets[0] = 0;
@@ -219,10 +219,10 @@ namespace profiling_util {
         newbindingreport[size-1] = '\0';
         binding_report = std::string(newbindingreport);
 #endif
-        
+
         return binding_report;
     }
-    /// return binding as called within openmp region 
+    /// return binding as called within openmp region
     std::string ReportThreadAffinity(std::string func, std::string file, std::string line)
     {
         std::string result;
@@ -248,8 +248,8 @@ namespace profiling_util {
         return result;
     }
 
-    /// return binding as called within openmp region, MPI aware 
-#ifdef _MPI 
+    /// return binding as called within openmp region, MPI aware
+#ifdef _MPI
     std::string MPIReportThreadAffinity(std::string func, std::string file, std::string line, MPI_Comm &comm)
     {
         std::string result;
@@ -287,19 +287,19 @@ namespace profiling_util {
 
 extern "C" {
     int report_parallel_api(char *str)
-    {        
+    {
         std::string s = profiling_util::ReportParallelAPI();
         strcpy(str,s.c_str());
         return static_cast<int>(s.length());
     }
     int report_binding(char *str)
-    {        
+    {
         std::string s = profiling_util::ReportBinding();
         strcpy(str,s.c_str());
         return static_cast<int>(s.length());
     }
     int report_thread_affinity(char *str, char *f, char *F, int l)
-    {        
+    {
         std::string s = profiling_util::ReportThreadAffinity(std::string(f), std::string(F), std::to_string(l));
         strcpy(str,s.c_str());
         return static_cast<int>(s.length());
