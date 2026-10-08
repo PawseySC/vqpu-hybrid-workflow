@@ -6,7 +6,7 @@ project(profile_util,
   LANGUAGES CXX
 )
 
-# define cxx 
+# define cxx
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -32,15 +32,15 @@ if ((PU_ENABLE_HIP) AND (PU_ENABLE_CUDA))
    message(FATAL_ERROR "Build conflict: Requesting both CUDA and HIP. Must have one or the other")
 endif()
 
-# check for MPI 
+# check for MPI
 pu_mpi()
-# check for cuda 
+# check for cuda
 pu_cuda()
 # check for hip
 pu_hip()
-# check for openmp 
+# check for openmp
 pu_openmp()
-# check for pybind 
+# check for pybind
 pu_pybind()
 
 add_compile_options(-Wall -Wextra -Wpedantic -fPIC)
@@ -68,4 +68,3 @@ get_directory_property(_hasParent PARENT_DIRECTORY)
 if (_hasParent)
 	set(_export ON)
 endif()
-

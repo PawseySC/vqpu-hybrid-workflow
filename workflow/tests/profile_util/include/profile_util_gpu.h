@@ -7,7 +7,7 @@
 #define _PROFILE_UTIL_GPU
 
 #ifdef _HIP
-#define _GPU 
+#define _GPU
 #define _GPU_API "HIP"
 #define _GPU_TO_SECONDS 1.0/1000.0
 #include <hip/hip_runtime.h>
@@ -22,10 +22,10 @@
 #include <device_launch_parameters.h>
 #endif
 
-#ifdef _OPENMP 
+#ifdef _OPENMP
 #include <omp.h>
 #endif
-/// \defgroup GPU related define statements 
+/// \defgroup GPU related define statements
 //@{
 #ifdef _HIP
 #define pu_gpuMalloc hipMalloc
@@ -66,7 +66,7 @@
 #define pu_gpu_energy_request(ngpus) std::string(" --showpower --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $2}'")
 #define pu_gpu_mem_request(ngpus) std::string(" --showmeminfo VRAM --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $3/1000.0/1000.0}'")
 #define pu_gpu_memusage_request(ngpus) std::string(" --showmeminfo VRAM --csv | head -n ") + std::to_string(1+ngpus) + std::string(" | tail -n ")+std::to_string(ngpus) + std::string(" | sed \"s/,/ /g\" | awk '{print $3/$2*100.0}'")
-#define pu_gpu_formating(ngpus) " "
+#define pu_gpu_formatting(ngpus) " "
 #else
 
 #define pu_gpuVisibleDevices "CUDA_VISIBLE_DEVICES"
@@ -76,7 +76,7 @@
 #define pu_gpu_usage_request(ngpus) std::string(" --query-gpu=utilization.gpu ")
 #define pu_gpu_mem_request(ngpus) std::string(" --query-gpu=memory.used ")
 #define pu_gpu_memusage_request(ngpus) std::string(" --query-gpu=utilization.memory ")
-#define pu_gpu_formating(ngpus) std::string(" --format=csv,noheader,nounits ")
+#define pu_gpu_formatting(ngpus) std::string(" --format=csv,noheader,nounits ")
 #endif
 
 #endif
@@ -122,11 +122,11 @@ kernelfunc<<<blksize,threadsperblk>>>(__VA_ARGS__)
 #define pu_gpu_usage_request(ngpus) std::string(" --query-gpu=utilization.gpu ")
 #define pu_gpu_mem_request(ngpus) std::string(" --query-gpu=memory.used ")
 #define pu_gpu_memusage_request(ngpus) std::string(" --query-gpu=utilization.memory ")
-#define pu_gpu_formating(ngpus) std::string(" --format=csv,noheader,nounits ")
+#define pu_gpu_formatting(ngpus) std::string(" --format=csv,noheader,nounits ")
 
 #endif
 
-#ifdef _GPU 
+#ifdef _GPU
 // macro for checking errors in HIP API calls
 #define pu_gpuErrorCheck(call)                                                                 \
 do{                                                                                         \
@@ -147,7 +147,7 @@ pu_gpuErrorCheck(pu_gpuDeviceSynchronize());}
 //@{
 namespace gpu_util
 {
-///@brief Allocator class for unified memory 
+///@brief Allocator class for unified memory
 /// This class is based on https://gist.github.com/CommitThis/1666517de32893e5dc4c441269f1029a
 template <typename T>
 class unified_alloc
@@ -186,7 +186,7 @@ auto operator!=(unified_alloc<T> const &, unified_alloc<U> const &) -> bool {
     return false;
 }
 
-/// Template alias for convenient creating of a vector backed by unified memory 
+/// Template alias for convenient creating of a vector backed by unified memory
 template <typename T>
 using unified_vector = std::vector<T, unified_alloc<T>>;
 
@@ -202,7 +202,7 @@ struct is_unified : std::false_type{};
     the trait type will contain a true value:
         is_unified<std::vector<int>>::value == false
         is_unified<profile_util::vector<int>>::value == true
-    Remembering that the actual signature for both the stdlib and our CUDA 
+    Remembering that the actual signature for both the stdlib and our CUDA
     vector is something like:
         vector<int, allocator<int>>
 */
@@ -218,16 +218,16 @@ constexpr static auto is_unified_v = is_unified<T>::value;
 
 
 /*! This uses template substitution to generate a function that only exists
-    for types that contain a unified allocator. If is_unified_v<T> is 
-    false, std::enable_if_t does not exist, the substitution will fail, and 
+    for types that contain a unified allocator. If is_unified_v<T> is
+    false, std::enable_if_t does not exist, the substitution will fail, and
     because it is not an error to have a failed substitution, the function
     will simply not exist.
-    
+
     get_current_device is a utility function that uses the CUDA API to get
     the ID of the current device.
 */
 template <typename T, typename = std::enable_if_t<is_unified_v<T>>>
-auto prefetch(T const & container,  pu_gpuStream_t stream = 0, 
+auto prefetch(T const & container,  pu_gpuStream_t stream = 0,
         int device = 0)
 {
     using value_type = typename T::value_type;

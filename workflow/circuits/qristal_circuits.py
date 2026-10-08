@@ -1,29 +1,33 @@
-    
-'''
+"""
 @brief some circuits
-'''
+"""
 
 from typing import List, Dict, Any
 
+
 def _printtostr(thingtoprint: Any) -> str:
     from io import StringIO
+
     f = StringIO()
     print(thingtoprint, file=f)
     result = f.getvalue()
     f.close()
-    return result 
+    return result
 
-def parse_qb_result(input : Any) -> Dict[str, int]:
+
+def parse_qb_result(input: Any) -> Dict[str, int]:
     results = dict()
     outstr = _printtostr(input)
-    lines = outstr.strip().split('\n')
+    lines = outstr.strip().split("\n")
     for l in lines:
-        w = l.split(': ')
+        w = l.split(": ")
         results[w[0]] = int(w[1])
     return results
 
-def simulator_setup(remote : str, arguments: str = ''):
+
+def simulator_setup(remote: str, arguments: str = ""):
     import qristal.core
+
     # Create a quantum computing session using Qristal
     my_sim = qristal.core.session()
 
@@ -31,10 +35,10 @@ def simulator_setup(remote : str, arguments: str = ''):
     my_sim.init()
     # 2 qubits
     my_sim.qn = 2
-    if '--nqubits=' in arguments:
-        my_sim.qn = int(arguments.split('--nqubits=')[1].split(' ')[0])
+    if "--nqubits=" in arguments:
+        my_sim.qn = int(arguments.split("--nqubits=")[1].split(" ")[0])
 
-    # Aer simulator selected
+    # Are simulator selected
     my_sim.acc = "loopback"
     my_sim.remote_backend_database_path = remote
 
@@ -43,12 +47,14 @@ def simulator_setup(remote : str, arguments: str = ''):
 
     return my_sim
 
-def noisy_circuit(remote : str, arguments : str) -> Dict[str, int]:
+
+def noisy_circuit(remote: str, arguments: str) -> Dict[str, int]:
     import qristal.core
+
     my_sim = simulator_setup(remote, arguments)
 
     # Define the kernel
-    my_sim.instring = '''
+    my_sim.instring = """
     __qpu__ void MY_QUANTUM_CIRCUIT(qreg q)
     {
       OPENQASM 2.0;
@@ -59,7 +65,7 @@ def noisy_circuit(remote : str, arguments : str) -> Dict[str, int]:
       measure q[1] -> c[1];
       measure q[0] -> c[0];
     }
-    '''
+    """
 
     # If a non-default noise model has been requested, create it. If you
     # just want to use default noise, the following is not needed.
@@ -88,5 +94,5 @@ def noisy_circuit(remote : str, arguments : str) -> Dict[str, int]:
     # Hit it.
     my_sim.run()
     results = parse_qb_result(my_sim.results[0][0])
-    # now return the dictionary of bit strings and counts 
+    # now return the dictionary of bit strings and counts
     return results

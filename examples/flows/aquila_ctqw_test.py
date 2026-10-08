@@ -26,7 +26,7 @@ from qbitbridge.vqpuflow import (
 from qbitbridge.utils import EventFile, save_artifact
 from circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
-from prefect import flow
+from prefect import task, flow
 from prefect_dask import DaskTaskRunner
 from prefect.logging import get_run_logger
 import numpy as np

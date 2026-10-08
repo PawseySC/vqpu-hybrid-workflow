@@ -35,6 +35,10 @@ libcheck = check_python_installation("emcee")
 if not libcheck:
     raise ImportError("Missing emcee library, cannot run fitting tasks")
 import emcee
+
+libcheck = check_python_installation("corner")
+if not libcheck:
+    raise ImportError("Missing corner library, cannot plot results")
 import corner
 
 libcheck = check_python_installation("h5py")
@@ -107,9 +111,7 @@ class LikelihoodModel:
         self.Xlims = np.zeros([self.data_ndim, 2])
         if self.data_ndim > 1:
             for i in range(self.data_ndim):
-                self.Xlims[i][:] = np.array(
-                    [np.min(self.X[:, i]), np.max(self.X[:, i])]
-                )
+                self.Xlims[i][:] = np.array([np.min(self.X[:, i]), np.max(self.X[:, i])])
         else:
             self.Xlims = np.array([np.min(self.X), np.max(self.X)])
         if self.param_labels is None:
@@ -121,17 +123,13 @@ class LikelihoodModel:
                     RuntimeWarning,
                 )
                 cursize: int = len(self.param_labels)
-                self.param_labels += [
-                    f"param-{i}" for i in range(cursize, self.model_dim)
-                ]
+                self.param_labels += [f"param-{i}" for i in range(cursize, self.model_dim)]
             elif len(self.param_labels) > self.model_dim:
                 warnings.warn(
                     "label mismatch, have more labels than model parameters. Ignoring other labels",
                     RuntimeWarning,
                 )
-                self.param_labels = [
-                    self.param_labels[i] for i in range(self.model_dim)
-                ]
+                self.param_labels = [self.param_labels[i] for i in range(self.model_dim)]
 
     def load_data(self):
         """
@@ -212,9 +210,7 @@ class LikelihoodFit:
             params.append((label, values))
         # need to also parse the noise, calibration, connectivity data so that
         # they are not strings
-        return cls(
-            name=name, quantiles=quantiles, log_evidence=log_evidence, params=params
-        )
+        return cls(name=name, quantiles=quantiles, log_evidence=log_evidence, params=params)
 
 
 class LikelihoodModelRuntime:
@@ -270,9 +266,7 @@ class LikelihoodModelRuntime:
         """whether to have emcee report progress"""
 
         if self.sampler_type not in self.allowed_sampler_types:
-            raise ValueError(
-                f"Sampler type {self.sampler_type} not allowed. Choose from {self.allowed_sampler_types}"
-            )
+            raise ValueError(f"Sampler type {self.sampler_type} not allowed. Choose from {self.allowed_sampler_types}")
         self.sampler_type = sampler_type
 
 
@@ -284,9 +278,7 @@ class LikelihoodSampler:
         model: LikelihoodModel,
         runargs: LikelihoodModelRuntime,
     ):
-        self.sampler: (
-            emcee.EnsembleSampler | None
-        )  # | add other options like dynesty, etc
+        self.sampler: emcee.EnsembleSampler | None  # | add other options like dynesty, etc
         """sampler for likelihood evaluation"""
         if runargs.sampler_type == "emcee":
             self.sampler = emcee.EnsembleSampler(
@@ -298,18 +290,14 @@ class LikelihoodSampler:
         else:
             self.sampler = None
 
-    def run_sampler(
-        self, init_pos: np.ndarray, nsteps: int, show_progress: bool
-    ) -> None:
+    def run_sampler(self, init_pos: np.ndarray, nsteps: int, show_progress: bool) -> None:
         """Run the sampler"""
         self.sampler.run_mcmc(init_pos, nsteps, progress=show_progress)
 
     def get_evidence(self) -> np.float64:
         """Calculate the evidencde"""
         log_probs = self.sampler.get_log_prob(flat=True)
-        log_evidence = np.float64(
-            np.logaddexp.reduce(log_probs) - np.log(len(log_probs))
-        )
+        log_evidence = np.float64(np.logaddexp.reduce(log_probs) - np.log(len(log_probs)))
         return log_evidence
 
 
@@ -448,9 +436,7 @@ async def model_report_fit(
         mcmc = np.percentile(flat_samples[:, i], quantiles)
         results[i][:] = mcmc[:]
         params.append((labels[i], mcmc))
-    modelfit = LikelihoodFit(
-        name=name, log_evidence=log_evidence, quantiles=quantiles, params=params
-    )
+    modelfit = LikelihoodFit(name=name, log_evidence=log_evidence, quantiles=quantiles, params=params)
     info = modelfit.__str__()
     logger.info(info)
     if fit_filename is not None:
@@ -488,9 +474,7 @@ async def model_retrieve_fit(
     stripname = name.lower().strip("-").strip("_").strip(" ")
     artifact = await Artifact.get(key=stripname)
     if artifact is None:
-        raise ValueError(
-            "asking workflow to get active qpu data but no active qpu found!"
-        )
+        raise ValueError("asking workflow to get active qpu data but no active qpu found!")
     data = dict(artifact)["data"]
     return LikelihoodFit.from_string(data)
 
@@ -793,7 +777,7 @@ async def model_fit_and_analyse_workflow(
         analysis_dask_runner (str) : if provided, launch new flow to do analysis, otherwise, use same dask runner
     """
     logger = get_run_logger()
-    logger.info(f"Running sampler")
+    logger.info("Running sampler")
     # might want to change sampler runner to not be called as a task so that it can run
     # through the appropriate resources when calling likelihood evaluations
     if fit_run_args.run_model_evaluation_in_dask:
@@ -813,7 +797,7 @@ async def model_fit_and_analyse_workflow(
             show_progress=fit_run_args.show_progress,
         )
         sampler = future.result()
-    logger.info(f"Flattening and analysing results ...")
+    logger.info("Flattening and analysing results ...")
     if fit_run_args.analysis_dask_runner is None:
         await model_analysis_wrapper(
             myflow=myflow,
@@ -829,7 +813,7 @@ async def model_fit_and_analyse_workflow(
 
     else:
         analysis_flow = model_analysis_workflow.with_options(
-            task_runner=myflow.gettaskrunner(analysis_dask_runner)
+            task_runner=myflow.gettaskrunner(fit_run_args.analysis_dask_runner)
         )
         asyncio.run(
             analysis_flow(
@@ -872,9 +856,7 @@ async def multi_model_flow(
         fit_run_args = dict()
     for k in model_info.keys():
         m = model_info[k]
-        model_flows[k] = model_fit_and_analyse_workflow.with_options(
-            task_runner=myflow.gettaskrunner(m.dask_runner)
-        )
+        model_flows[k] = model_fit_and_analyse_workflow.with_options(task_runner=myflow.gettaskrunner(m.dask_runner))
         if k not in fit_run_args.keys():
             warnings.warn(
                 f"model {k} missing explicit runtime args, running with defaults",
@@ -893,7 +875,7 @@ async def multi_model_flow(
                 )
             )
     logger.info("Finished running models")
-    logger.info("Retriving models ... ")
+    logger.info("Retrieving models ... ")
     futures = dict()
     for k in model_info.keys():
         # futures[k] = await model_retrieve_fit.submit(name=model_info[k].name)
@@ -909,9 +891,7 @@ async def multi_model_flow(
     names = [fits[k].name for k in model_info.keys()]
     imax = np.argmax(logZs)
     logger.info(f"Model with largest evidence {names[imax]} with logZ = {logZs[imax]}")
-    logger.info(
-        "Bayes factor logK of model with largest evidence relative to other models ... "
-    )
+    logger.info("Bayes factor logK of model with largest evidence relative to other models ... ")
     for i in range(logZs.size):
         if i == imax:
             continue

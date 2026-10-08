@@ -10,9 +10,14 @@ from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict, Any
 import warnings
+import importlib
 
 # import qbitbridge
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+try:
+    importlib.import_module("qbitbridge")
+except ImportError:
+    print("qbitbridge is not installed. Proceeding with local copy")
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from qbitbridge.options import vQPUWorkflow
 from qbitbridge.vqpubase import HybridQuantumWorkflowBase
 from qbitbridge.vqpufitting import (
@@ -22,6 +27,8 @@ from qbitbridge.vqpufitting import (
     multi_model_flow,
 )
 from qbitbridge.utils import EventFile, save_artifact, upload_image_as_artifact
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from workflow.circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import task, flow
@@ -47,9 +54,7 @@ def hyperfit(X, theta) -> np.ndarray:
     return y
 
 
-def log_likelihood(
-    theta: np.ndarray, model: Callable, X: Any, y: np.ndarray
-) -> np.float64:
+def log_likelihood(theta: np.ndarray, model: Callable, X: Any, y: np.ndarray) -> np.float64:
     """Log-likelihood function
 
     Args:
@@ -106,11 +111,15 @@ def wrapper_to_async_flow(
     """
     @brief run the workflow with the appropriate task runner
     """
-    if yaml_template == None:
-        yaml_template = f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/remote_vqpu_ella_template.yaml"
-    if script_template == None:
-        script_template = f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
-    if cluster == None:
+    if yaml_template is None:
+        yaml_template = (
+            f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/remote_vqpu_ella_template.yaml"
+        )
+    if script_template is None:
+        script_template = (
+            f"{os.path.dirname(os.path.abspath(__file__))}/../../workflow/qb-vqpu/vqpu_template_ella_qpu-1.7.0.sh"
+        )
+    if cluster is None:
         cluster = "ella-qb-1.7.0-pypath"
     myflow = HybridQuantumWorkflowBase(
         cluster=cluster,

@@ -5,20 +5,20 @@
 #ifndef _PROFILE_UTIL_API
 #define _PROFILE_UTIL_API
 
-/// \def logger utility definitions 
+/// \def logger utility definitions
 //@{
 #define _where_calling_from "@"<<__func__<<" "<<profiling_util::__extract_filename(__FILE__)<<":L"<<std::to_string(__LINE__)<<" "
 #define _when_calling_from "("<<profiling_util::__when()<<") : "
-#ifdef _MPI 
+#ifdef _MPI
 #define _MPI_calling_rank "["<<std::setw(5) << std::setfill('0')<<profiling_util::__comm_rank<<"] "<<std::setw(0)
 #define _log_header _MPI_calling_rank<<_where_calling_from<<_when_calling_from
-#else 
+#else
 #define _log_header _where_calling_from<<_when_calling_from
 #endif
 
 //@}
 
-/// \def gerenal logging  
+/// \def gerenal logging
 //@{
 #ifdef _MPI
 #define MPISetLoggingComm(comm) {profiling_util::__comm = comm; MPI_Comm_rank(profiling_util::__comm, &profiling_util::__comm_rank);}
@@ -28,9 +28,9 @@
 #define LogErr() std::cerr<<_log_header
 
 #ifdef _OPENMP
-#ifdef _MPI 
+#ifdef _MPI
 #define LOGGING() shared(profiling_util::__comm, profiling_util::__comm_rank, std::cout)
-#else 
+#else
 #define LOGGING() shared(std::cout)
 #endif
 #endif
@@ -39,7 +39,7 @@
 /// \defgroup LogVersion
 /// report information about utility version
 //@{
-/// report version 
+/// report version
 #define LogVersion() Log()<<profiling_util::__version()<<std::endl;
 #ifdef _MPI
 #define MPILog0Version() if(profiling_util::__comm_rank == 0) Log()<<profiling_util::__version()<<std::endl;
@@ -100,7 +100,7 @@
 #define MPILoggerTimeTaken(logger,timer) Logger(logger)<<profiling_util::ReportTimeTaken(timer,__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
 #define MPILogTimeTakenOnDevice(timer) Log()<<profiling_util::ReportTimeTakenOnDevice(timer, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
 #define MPILoggerTimeTakenOnDevice(logger,timer) Logger(logger)<<profiling_util::ReportTimeTakenOnDevice(timer,__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
-#endif 
+#endif
 #define NewTimer() profiling_util::Timer(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__));
 #define NewTimerHostOnly() profiling_util::Timer(__func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__), false);
 
@@ -116,7 +116,7 @@
 #ifdef _MPI
 #define MPILogCPUUsage(sampler) Log()<<profiling_util::ReportCPUUsage(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
 #define MPILoggerCPUUsage(logger,timer) Logger(logger)<<profiling_util::profiling_util::ReportCPUUsage(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;
-#endif 
+#endif
 
 #ifdef _GPU
 #define LogGPUUsage(sampler) Log()<<profiling_util::ReportGPUUsage(sampler, __func__, profiling_util::__extract_filename(__FILE__), std::to_string(__LINE__))<<std::endl;

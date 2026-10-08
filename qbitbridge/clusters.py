@@ -61,9 +61,7 @@ def get_cluster_spec(cluster: str | Path, clustype: str = "slurm") -> Dict[Any, 
     yaml_file = None
     import glob
 
-    _KNOWN_CLUSTERS = glob.glob(
-        f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/clusters/*.yaml"
-    )
+    _KNOWN_CLUSTERS = glob.glob(f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/clusters/*.yaml")
 
     if Path(cluster).exists():
         yaml_file = cluster
@@ -71,9 +69,7 @@ def get_cluster_spec(cluster: str | Path, clustype: str = "slurm") -> Dict[Any, 
         yaml_file = f"{os.path.dirname(os.path.abspath(__file__))}/../workflow/clusters/{cluster}.yaml"
 
     if yaml_file is None or not Path(yaml_file).exists():
-        raise ValueError(
-            f"{cluster} is not known, or its YAML file could not be loaded."
-        )
+        raise ValueError(f"{cluster} is not known, or its YAML file could not be loaded.")
 
     with open(yaml_file, "r") as in_file:
         spec = yaml.load(in_file, Loader=yaml.Loader)
@@ -102,7 +98,7 @@ def get_dask_runners(
     specs = get_cluster_spec(cluster)
     task_runners = {"jobscript": dict(), "specs": dict()}
     for specname in specs.keys():
-        # still need to figure out how to encorporated distributed options
+        # still need to figure out how to incorporated distributed options
         if specname == "distributed":
             continue
         cluster_config = specs[specname]
@@ -121,13 +117,9 @@ def get_dask_runners(
                 f"Loaded cluster class {cc} does not match the scheduler {sched.scheduler} for cluster {cluster}!"
             )
         if "SLURMCluster" in cc:
-            task_runners["jobscript"][specname] = SLURMCluster(
-                **cluster_config["cluster_kwargs"]
-            ).job_script()
+            task_runners["jobscript"][specname] = SLURMCluster(**cluster_config["cluster_kwargs"]).job_script()
         elif "PBSCluster" in cc:
-            task_runners["jobscript"][specname] = PBSCluster(
-                **cluster_config["cluster_kwargs"]
-            ).job_script()
+            task_runners["jobscript"][specname] = PBSCluster(**cluster_config["cluster_kwargs"]).job_script()
         # elif "KubeCluster" in cc:
         #     task_runners["jobscript"][specname] = KubeCluster(
         #         **cluster_config["cluster_kwargs"]
@@ -135,8 +127,6 @@ def get_dask_runners(
 
         task_runners["specs"][specname] = copy.deepcopy(cluster_config)
         task_runners["jobscript"][specname] = (
-            f"Cluster class:{cc}\n-- Script --\n"
-            + task_runners["jobscript"][specname]
-            + "\n-- End Script --\n"
+            f"Cluster class:{cc}\n-- Script --\n" + task_runners["jobscript"][specname] + "\n-- End Script --\n"
         )
     return task_runners

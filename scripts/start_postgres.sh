@@ -8,11 +8,11 @@ Options:
     -p <> - provide the password
     -a <> - provide the address
     -s <> - provide the scratch space
-    -c <> - singularity container image 
+    -c <> - singularity container image
     -v  - verbose
     -S  - will attempt to start the postgres server from a singularity container
     -h  - will print this help page
-    
+
 
 Usage:
 start_postgres.sh [-p <> | -a <> | -s <> | -v | -S | -h]
@@ -53,17 +53,17 @@ while getopts 'p:a:s:c:Svh' arg; do
 done
 
 # Now set up some postgres values
-# might want a more secure way of setting the password. 
-# might not want it in the script at all. 
-if [[ -z $postgres_pass ]]; then 
+# might want a more secure way of setting the password.
+# might not want it in the script at all.
+if [[ -z $postgres_pass ]]; then
     echo "No password provided"
     exit 1
 fi
-if [[ -z $postgres_addr ]]; then 
+if [[ -z $postgres_addr ]]; then
     echo "No address provided"
     exit 1
 fi
-if [[ -z $postgres_scratch ]]; then 
+if [[ -z $postgres_scratch ]]; then
     echo "No scratch space provided"
     exit 1
 fi
@@ -75,10 +75,10 @@ export POSTGRES_USER='postgres'
 export POSTGRES_DB=orion
 export POSTGRES_SCRATCH=$postgres_scratch
 
-if [[ $VERBOSE -eq 1 ]]; then 
+if [[ $VERBOSE -eq 1 ]]; then
     echo "Postgres environment"
     env | grep "POSTGRES"
-fi 
+fi
 
 if [[ $START_POSTGRES -eq 1 ]]
 then
@@ -94,15 +94,15 @@ then
     fi
 
     if [[ -z ${container_image} ]]
-    then 
+    then
         if [[ ! -e postgres_latest.sif ]]
         then
             echo "Downloading the latest postgres docker container"
             singularity pull docker://postgres
             container_image=$(pwd)/postgres_latest.sif
         fi
-    fi 
-    # set the singularity arguments 
+    fi
+    # set the singularity arguments
     singargs="--cleanenv --bind $POSTGRES_SCRATCH:/var"
     singargs="--bind $POSTGRES_SCRATCH:/var"
 

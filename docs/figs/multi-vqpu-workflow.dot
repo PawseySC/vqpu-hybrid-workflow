@@ -140,11 +140,11 @@ digraph G {
         gpu_finish [label="GPU flow: finish" ];
     }
 
-    {rank=same;vqpu_0_launch;vqpu_1_launch;cpu_start;} 
+    {rank=same;vqpu_0_launch;vqpu_1_launch;cpu_start;}
 
-    {rank=same;vqpu_0_run;circuit_run;vqpu_1_run;cpu_circuit;} 
-    {rank=same;cpu_run;gpu_start;} 
-    // {rank=same;vqpu_0_shutdown;vqpu_1_shutdown;} 
+    {rank=same;vqpu_0_run;circuit_run;vqpu_1_run;cpu_circuit;}
+    {rank=same;cpu_run;gpu_start;}
+    // {rank=same;vqpu_0_shutdown;vqpu_1_shutdown;}
 
     # connections
     vqpu_0_launch -> vqpu_0_run

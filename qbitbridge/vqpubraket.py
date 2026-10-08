@@ -70,7 +70,7 @@ def aws_check_credentials(report_keys: bool = False) -> Dict[str, str]:
     Returns:
         Tuple of relevant information : message, AWS_PROFILE and AWS_DEFAULT_REGION
     Raises:
-        RuntimeErorr if AWS_PROFILE not defined
+        RuntimeError if AWS_PROFILE not defined
     """
     message: str = ""
     aws_profile = os.getenv("AWS_PROFILE")
@@ -103,7 +103,7 @@ def aws_braket_parse_args(arguments: str) -> argparse.Namespace:
     """Parse arguments related to aws braket qpus
     Args:
         args (str) : string of arguments
-    Retursn:
+    Returns:
         Returns the parsed args
     """
     # Create the parser
@@ -143,9 +143,7 @@ async def aws_braket_check_qpu(
         message += f"Available devices :\n {availdevices}"
         raise ValueError(message)
     elif len(devices) > 1:
-        message = (
-            f"More than one device found with name similar to {args.braketdevice}. "
-        )
+        message = f"More than one device found with name similar to {args.braketdevice}. "
         message += "Please adjust device name for search."
         raise ValueError(message)
     devices = AwsDevice.get_devices(names=[args.braketdevice], statuses=["ONLINE"])
@@ -267,9 +265,7 @@ async def run_aws_braket_qpu(
 
     """
     logger = get_run_logger()
-    logger.info(
-        f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... "
-    )
+    logger.info(f"QPU-{qpu_id} running and will keep running till: circuits complete, walltime or qpu down ... ")
     # generate a list of asyncio tasks to determine when to proceed and shutdown the vqpu
     if profile_info is not None:
         os.environ["AWS_PROFILE"] = profile_info[0]
@@ -388,8 +384,6 @@ async def launch_aws_braket_qpu_workflow(
 
     # once the run has finished, shut it down
     # future = await shutdown_aws_braket_qpu.submit(
-    future = await submit_compat(
-        shutdown_aws_braket_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id
-    )
+    future = await submit_compat(shutdown_aws_braket_qpu, myqpuworkflow=myqpuworkflow, qpu_id=qpu_id)
     # await future.result()
     await result_from_future_compat(future)

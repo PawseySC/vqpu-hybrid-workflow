@@ -18,7 +18,7 @@ from qbitbridge.vqpucudaq import (
     cudaq_check_qpu,
     cudaq_get_metadata,
     launch_cudaq_qpu_workflow,
-    cudaq_allowed_devices
+    cudaq_allowed_devices,
 )
 
 from qbitbridge.utils import EventFile
@@ -38,7 +38,7 @@ class TestHybridQueraWorkflowBasics(unittest.TestCase):
         print(cudaq_check_credentials())
 
     def test_cudaq_device_calls(self):
-        
+
         for d in cudaq_allowed_devices:
             arguments: str = f"--cudaqdevice={d}"
             print(f"Check if {d} available")

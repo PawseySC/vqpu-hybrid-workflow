@@ -13,14 +13,14 @@ int main(int argc, char *argv[])
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(comm, &ThisTask);
     MPISetLoggingComm(comm);
-#endif 
+#endif
 #ifdef _MPI
     MPILog0Version();
     MPILog0ParallelAPI();
     MPILog0Binding();
     MPILog0NodeSystemMem();
     MPI_Barrier(comm);
-#else 
+#else
     LogVersion();
     LogParallelAPI();
     LogBinding();
@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     std::vector<float> xvec(1000000);
     std::default_random_engine generator;
     std::normal_distribution<double> distribution(1.0,2.0);
-    for (auto &x:xvec) 
+    for (auto &x:xvec)
     {
         x = distribution(generator);
         x = exp(-x*x)*x/(1.0+x)+sin(pow(x*x,0.25));
@@ -64,6 +64,6 @@ int main(int argc, char *argv[])
 
 #ifdef _MPI
     MPI_Finalize();
-#endif 
+#endif
 
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # this is a sample script for launching the virtual qpu of QB on ella
-# note that here the vqpu does not have any qubit specifcation.
+# note that here the vqpu does not have any qubit specification.
 # Specification of qubits occurs when actually running a circuit
 
 VQPU_PORT=${VQPU_PORT:-8443}

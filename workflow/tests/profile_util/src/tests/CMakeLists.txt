@@ -1,6 +1,6 @@
 # Pawsey Supercomputing Research Centre
 #
-# Test building executable with profile_util library 
+# Test building executable with profile_util library
 
 set(tests
     test_profile_util
@@ -13,4 +13,3 @@ foreach(test ${tests})
     set_target_properties(${test} PROPERTIES LINK_FLAGS ${PU_LINK_FLAGS})
   endif()
 endforeach()
-
