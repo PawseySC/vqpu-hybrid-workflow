@@ -6,9 +6,15 @@ This workflow spins up two or more vqpus and then has a workflow that runs cpu/g
 """
 
 import sys, os, re
+import importlib
+
+try:
+    importlib.import_module("qbitbridge")
+except ImportError:
+    print("qbitbridge is not installed. Proceeding with local copy")
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 
 # import qbitbridge
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 # import circuits
 from time import sleep
 import datetime
@@ -26,6 +32,8 @@ from qbitbridge.vqpuflow import (
     run_circuits_once_vqpu_ready,
 )
 from qbitbridge.utils import EventFile, save_artifact
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from workflow.circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import flow

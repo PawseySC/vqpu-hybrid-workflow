@@ -1,6 +1,8 @@
 [build-system]
-requires = [""]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+# requires = ["setuptools >= 77.0.3"]
+# build-backend = "setuptools.build_meta"
 
 # define basic package information
 [project]
@@ -13,21 +15,22 @@ authors = [
 maintainers = [
     {name = "pelahi", email = "pascal.elahi@pawsey.org.au"},
 ]
-license = "Apache"
-license-files = ["LICEN[CS]E.*"]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 keywords = ["quantum computing", "supercomputing", "hybrid", "workflow"]
 readme = "README.md"
-include = [
-    {path = 'qbitbridge'},
-    {path = 'workflow/clusters'},
-    {path = 'workflow/scripts/'},
-    {path = 'workflow/tests/'},
-]
+# include = [
+#     {path = 'qbitbridge'},
+#     {path = 'workflow/clusters'},
+#     {path = 'workflow/scripts/'},
+#     {path = 'workflow/tests/'},
+# ]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
-  "Topic :: Quantum Computing :: Hybrid Quantum SuperComputing ",
-
+  "Topic :: Scientific/Engineering :: Quantum Computing",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Software Development :: Libraries",
   # Specify the Python versions you support here.
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -46,8 +49,12 @@ dependencies = [
     "scipy",
     "spython",
     "matplotlib",
-    "sckikit-image",
+    # "sckikit-image",
 ]
+
+[tool.hatch.version]
+path = "qbitbridge/__about__.py"
+
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -122,6 +129,7 @@ fitting = [
     "corner",
     "pandas",
     "dynesty",
+    "h5py",
 ]
 quera = [
     "bloqade",

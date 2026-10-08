@@ -10,9 +10,14 @@ from time import sleep
 import datetime
 from typing import List, Set, Callable, Tuple, Dict, Any
 import warnings
+import importlib
 
 # import qbitbridge
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+try:
+    importlib.import_module("qbitbridge")
+except ImportError:
+    print("qbitbridge is not installed. Proceeding with local copy")
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from qbitbridge.options import vQPUWorkflow
 from qbitbridge.vqpubase import HybridQuantumWorkflowBase
 from qbitbridge.vqpufitting import (
@@ -22,6 +27,8 @@ from qbitbridge.vqpufitting import (
     multi_model_flow,
 )
 from qbitbridge.utils import EventFile, save_artifact, upload_image_as_artifact
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from workflow.circuits.qristal_circuits import simulator_setup, noisy_circuit
 import asyncio
 from prefect import task, flow
