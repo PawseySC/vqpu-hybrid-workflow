@@ -135,7 +135,7 @@ fitting = [
 ]
 quera = [
     "bloqade",
-    "bloqade-analogue",
+    "bloqade-analog",
 ]
 qiskit = [
     "qiskit",
@@ -148,4 +148,8 @@ braket = [
 ]
 cudaq = [
     "cudaq",
+]
+
+all = [
+    "QBitBridge[docs,test,dev,fitting,quera,qiskit,braket,cudaq]"
 ]
