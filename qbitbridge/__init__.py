@@ -4,6 +4,7 @@
 from . import clusters
 from . import options
 from . import utils
+from . import launcher
 
 from . import vqpubase
 from . import vqpuflow
