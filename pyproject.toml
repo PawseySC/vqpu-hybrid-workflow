@@ -19,12 +19,13 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 keywords = ["quantum computing", "supercomputing", "hybrid", "workflow"]
 readme = "README.md"
-# include = [
-#     {path = 'qbitbridge'},
-#     {path = 'workflow/clusters'},
-#     {path = 'workflow/scripts/'},
-#     {path = 'workflow/tests/'},
-# ]
+include = [
+    {path = 'qbitbridge'},
+    {path = 'workflow/clusters'},
+    {path = 'workflow/scripts/'},
+    {path = 'workflow/tests/'},
+]
+
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -51,10 +52,11 @@ dependencies = [
     "matplotlib",
     # "sckikit-image",
 ]
+[project.scripts]
+qbitbridge_launcher = "qbitbridge.launcher:launch"
 
 [tool.hatch.version]
 path = "qbitbridge/__about__.py"
-
 
 [tool.hatch.metadata]
 allow-direct-references = true
